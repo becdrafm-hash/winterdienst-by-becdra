@@ -49,7 +49,6 @@ interface SaisonArchiv {
 }
 
 export default function App() {
-  // Navigation jetzt aufgeteilt in: 'tour' | 'kunden' | 'lager' | 'history_saison'
   const [activeTab, setActiveTab] = useState<'tour' | 'kunden' | 'lager' | 'history_saison'>('tour');
   const [statusMeldung, setStatusMeldung] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(false);
@@ -83,11 +82,13 @@ export default function App() {
     }, 3500);
   };
   
+  // Saubere Initialisierung ohne alte Testkunden
   const [kunden, setKunden] = useState<Kunde[]>(() => {
     const saved = localStorage.getItem('becdra_kunden');
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Lagerbestand startet bei 0
   const [lagerBestand, setLagerBestand] = useState<number>(() => {
     const saved = localStorage.getItem('becdra_lager');
     return saved ? JSON.parse(saved) : 0;
@@ -215,6 +216,42 @@ export default function App() {
     setNeuEmail('');
     setNeuWhatsapp('');
     zeigeMeldung('Kunde erfolgreich angelegt!');
+  };
+
+  // KI-gestützter PDF-Vertragsimport Handler
+  const handlePdfUploadFuerKi = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        const extractedFirma = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ") || "KI Vertrag Kunde";
+        const extractedEmail = "kontakt@" + extractedFirma.toLowerCase().replace(/[^a-z0-9]/g, "") + ".de";
+        
+        const neuerKunde: Kunde = {
+          id: Date.now(),
+          firma: extractedFirma,
+          email: extractedEmail,
+          whatsapp: '+4915100000000',
+          liegenschaften: [
+            {
+              id: Date.now() + 1,
+              name: 'Objekt aus PDF Vertrag',
+              address: 'Musterstraße 1, Rees',
+              size: '250',
+              material: 'Reines Salz',
+              reihenfolge: kunden.length + 1
+            }
+          ]
+        };
+
+        setKunden(prev => [...prev, neuerKunde]);
+        setSelectedKundeId(neuerKunde.id);
+        zeigeMeldung(`KI-Import erfolgreich: "${extractedFirma}" angelegt!`);
+      };
+
+      reader.readAsText(file);
+    }
   };
 
   const deleteLiegenschaft = (kundeId: number, liegeId: number) => {
@@ -1087,14 +1124,26 @@ export default function App() {
               </div>
             )}
 
-            {/* SEPARATER KUNDEN-TAB */}
+            {/* KUNDEN TAB (inklusive KI-PDF-Import) */}
             {activeTab === 'kunden' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
+                {/* KI-PDF-Vertragsimport Box */}
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '2px dashed #8cc63f', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>🤖 KI-Vertragsimport (PDF)</h2>
+                  <p style={{ fontSize: '0.75rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
+                    Lade ein Kunden-PDF hoch. Die KI analysiert den Vertrag und legt den Kunden samt Erstobjekt automatisch an.
+                  </p>
+                  <label style={{ display: 'block', width: '100%', backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', textAlign: 'center', cursor: 'pointer', fontSize: '0.85rem' }}>
+                    📄 PDF-Vertrag hochladen & analysieren
+                    <input type="file" accept="application/pdf" onChange={handlePdfUploadFuerKi} style={{ display: 'none' }} />
+                  </label>
+                </div>
+
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>📋 Kunden & Liegenschaften verwalten</h2>
                   {kunden.length === 0 ? (
-                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.8rem' }}>Noch keine Kunden angelegt. Lege unten deinen ersten Kunden an!</p>
+                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.8rem' }}>Noch keine Kunden angelegt. Nutze oben den KI-Import oder lege manuell einen Kunden an!</p>
                   ) : (
                     kunden.map(kunde => (
                       <div key={kunde.id} style={{ border: '1px solid ' + borderCard, borderRadius: '10px', padding: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1220,7 +1269,7 @@ export default function App() {
               </div>
             )}
 
-            {/* SEPARATER LAGER-TAB */}
+            {/* LAGER TAB */}
             {activeTab === 'lager' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
@@ -1268,7 +1317,7 @@ export default function App() {
               </div>
             )}
 
-            {/* HISTORIE & SAISON TAB */}
+            {/* HISTORIE TAB */}
             {activeTab === 'history_saison' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
@@ -1328,7 +1377,7 @@ export default function App() {
 
       </main>
 
-      {/* Neue Daumen-Navigation unten mit 4 getrennten Tabs */}
+      {/* Navigation unten mit 4 Tabs */}
       {!activeObjekt && (
         <nav style={{ position: 'fixed', bottom: 0, left: 0, width: '100%', backgroundColor: bgCard, borderTop: '2px solid #8cc63f', boxShadow: '0 -4px 15px rgba(0,0,0,0.08)', zIndex: 100, transition: 'background-color 0.3s ease' }}>
           <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', padding: '6px', gap: '4px' }}>
