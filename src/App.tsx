@@ -214,6 +214,22 @@ export default function App() {
     setNeuWhatsapp('');
     zeigeMeldung('Kunde erfolgreich angelegt!');
   };
+  // Funktion zum Löschen eines Kunden mit Sicherheitsabfrage
+  const deleteKunde = (kundeId: number) => {
+    setDialogConfig({
+      visible: true,
+      titel: 'Kunden löschen',
+      text: 'Möchtest du diesen Kunden und alle dazugehörigen Liegenschaften wirklich unwiderruflich löschen?',
+      confirmText: 'Löschen',
+      cancelText: 'Abbrechen',
+      onConfirm: () => {
+        setKunden(prevKunden => prevKunden.filter(k => k.id !== kundeId));
+        setDialogConfig(prev => ({ ...prev, visible: false }));
+        zeigeMeldung('Kunde erfolgreich gelöscht.');
+      },
+      onCancel: () => setDialogConfig(prev => ({ ...prev, visible: false }))
+    });
+  };
 
   const deleteLiegenschaft = (kundeId: number, liegeId: number) => {
     setDialogConfig({
@@ -1215,6 +1231,31 @@ export default function App() {
                     </div>
                     <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Startpunkt speichern</button>
                   </form>
+                </div>
+
+{/* Liste der vorhandenen Kunden mit Lösch-Option */}
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 12px 0', color: textApp }}>📋 Vorhandene Kunden ({kunden.length})</h2>
+                  {kunden.length === 0 ? (
+                    <p style={{ fontSize: '0.8rem', color: textSub, textAlign: 'center', margin: '8px 0' }}>Keine Kunden gespeichert.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {kunden.map(kunde => (
+                        <div key={kunde.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', borderRadius: '8px', border: '1px solid ' + borderCard }}>
+                          <div>
+                            <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'bold', color: textApp }}>{kunde.firma}</h4>
+                            <p style={{ fontSize: '0.75rem', color: textSub, margin: '2px 0 0 0' }}>{kunde.liegenschaften.length} Liegenschaft(en) hinterlegt</p>
+                          </div>
+                          <button 
+                            onClick={() => deleteKunde(kunde.id)}
+                            style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}
+                          >
+                            🗑️ Löschen
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
