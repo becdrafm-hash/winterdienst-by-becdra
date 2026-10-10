@@ -82,12 +82,13 @@ export default function App() {
     }, 3500);
   };
   
-  // Saubere Initialisierung ohne Testkunden
+  // Saubere Initialisierung ohne Testkunden (startet leer)
   const [kunden, setKunden] = useState<Kunde[]>(() => {
     const saved = localStorage.getItem('becdra_kunden');
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Lagerbestand startet bei 0
   const [lagerBestand, setLagerBestand] = useState<number>(() => {
     const saved = localStorage.getItem('becdra_lager');
     return saved ? JSON.parse(saved) : 0;
@@ -217,26 +218,39 @@ export default function App() {
     zeigeMeldung('Kunde erfolgreich angelegt!');
   };
 
-  // KI-gestützter PDF-Vertragsimport
+  const startEditKunde = (kunde: Kunde) => {
+    setEditingKundeId(kunde.id);
+    setEditFirma(kunde.firma);
+    setEditEmail(kunde.email);
+    setEditWhatsapp(kunde.whatsapp);
+  };
+
+  const saveEditKunde = (id: number) => {
+    setKunden(kunden.map(k => k.id === id ? { ...k, firma: editFirma, email: editEmail, whatsapp: editWhatsapp } : k));
+    setEditingKundeId(null);
+    zeigeMeldung('Kunde aktualisiert!');
+  };
+
+  // Verbesserter KI-PDF-Vertragsimport mit automatischem Öffnen der Stammdaten zum Anpassen
   const handlePdfUploadFuerKi = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const reader = new FileReader();
 
       reader.onload = () => {
-        const extractedFirma = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ") || "KI Vertrag Kunde";
-        const extractedEmail = "kontakt@" + extractedFirma.toLowerCase().replace(/[^a-z0-9]/g, "") + ".de";
+        const gefundeneFirma = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ") || "KI Vertrag Kunde";
+        const generierteEmail = "kontakt@" + gefundeneFirma.toLowerCase().replace(/[^a-z0-9]/g, "") + ".de";
         
         const neuerKunde: Kunde = {
           id: Date.now(),
-          firma: extractedFirma,
-          email: extractedEmail,
+          firma: gefundeneFirma,
+          email: generierteEmail,
           whatsapp: '+4915100000000',
           liegenschaften: [
             {
               id: Date.now() + 1,
-              name: 'Objekt aus PDF Vertrag',
-              address: 'Musterstraße 1, Rees',
+              name: 'Hauptobjekt aus PDF',
+              address: 'Bitte Adresse eintragen',
               size: '250',
               material: 'Reines Salz',
               reihenfolge: kunden.length + 1
@@ -246,14 +260,18 @@ export default function App() {
 
         setKunden(prev => [...prev, neuerKunde]);
         setSelectedKundeId(neuerKunde.id);
-        zeigeMeldung(`KI-Import erfolgreich: "${extractedFirma}" angelegt!`);
+        
+        // Öffnet direkt den Bearbeitungsmodus für diesen neuen Kunden
+        startEditKunde(neuerKunde);
+        
+        zeigeMeldung(`PDF eingelesen! Passe jetzt die Stammdaten für "${gefundeneFirma}" an.`);
       };
 
       reader.readAsText(file);
     }
   };
 
-  // Funktion zum Löschen eines kompletten Kunden inklusive Sicherheitsabfrage
+  // Funktion zum Löschen eines Kunden
   const deleteKunde = (kundeId: number) => {
     setDialogConfig({
       visible: true,
@@ -330,19 +348,6 @@ export default function App() {
     setNeuObjReihenfolge('1');
     setNeuObjRaeumPlan('');
     zeigeMeldung('Liegenschaft inklusive Räumplan hinzugefügt!');
-  };
-
-  const startEditKunde = (kunde: Kunde) => {
-    setEditingKundeId(kunde.id);
-    setEditFirma(kunde.firma);
-    setEditEmail(kunde.email);
-    setEditWhatsapp(kunde.whatsapp);
-  };
-
-  const saveEditKunde = (id: number) => {
-    setKunden(kunden.map(k => k.id === id ? { ...k, firma: editFirma, email: editEmail, whatsapp: editWhatsapp } : k));
-    setEditingKundeId(null);
-    zeigeMeldung('Kunde aktualisiert!');
   };
 
   const startEditLiege = (kundeId: number, liege: Liegenschaft) => {
@@ -1140,7 +1145,7 @@ export default function App() {
               </div>
             )}
 
-            {/* KUNDEN TAB (inklusive KI-PDF-Import & funktionierendem Kunden-Löschen) */}
+            {/* KUNDEN TAB (inklusive angepasstem KI-Import & Lösch-Button) */}
             {activeTab === 'kunden' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
@@ -1148,10 +1153,10 @@ export default function App() {
                 <div style={{ backgroundColor: bgCard, padding: '18px', borderRadius: '16px', border: '2px solid #8cc63f', boxShadow: '0 4px 12px rgba(140, 198, 63, 0.15)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: textApp }}>🤖 KI-Vertragsimport (PDF)</h2>
                   <p style={{ fontSize: '0.8rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
-                    Lade den PDF-Vertrag hoch. Die KI liest das Dokument aus und erstellt den Kunden samt Erstobjekt automatisch für dich.
+                    Lade ein PDF hoch. Der Dateiname wird als Kundenbasis übernommen und die App öffnet direkt die Stammdaten zum Anpassen.
                   </p>
                   <label style={{ display: 'block', width: '100%', backgroundColor: '#8cc63f', color: '#111827', padding: '12px', borderRadius: '10px', fontWeight: 'bold', textAlign: 'center', cursor: 'pointer', fontSize: '0.9rem', boxShadow: '0 2px 8px rgba(140, 198, 63, 0.3)', boxSizing: 'border-box' }}>
-                    📄 PDF-Vertrag hochladen & analysieren
+                    📄 PDF-Vertrag hochladen & direkt bearbeiten
                     <input type="file" accept="application/pdf" onChange={handlePdfUploadFuerKi} style={{ display: 'none' }} />
                   </label>
                 </div>
@@ -1406,7 +1411,6 @@ export default function App() {
             <button onClick={() => setActiveTab('kunden')} style={{ padding: '8px 4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'kunden' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'kunden' ? '#111827' : textSub }}>
               👥 Kunden
             </button>
-            <button onClick={() =>_setActiveTab_Lager} style={{ display: 'none' }}></button> {/* Hilfsanker */}
             <button onClick={() => setActiveTab('lager')} style={{ padding: '8px 4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'lager' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'lager' ? '#111827' : textSub }}>
               📦 Lager
             </button>
