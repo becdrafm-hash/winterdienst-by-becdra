@@ -229,33 +229,110 @@ export default function App() {
     zeigeMeldung('Kunde aktualisiert!');
   };
 
-  // 🤖 Stabiler Smart-PDF-Import mit automatischer Stammdaten-Öffnung
-  const handlePdfUploadFuerKi = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 🤖 Echte Gemini AI API Anbindung für den automatischen Vertragsimport
+  const handlePdfUploadFuerKi = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const firmenName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ") || "Neuer Vertragskunde";
+      const reader = new FileReader();
 
-      const neuerKunde: Kunde = {
-        id: Date.now(),
-        firma: firmenName,
-        email: "",
-        whatsapp: "",
-        liegenschaften: [
-          {
-            id: Date.now() + 1,
-            name: 'Hauptobjekt',
-            address: '',
-            size: '250',
-            material: 'Reines Salz',
-            reihenfolge: kunden.length + 1
+      reader.onload = async (event) => {
+        const textInhalt = event.target?.result as string || '';
+        const apiKey = 'AIzaSyBV5fDA1e2Z0TQjd5NIwwNMDgJuqd2_1BI';
+
+        zeigeMeldung("🤖 Gemini analysiert den Vertrag & Liegenschaften...");
+
+        try {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [{
+                  text: `Analysiere diesen Winterdienst-Vertragstext. Extrahiere den Auftraggeber (Firma), E-Mail, Telefon/WhatsApp sowie alle aufgeführten Liegenschaften mit Objektbezeichnung, Adresse und Quadratmetern (m²). 
+                  Gib mir das Ergebnis exakt im folgenden JSON-Format zurück (keine Backticks, kein Markdown, nur reines JSON):
+                  {
+                    "firma": "Name des Auftraggebers",
+                    "email": "E-Mail Adresse",
+                    "whatsapp": "Telefonnummer",
+                    "liegenschaften": [
+                      {
+                        "name": "Objektbezeichnung z.B. Commerzbank Kleve",
+                        "adresse": "Straße Hausnummer, PLZ Ort",
+                        "flaeche": "Quadratmeter als Zahl"
+                      }
+                    ]
+                  }
+                  
+                  Vertragstext:
+                  ${textInhalt.slice(0, 4000)}`
+                }]
+              }]
+            })
+          });
+
+          const data = await response.json();
+          const geminiAntwort = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          
+          const sauberesJson = JSON.parse(geminiAntwort.replace(/```json/g, '').replace(/```/g, '').trim());
+
+          const firmenName = sauberesJson.firma || file.name.replace(/\.[^/.]+$/, "");
+          
+          // Prüfen, ob der Kunde bereits existiert
+          const existierenderKunde = kunden.find(k => k.firma.toLowerCase() === firmenName.toLowerCase());
+
+          if (existierenderKunde) {
+            zeigeMeldung(`Kunde "${firmenName}" existiert bereits.`);
+          } else {
+            const neueLiegenschaften: Liegenschaft[] = (sauberesJson.liegenschaften || []).map((l: any, index: number) => ({
+              id: Date.now() + index,
+              name: l.name || `Objekt ${index + 1}`,
+              address: l.adresse || '',
+              size: l.flaeche || '250',
+              material: 'Reines Salz',
+              reihenfolge: kunden.flatMap(k => k.liegenschaften).length + index + 1
+            }));
+
+            const neuerKunde: Kunde = {
+              id: Date.now(),
+              firma: firmenName,
+              email: sauberesJson.email || '',
+              whatsapp: sauberesJson.whatsapp || '',
+              liegenschaften: neueLiegenschaften.length > 0 ? neueLiegenschaften : [
+                {
+                  id: Date.now(),
+                  name: 'Hauptobjekt',
+                  address: '',
+                  size: '250',
+                  material: 'Reines Salz',
+                  reihenfolge: 1
+                }
+              ]
+            };
+
+            setKunden(prev => [...prev, neuerKunde]);
+            setSelectedKundeId(neuerKunde.id);
+            zeigeMeldung(`✨ "${firmenName}" samt Liegenschaften erfolgreich angelegt!`);
           }
-        ]
+
+        } catch (error) {
+          console.error("Gemini Fehler:", error);
+          // Robuster Fallback für den Fall dass Text direkt eingelesen wird
+          const neuerKunde: Kunde = {
+            id: Date.now(),
+            firma: file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " "),
+            email: "",
+            whatsapp: "",
+            liegenschaften: [
+              { id: Date.now() + 1, name: 'Hauptobjekt', address: '', size: '250', material: 'Reines Salz', reihenfolge: 1 }
+            ]
+          };
+          setKunden(prev => [...prev, neuerKunde]);
+          startEditKunde(neuerKunde);
+          zeigeMeldung(`PDF importiert! Bitte Stammdaten ergänzen.`);
+        }
       };
 
-      setKunden(prev => [...prev, neuerKunde]);
-      setSelectedKundeId(neuerKunde.id);
-      startEditKunde(neuerKunde);
-      zeigeMeldung(`PDF "${firmenName}" importiert! Bitte Stammdaten ergänzen.`);
+      reader.readAsText(file);
     }
   };
 
@@ -1136,14 +1213,14 @@ export default function App() {
             {activeTab === 'kunden' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
-                {/* 🤖 Smart-PDF-Import Box */}
+                {/* 🤖 Gemini AI PDF-Import Box */}
                 <div style={{ backgroundColor: bgCard, padding: '18px', borderRadius: '16px', border: '2px solid #8cc63f', boxShadow: '0 4px 12px rgba(140, 198, 63, 0.15)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: textApp }}>🤖 Smart-PDF-Import</h2>
+                  <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: textApp }}>🤖 Gemini KI-Vertragsimport</h2>
                   <p style={{ fontSize: '0.8rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
-                    Lade ein PDF hoch. Der Dateiname wird als saubere Basis übernommen und du kannst die Stammdaten sofort anpassen.
+                    Lade den Vertrag hoch. Gemini analysiert das Dokument vollautomatisch und zieht Auftraggeber sowie alle Liegenschaften mit m² heraus.
                   </p>
                   <label style={{ display: 'block', width: '100%', backgroundColor: '#8cc63f', color: '#111827', padding: '12px', borderRadius: '10px', fontWeight: 'bold', textAlign: 'center', cursor: 'pointer', fontSize: '0.9rem', boxShadow: '0 2px 8px rgba(140, 198, 63, 0.3)', boxSizing: 'border-box' }}>
-                    📄 PDF-Vertrag hochladen & direkt bearbeiten
+                    📄 PDF mit Gemini KI auslesen
                     <input type="file" accept="application/pdf" onChange={handlePdfUploadFuerKi} style={{ display: 'none' }} />
                   </label>
                 </div>
@@ -1151,7 +1228,7 @@ export default function App() {
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>📋 Kunden & Liegenschaften verwalten</h2>
                   {kunden.length === 0 ? (
-                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Kunden angelegt. Nutze oben den Smart-Import oder lege manuell einen Kunden an!</p>
+                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Kunden angelegt. Nutze oben den KI-Import oder lege manuell einen Kunden an!</p>
                   ) : (
                     kunden.map(kunde => (
                       <div key={kunde.id} style={{ border: '1px solid ' + borderCard, borderRadius: '10px', padding: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '8px' }}>
