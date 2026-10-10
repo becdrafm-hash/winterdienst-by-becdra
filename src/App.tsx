@@ -82,13 +82,12 @@ export default function App() {
     }, 3500);
   };
   
-  // Saubere Initialisierung ohne alte Testkunden
+  // Saubere Initialisierung ohne Testkunden
   const [kunden, setKunden] = useState<Kunde[]>(() => {
     const saved = localStorage.getItem('becdra_kunden');
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Lagerbestand startet bei 0
   const [lagerBestand, setLagerBestand] = useState<number>(() => {
     const saved = localStorage.getItem('becdra_lager');
     return saved ? JSON.parse(saved) : 0;
@@ -218,7 +217,7 @@ export default function App() {
     zeigeMeldung('Kunde erfolgreich angelegt!');
   };
 
-  // KI-gestützter PDF-Vertragsimport Handler
+  // KI-gestützter PDF-Vertragsimport
   const handlePdfUploadFuerKi = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -252,6 +251,23 @@ export default function App() {
 
       reader.readAsText(file);
     }
+  };
+
+  // Funktion zum Löschen eines kompletten Kunden inklusive Sicherheitsabfrage
+  const deleteKunde = (kundeId: number) => {
+    setDialogConfig({
+      visible: true,
+      titel: 'Kunden löschen',
+      text: 'Möchtest du diesen Kunden und alle dazugehörigen Liegenschaften wirklich unwiderruflich löschen?',
+      confirmText: 'Löschen',
+      cancelText: 'Abbrechen',
+      onConfirm: () => {
+        setKunden(prevKunden => prevKunden.filter(k => k.id !== kundeId));
+        setDialogConfig(prev => ({ ...prev, visible: false }));
+        zeigeMeldung('Kunde erfolgreich gelöscht.');
+      },
+      onCancel: () => setDialogConfig(prev => ({ ...prev, visible: false }))
+    });
   };
 
   const deleteLiegenschaft = (kundeId: number, liegeId: number) => {
@@ -1124,17 +1140,17 @@ export default function App() {
               </div>
             )}
 
-            {/* KUNDEN TAB (inklusive KI-PDF-Import) */}
+            {/* KUNDEN TAB (inklusive KI-PDF-Import & funktionierendem Kunden-Löschen) */}
             {activeTab === 'kunden' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
-                {/* KI-PDF-Vertragsimport Box */}
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '2px dashed #8cc63f', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>🤖 KI-Vertragsimport (PDF)</h2>
-                  <p style={{ fontSize: '0.75rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
-                    Lade ein Kunden-PDF hoch. Die KI analysiert den Vertrag und legt den Kunden samt Erstobjekt automatisch an.
+                {/* 🤖 KI-PDF-Vertragsimport Box */}
+                <div style={{ backgroundColor: bgCard, padding: '18px', borderRadius: '16px', border: '2px solid #8cc63f', boxShadow: '0 4px 12px rgba(140, 198, 63, 0.15)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: textApp }}>🤖 KI-Vertragsimport (PDF)</h2>
+                  <p style={{ fontSize: '0.8rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
+                    Lade den PDF-Vertrag hoch. Die KI liest das Dokument aus und erstellt den Kunden samt Erstobjekt automatisch für dich.
                   </p>
-                  <label style={{ display: 'block', width: '100%', backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', textAlign: 'center', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <label style={{ display: 'block', width: '100%', backgroundColor: '#8cc63f', color: '#111827', padding: '12px', borderRadius: '10px', fontWeight: 'bold', textAlign: 'center', cursor: 'pointer', fontSize: '0.9rem', boxShadow: '0 2px 8px rgba(140, 198, 63, 0.3)', boxSizing: 'border-box' }}>
                     📄 PDF-Vertrag hochladen & analysieren
                     <input type="file" accept="application/pdf" onChange={handlePdfUploadFuerKi} style={{ display: 'none' }} />
                   </label>
@@ -1163,7 +1179,10 @@ export default function App() {
                               <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', margin: 0, color: textApp }}>{kunde.firma}</h3>
                               <p style={{ fontSize: '0.7rem', color: textSub, margin: '2px 0 0 0' }}>✉ {kunde.email} | 📞 {kunde.whatsapp}</p>
                             </div>
-                            <button onClick={() => startEditKunde(kunde)} style={{ background: 'none', border: '1px solid ' + borderCard, padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer', color: textApp }}>✏️ Stammdaten</button>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <button onClick={() => startEditKunde(kunde)} style={{ background: 'none', border: '1px solid ' + borderCard, padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer', color: textApp }}>✏️ Stammdaten</button>
+                              <button onClick={() => deleteKunde(kunde.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold', padding: '4px' }} title="Kunden löschen">🗑️</button>
+                            </div>
                           </div>
                         )}
 
@@ -1387,6 +1406,7 @@ export default function App() {
             <button onClick={() => setActiveTab('kunden')} style={{ padding: '8px 4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'kunden' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'kunden' ? '#111827' : textSub }}>
               👥 Kunden
             </button>
+            <button onClick={() =>_setActiveTab_Lager} style={{ display: 'none' }}></button> {/* Hilfsanker */}
             <button onClick={() => setActiveTab('lager')} style={{ padding: '8px 4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'lager' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'lager' ? '#111827' : textSub }}>
               📦 Lager
             </button>
