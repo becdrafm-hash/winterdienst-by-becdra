@@ -53,6 +53,7 @@ export default function App() {
   const [statusMeldung, setStatusMeldung] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(false);
 
+  // Flexibler Startpunkt
   const [startPunkt, setStartPunkt] = useState<string>(() => {
     return localStorage.getItem('becdra_startpunkt') || 'Groiner Allee 1, 46459 Rees';
   });
@@ -81,14 +82,16 @@ export default function App() {
     }, 3500);
   };
   
+  // Saubere Initialisierung ohne alte Testkunden
   const [kunden, setKunden] = useState<Kunde[]>(() => {
     const saved = localStorage.getItem('becdra_kunden');
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Saubere Lager-Initialisierung (startet bei 0)
   const [lagerBestand, setLagerBestand] = useState<number>(() => {
     const saved = localStorage.getItem('becdra_lager');
-    return saved ? JSON.parse(saved) : 40;
+    return saved ? JSON.parse(saved) : 0;
   });
 
   const [spritPreisProLiter] = useState<string>('1.80');
@@ -214,22 +217,6 @@ export default function App() {
     setNeuWhatsapp('');
     zeigeMeldung('Kunde erfolgreich angelegt!');
   };
-  // Funktion zum Löschen eines Kunden mit Sicherheitsabfrage
-  const deleteKunde = (kundeId: number) => {
-    setDialogConfig({
-      visible: true,
-      titel: 'Kunden löschen',
-      text: 'Möchtest du diesen Kunden und alle dazugehörigen Liegenschaften wirklich unwiderruflich löschen?',
-      confirmText: 'Löschen',
-      cancelText: 'Abbrechen',
-      onConfirm: () => {
-        setKunden(prevKunden => prevKunden.filter(k => k.id !== kundeId));
-        setDialogConfig(prev => ({ ...prev, visible: false }));
-        zeigeMeldung('Kunde erfolgreich gelöscht.');
-      },
-      onCancel: () => setDialogConfig(prev => ({ ...prev, visible: false }))
-    });
-  };
 
   const deleteLiegenschaft = (kundeId: number, liegeId: number) => {
     setDialogConfig({
@@ -262,72 +249,6 @@ export default function App() {
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  const [importLadeStatus, setImportLadeStatus] = useState<string>('');
-  const [kiVorschauDaten, setKiVorschauDaten] = useState<any>(null);
-
-  const handlePdfUploadFuerKi = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.type !== 'application/pdf') {
-      zeigeMeldung('Bitte lade eine gültige PDF-Datei hoch.');
-      return;
-    }
-
-    setImportLadeStatus('Analysiere Dokument mit KI...');
-
-    try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        setTimeout(() => {
-          const erkanntesErgebnis = {
-            kundeTyp: "firma",
-            firma: "Extrahierter Auftraggeber (z.B. Hausverwaltung / Firma)",
-            email: "buchhaltung@kunde.de",
-            whatsapp: "+49123456789",
-            liegenschaften: [
-              {
-                id: Date.now(),
-                name: "Erkannte Liegenschaft / Objekt",
-                address: "Musterstraße 1, 46459 Rees",
-                size: "350",
-                material: "Reines Salz",
-                reihenfolge: 1
-              }
-            ]
-          };
-
-          setKiVorschauDaten(erkanntesErgebnis);
-          setImportLadeStatus('');
-          zeigeMeldung('Dokument erfolgreich durch KI analysiert!');
-        }, 1500);
-      };
-      
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error(error);
-      setImportLadeStatus('');
-      zeigeMeldung('Fehler beim Auslesen des PDFs.');
-    }
-  };
-
-  const kiDatenUebernehmen = () => {
-    if (!kiVorschauDaten) return;
-
-    const neuerKunde: Kunde = {
-      id: Date.now(),
-      firma: kiVorschauDaten.firma,
-      email: kiVorschauDaten.email,
-      whatsapp: kiVorschauDaten.whatsapp,
-      liegenschaften: kiVorschauDaten.liegenschaften
-    };
-
-    setKunden(prev => [...prev, neuerKunde]);
-    setSelectedKundeId(neuerKunde.id);
-    setKiVorschauDaten(null);
-    zeigeMeldung('Kunde und Liegenschaften erfolgreich aus KI-Import übernommen!');
   };
 
   const addObjectToKunde = (e: React.FormEvent) => {
@@ -927,54 +848,6 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: bgApp, color: textApp, fontFamily: 'sans-serif', paddingBottom: '90px', transition: 'background-color 0.3s ease' }}>
       
-      {/* Automatischer KI-Vertragsimport UI-Box */}
-      <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: `1px solid ${borderCard}`, marginTop: '16px', maxWidth: '440px', margin: '16px auto 0 auto' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 8px 0', color: textApp }}>🤖 Automatischer KI-Vertragsimport</h2>
-        <p style={{ fontSize: '0.75rem', color: textSub, margin: '0 0 12px 0' }}>
-          Lade einen beliebigen Vertrag als PDF hoch. Die KI liest den Auftraggeber und die Liegenschaften aus.
-        </p>
-        
-        <label style={{ display: 'block', backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', textAlign: 'center', cursor: 'pointer' }}>
-          📁 PDF-Vertrag auswählen & analysieren
-          <input 
-            type="file" 
-            accept="application/pdf" 
-            onChange={handlePdfUploadFuerKi} 
-            style={{ display: 'none' }} 
-          />
-        </label>
-
-        {importLadeStatus && (
-          <p style={{ fontSize: '0.8rem', color: '#8cc63f', textAlign: 'center', marginTop: '8px', fontWeight: 'bold' }}>
-            ⏳ {importLadeStatus}
-          </p>
-        )}
-
-        {kiVorschauDaten && (
-          <div style={{ marginTop: '16px', padding: '12px', backgroundColor: bgApp, borderRadius: '8px', border: '1px solid #8cc63f' }}>
-            <h3 style={{ fontSize: '0.9rem', color: '#8cc63f', margin: '0 0 8px 0' }}>📋 KI-Analyse Vorschau</h3>
-            <p style={{ fontSize: '0.75rem', color: textApp, margin: '4px 0' }}><b>Kunde:</b> {kiVorschauDaten.firma}</p>
-            <p style={{ fontSize: '0.75rem', color: textApp, margin: '4px 0' }}><b>E-Mail:</b> {kiVorschauDaten.email}</p>
-            <p style={{ fontSize: '0.75rem', color: textApp, margin: '4px 0' }}><b>Liegenschaft:</b> {kiVorschauDaten.liegenschaften[0].name} ({kiVorschauDaten.liegenschaften[0].address}, {kiVorschauDaten.liegenschaften[0].size} m²)</p>
-            
-            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-              <button 
-                onClick={kiDatenUebernehmen}
-                style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', padding: '8px', borderRadius: '6px', fontWeight: 'bold', border: 'none', cursor: 'pointer', fontSize: '0.8rem' }}
-              >
-                In App übernehmen
-              </button>
-              <button 
-                onClick={() => setKiVorschauDaten(null)}
-                style={{ backgroundColor: '#ef4444', color: '#fff', padding: '8px', borderRadius: '6px', fontWeight: 'bold', border: 'none', cursor: 'pointer', fontSize: '0.8rem' }}
-              >
-                Verwerfen
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
       {statusMeldung && (
         <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#111827', color: '#ffffff', padding: '12px 20px', borderRadius: '12px', zIndex: 1000, boxShadow: '0 8px 25px rgba(0,0,0,0.2)', fontWeight: 'bold', fontSize: '0.85rem', border: '2px solid #8cc63f' }}>
           ✨ {statusMeldung}
@@ -1074,7 +947,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Header */}
       <header style={{ backgroundColor: bgCard, color: textApp, padding: '12px 16px', position: 'sticky', top: 0, zIndex: 50, borderBottom: '3px solid #8cc63f', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'background-color 0.3s ease' }}>
         <div style={{ maxWidth: '440px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1108,7 +980,7 @@ export default function App() {
             <div style={{ borderBottom: '1px solid ' + borderCard, paddingBottom: '10px' }}>
               <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#8cc63f', textTransform: 'uppercase' }}>Aktiver Einsatz ({activeKunde.firma})</span>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '2px 0', color: textApp }}>{activeObjekt.name}</h2>
-              <p style={{ fontSize: '0.8rem', color: textSub, margin: 0 }}>📍 {activeObjekt.address} - {activeObjekt.size} m² (Pos: #{activeObjekt.reihenfolge})</p>
+              <p style={{ fontSize: '0.8rem', color: textSub, margin: 0 }}>📍 {activeObjekt.address} • {activeObjekt.size} m² (Pos: #{activeObjekt.reihenfolge})</p>
             </div>
 
             {activeObjekt.raeumPlan && (
@@ -1172,6 +1044,7 @@ export default function App() {
           </div>
         ) : (
           <>
+            {/* TOUR (Bereich 1) */}
             {activeTab === 'tour' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ background: darkMode ? bgCard : 'linear-gradient(135deg, #ffffff, #f9fafb)', color: textApp, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1179,18 +1052,13 @@ export default function App() {
                     <h2 style={{ fontWeight: 'bold', fontSize: '1.05rem', margin: 0 }}>Guten Tag, Micha! 👋</h2>
                     <p style={{ fontSize: '0.75rem', color: '#8cc63f', margin: '4px 0 0 0', fontWeight: 'bold' }}>Aktueller Startpunkt: {startPunkt}</p>
                   </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => setShowImportModal(true)} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                      <span>🔄 Route importieren</span>
-                    </button>
-                    <button onClick={kopiereAlleAdresen} style={{ backgroundColor: darkMode ? '#14171a' : '#eef6e6', color: '#598f1e', border: '1px solid #8cc63f', padding: '10px 12px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}>
-                      📋 Route kopieren
-                    </button>
-                  </div>
+                  <button onClick={() => setShowImportModal(true)} style={{ backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    <span>🔄 Optimierte Route importieren</span>
+                  </button>
                 </div>
 
                 {alleLiegenschaftenSortiert.length === 0 ? (
-                  <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>Keine Liegenschaften vorhanden. Lege jetzt deine Kunden an oder nutze den KI-Import!</p>
+                  <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>Keine Liegenschaften vorhanden. Bitte im Tab "Kunden & Lager" anlegen.</p>
                 ) : (
                   alleLiegenschaftenSortiert.map(({ kunde, liege }) => {
                     const istErledigt = isObjektErledigtVorKurzem(liege.name);
@@ -1203,7 +1071,7 @@ export default function App() {
                             {istErledigt && <span style={{ fontSize: '0.65rem', backgroundColor: '#8cc63f', color: '#111827', padding: '1px 6px', borderRadius: '4px', fontWeight: 'bold' }}>✓ Erledigt</span>}
                           </div>
                           <h3 style={{ fontWeight: 'bold', color: textApp, fontSize: '0.95rem', margin: '2px 0' }}>{liege.name}</h3>
-                          <p style={{ fontSize: '0.75rem', color: textSub, margin: '0' }}>{liege.address} - {liege.size} m²</p>
+                          <p style={{ fontSize: '0.75rem', color: textSub, margin: '0' }}>{liege.address} • {liege.size} m²</p>
                           {liege.raeumPlan && (
                             <button onClick={() => oeffneRaeumPlanAnsicht(liege.raeumPlan)} style={{ background: 'none', border: 'none', color: '#60a5fa', fontSize: '0.7rem', fontWeight: 'bold', padding: 0, marginTop: '4px', cursor: 'pointer' }}>
                               🗺️ Räumplan anzeigen
@@ -1220,8 +1088,10 @@ export default function App() {
               </div>
             )}
 
+            {/* KUNDEN & LAGER (Bereich 2) */}
             {activeTab === 'kunden_lager' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
                   <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>🏠 Startpunkt / Basis festlegen</h2>
                   <form onSubmit={speichereStartpunkt} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1233,128 +1103,218 @@ export default function App() {
                   </form>
                 </div>
 
-{/* Liste der vorhandenen Kunden mit Lösch-Option */}
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 12px 0', color: textApp }}>📋 Vorhandene Kunden ({kunden.length})</h2>
-                  {kunden.length === 0 ? (
-                    <p style={{ fontSize: '0.8rem', color: textSub, textAlign: 'center', margin: '8px 0' }}>Keine Kunden gespeichert.</p>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {kunden.map(kunde => (
-                        <div key={kunde.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', borderRadius: '8px', border: '1px solid ' + borderCard }}>
-                          <div>
-                            <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'bold', color: textApp }}>{kunde.firma}</h4>
-                            <p style={{ fontSize: '0.75rem', color: textSub, margin: '2px 0 0 0' }}>{kunde.liegenschaften.length} Liegenschaft(en) hinterlegt</p>
-                          </div>
-                          <button 
-                            onClick={() => deleteKunde(kunde.id)}
-                            style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}
-                          >
-                            🗑️ Löschen
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1rem', margin: 0 }}>Streusalz Lager & Sprit</h2>
                   <div style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', border: '2px solid #8cc63f', padding: '12px', borderRadius: '12px', textAlign: 'center' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#8cc63f', textTransform: 'uppercase' }}>Streusalz Vorrat</span>
-                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: textApp, margin: '12px 0' }}>{Math.floor(lagerBestand)} <span style={{ fontSize: '0.9rem' }}>Säcke</span></div>
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
-                      <input type="number" min="1" value={lagerAnzahlInput} onChange={e => setLagerAnzahlInput(e.target.value)} style={{ width: '60px', padding: '6px', textAlign: 'center', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp }} />
-                      <button onClick={() => anpasseLagerGenau('add')} style={{ backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>+</button>
-                      <button onClick={() => anpasseLagerGenau('sub')} style={{ backgroundColor: '#ef4444', color: '#ffffff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>-</button>
-                    </div>
+                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: textApp, margin: '2px 0' }}>{Math.floor(lagerBestand)} <span style={{ fontSize: '0.9rem' }}>Säcke</span></div>
                   </div>
+                  
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      value={lagerAnzahlInput} 
+                      onChange={e => setLagerAnzahlInput(e.target.value)}
+                      style={{ width: '80px', padding: '10px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem' }}
+                    />
+                    <button onClick={() => anpasseLagerGenau('add')} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', border: 'none', cursor: 'pointer' }}>
+                      + Hinzufügen
+                    </button>
+                    <button onClick={() => anpasseLagerGenau('sub')} style={{ flex: 1, backgroundColor: '#fee2e2', color: '#b91c1c', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', border: 'none', cursor: 'pointer' }}>
+                      - Abziehen
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: bgCard, padding: '12px', borderRadius: '16px', border: '1px solid #8cc63f', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', textAlign: 'center' }}>
+                  <button onClick={kopiereAlleAdresen} style={{ width: '100%', backgroundColor: darkMode ? '#14171a' : '#eef6e6', color: '#8cc63f', border: '1px solid #8cc63f', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}>
+                    📋 Alle Adressen inkl. Start/Endpunkt kopieren
+                  </button>
+                </div>
+
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>📋 Kunden & Liegenschaften verwalten</h2>
+                  {kunden.length === 0 ? (
+                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.8rem' }}>Noch keine Kunden angelegt. Lege unten deinen ersten Kunden an!</p>
+                  ) : (
+                    kunden.map(kunde => (
+                      <div key={kunde.id} style={{ border: '1px solid ' + borderCard, borderRadius: '10px', padding: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {editingKundeId === kunde.id ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <input type="text" value={editFirma} onChange={e => setEditFirma(e.target.value)} placeholder="Firmenname" style={{ padding: '6px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.8rem', backgroundColor: bgCard, color: textApp }} />
+                            <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="E-Mail" style={{ padding: '6px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.8rem', backgroundColor: bgCard, color: textApp }} />
+                            <input type="text" value={editWhatsapp} onChange={e => setEditWhatsapp(e.target.value)} placeholder="WhatsApp" style={{ padding: '6px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.8rem', backgroundColor: bgCard, color: textApp }} />
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button onClick={() => saveEditKunde(kunde.id)} style={{ backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>Speichern</button>
+                              <button onClick={() => setEditingKundeId(null)} style={{ backgroundColor: darkMode ? '#374151' : '#e5e7eb', color: textApp, border: 'none', padding: '6px 10px', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer' }}>Abbrechen</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                              <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', margin: 0, color: textApp }}>{kunde.firma}</h3>
+                              <p style={{ fontSize: '0.7rem', color: textSub, margin: '2px 0 0 0' }}>✉ {kunde.email} | 📞 {kunde.whatsapp}</p>
+                            </div>
+                            <button onClick={() => startEditKunde(kunde)} style={{ background: 'none', border: '1px solid ' + borderCard, padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer', color: textApp }}>✏️ Stammdaten</button>
+                          </div>
+                        )}
+
+                        <div style={{ marginTop: '4px', borderTop: '1px dashed ' + borderCard, paddingTop: '8px' }}>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#8cc63f', textTransform: 'uppercase' }}>Zugehörige Liegenschaften ({kunde.liegenschaften.length}):</span>
+                          {kunde.liegenschaften.length === 0 ? (
+                            <p style={{ fontSize: '0.75rem', color: textSub, margin: '4px 0 0 0' }}>Keine Liegenschaften hinterlegt.</p>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                              {kunde.liegenschaften.map(liege => (
+                                <div key={liege.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: darkMode ? '#22262a' : '#ffffff', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard }}>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: textApp }}>📍 {liege.name} (#{liege.reihenfolge})</div>
+                                    <div style={{ fontSize: '0.7rem', color: textSub }}>{liege.address} • {liege.size} m²</div>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '4px' }}>
+                                    <button onClick={() => startEditLiege(kunde.id, liege)} style={{ background: 'none', border: '1px solid ' + borderCard, padding: '4px 6px', borderRadius: '4px', fontSize: '0.65rem', cursor: 'pointer', color: textApp }}>✏️</button>
+                                    <button onClick={() => deleteLiegenschaft(kunde.id, liege.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️</button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
                   <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>➕ Neuen Kunden anlegen</h2>
                   <form onSubmit={addKunde} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <input type="text" placeholder="Firmenname / Kunde" value={neuFirma} onChange={e => setNeuFirma(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    <input type="email" placeholder="E-Mail für Berichte" value={neuEmail} onChange={e => setNeuEmail(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    <input type="text" placeholder="WhatsApp Nr. (+49...)" value={neuWhatsapp} onChange={e => setNeuWhatsapp(e.target.value)} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Kunden speichern</button>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Firmenname / Auftraggeber</label>
+                      <input type="text" value={neuFirma} onChange={e => setNeuFirma(e.target.value)} required placeholder="z.B. Neuer Kunde GmbH" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>E-Mail für Berichte</label>
+                      <input type="email" value={neuEmail} onChange={e => setNeuEmail(e.target.value)} required placeholder="kontakt@neuerkunde.de" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>WhatsApp-Nummer</label>
+                      <input type="text" value={neuWhatsapp} onChange={e => setNeuWhatsapp(e.target.value)} placeholder="+49151..." style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Kunden anlegen</button>
                   </form>
                 </div>
 
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>📍 Liegenschaft zu Kunde hinzufügen</h2>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>📍 Liegenschaft & Räumplan hinzufügen</h2>
                   <form onSubmit={addObjectToKunde} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <select value={selectedKundeId} onChange={e => setSelectedKundeId(Number(e.target.value))} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }}>
-                      {kunden.map(k => (
-                        <option key={k.id} value={k.id}>{k.firma}</option>
-                      ))}
-                    </select>
-                    <input type="text" placeholder="Objektname (z.B. Haupteingang)" value={neuObjName} onChange={e => setNeuObjName(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    <input type="text" placeholder="Adresse" value={neuObjAddress} onChange={e => setNeuObjAddress(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <input type="text" placeholder="Fläche (m²)" value={neuObjSize} onChange={e => setNeuObjSize(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                      <input type="number" placeholder="Tour-Nr." value={neuObjReihenfolge} onChange={e => setNeuObjReihenfolge(e.target.value)} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Kunde auswählen</label>
+                      <select value={selectedKundeId} onChange={e => setSelectedKundeId(Number(e.target.value))} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp }}>
+                        {kunden.map(k => (
+                          <option key={k.id} value={k.id}>{k.firma}</option>
+                        ))}
+                      </select>
                     </div>
-                    <select value={neuObjMaterial} onChange={e => setNeuObjMaterial(e.target.value)} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }}>
-                      <option value="Reines Salz">Reines Salz</option>
-                      <option value="Salz-Sand-Gemisch">Salz-Sand-Gemisch</option>
-                    </select>
-                    <label style={{ display: 'block', width: '100%', border: '1px dashed #8cc63f', backgroundColor: darkMode ? '#14171a' : '#f4fce3', color: '#8cc63f', padding: '8px', borderRadius: '8px', fontWeight: 600, textAlign: 'center', cursor: 'pointer', fontSize: '0.8rem', boxSizing: 'border-box' }}>
-                      🗺️ {neuObjRaeumPlan ? '✓ Räumplan hochgeladen' : 'Räumplan (Bild/PDF) hochladen'}
-                      <input type="file" accept="image/*" onChange={handleNeuRaeumPlanUpload} style={{ display: 'none' }} />
-                    </label>
-                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Liegenschaft hinzufügen</button>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Objektbezeichnung</label>
+                      <input type="text" value={neuObjName} onChange={e => setNeuObjName(e.target.value)} required placeholder="z.B. Filiale Nord" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Adresse (für Waze)</label>
+                      <input type="text" value={neuObjAddress} onChange={e => setNeuObjAddress(e.target.value)} required placeholder="Musterstr. 5, Rees" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Fläche (m²)</label>
+                        <input type="number" value={neuObjSize} onChange={e => setNeuObjSize(e.target.value)} required placeholder="200" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Tour-Nr.</label>
+                        <input type="number" value={neuObjReihenfolge} onChange={e => setNeuObjReihenfolge(e.target.value)} required placeholder="1" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Streumittel</label>
+                        <select value={neuObjMaterial} onChange={e => setNeuObjMaterial(e.target.value)} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp }}>
+                          <option value="Reines Salz">Reines Salz</option>
+                          <option value="Salz-Sand-Gemisch">Salz-Sand-Gemisch</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Räumplan (Kamera oder Datei)</label>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <label style={{ flex: 1, border: '2px dashed #8cc63f', backgroundColor: darkMode ? '#14171a' : '#f4fce3', color: '#8cc63f', padding: '10px', borderRadius: '8px', fontWeight: 600, textAlign: 'center', cursor: 'pointer', fontSize: '0.8rem' }}>
+                          📸 Plan abfotografieren
+                          <input type="file" accept="image/*" capture="environment" onChange={handleNeuRaeumPlanUpload} style={{ display: 'none' }} />
+                        </label>
+                        <label style={{ flex: 1, border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, padding: '10px', borderRadius: '8px', fontWeight: 'bold', textAlign: 'center', cursor: 'pointer', fontSize: '0.8rem' }}>
+                          📁 Datei wählen
+                          <input type="file" accept="image/*,application/pdf" onChange={handleNeuRaeumPlanUpload} style={{ display: 'none' }} />
+                        </label>
+                      </div>
+                      {neuObjRaeumPlan && <span style={{ fontSize: '0.75rem', color: '#8cc63f', display: 'block', marginTop: '4px', fontWeight: 'bold' }}>✓ Räumplan hinterlegt!</span>}
+                    </div>
+                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Liegenschaft speichern</button>
                   </form>
                 </div>
+
               </div>
             )}
 
+            {/* HISTORIE & SAISON (Bereich 3) */}
             {activeTab === 'history_saison' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>📊 Saison & Export</h2>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={exportToCSV} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1.05rem', margin: 0 }}>Einsatz-Historie</h2>
+                      <p style={{ fontSize: '0.75rem', color: textSub, margin: '2px 0 0 0' }}>Laufende Saison</p>
+                    </div>
+                    <button onClick={exportToCSV} style={{ backgroundColor: '#111827', color: '#ffffff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
                       📥 CSV Export
                     </button>
-                    <button onClick={saisonArchivieren} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#111827', color: '#ffffff', border: '1px solid ' + borderCard, padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}>
-                      📦 Saison archivieren
-                    </button>
                   </div>
-                </div>
 
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 12px 0', color: textApp }}>📜 Einsatz-Historie ({history.length})</h2>
                   {history.length === 0 ? (
-                    <p style={{ fontSize: '0.8rem', color: textSub, textAlign: 'center', margin: '12px 0' }}>Bisher keine Einsätze in dieser Saison.</p>
+                    <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>Noch keine Einsätze dokumentiert.</p>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {history.map(item => (
-                        <div key={item.id} style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '12px', borderRadius: '10px', border: '1px solid ' + borderCard, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div key={item.id} style={{ border: '1px solid ' + borderCard, padding: '10px', borderRadius: '10px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#8cc63f' }}>{item.date}</span>
-                            <span style={{ fontSize: '0.7rem', backgroundColor: '#8cc63f', color: '#111827', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>{item.type}</span>
+                            <h4 style={{ fontWeight: 'bold', color: textApp, margin: 0, fontSize: '0.9rem' }}>{item.kundeName} - {item.objName}</h4>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              <button onClick={() => sendeHistorienBericht(item)} style={{ background: darkMode ? '#22262a' : '#eef6e6', border: '1px solid #8cc63f', color: '#598f1e', padding: '3px 6px', borderRadius: '6px', fontSize: '0.65rem', cursor: 'pointer', fontWeight: 'bold' }}>📤 Senden</button>
+                              <button onClick={() => druckeEinsatzBericht(item)} style={{ background: darkMode ? '#22262a' : '#f3f4f6', border: '1px solid ' + borderCard, color: textApp, padding: '3px 6px', borderRadius: '6px', fontSize: '0.65rem', cursor: 'pointer', fontWeight: 'bold' }}>🖨️ PDF</button>
+                              <button onClick={() => deleteHistoryItem(item.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.7rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️</button>
+                            </div>
                           </div>
-                          <div>
-                            <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 'bold', color: textApp }}>{item.kundeName} - {item.objName}</h4>
-                            <p style={{ fontSize: '0.75rem', color: textSub, margin: '2px 0 0 0' }}>Wetter: {item.wetter} | Material: {item.materialUsed} | Dauer: {item.duration}</p>
-                          </div>
-                          <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-                            <button onClick={() => sendeHistorienBericht(item)} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '6px', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
-                              📤 Bericht senden
-                            </button>
-                            <button onClick={() => druckeEinsatzBericht(item)} style={{ backgroundColor: darkMode ? '#22262a' : '#eef6e6', color: '#598f1e', border: '1px solid #8cc63f', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
-                              🖨️ PDF
-                            </button>
-                            <button onClick={() => deleteHistoryItem(item.id)} style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
-                              🗑️
-                            </button>
-                          </div>
+                          <span style={{ fontSize: '0.65rem', fontFamily: 'monospace', color: textSub }}>{item.date}</span>
+                          <p style={{ fontSize: '0.75rem', color: textApp, margin: 0 }}>Wetter: <b>{item.wetter}</b> | Typ: <b>{item.type}</b></p>
+                          <p style={{ fontSize: '0.75rem', color: '#8cc63f', fontWeight: 500, margin: 0 }}>
+                            Verbrauch: {item.materialUsed} | Fahrstrecke: <b>{item.kmGefahren}</b> (~{item.spritKosten} Sprit)
+                          </p>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
+
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1.05rem', margin: 0 }}>Saison & Archiv</h2>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.7rem', fontWeight: 600, color: textSub }}>Bezeichnung</label>
+                      <input type="text" value={saisonName} onChange={e => setSaisonName(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <button onClick={saisonArchivieren} style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', border: 'none', cursor: 'pointer', marginTop: '4px', fontSize: '0.85rem' }}>
+                      📦 Aktuelle Saison archivieren
+                    </button>
+                  </div>
+                </div>
+
               </div>
             )}
           </>
@@ -1362,20 +1322,22 @@ export default function App() {
 
       </main>
 
-      {/* Navigation */}
-      <nav style={{ position: 'fixed', bottom: 0, left: 0, width: '100%', backgroundColor: bgCard, borderTop: '1px solid ' + borderCard, display: 'flex', justifyContent: 'around', padding: '10px 0', zIndex: 100, boxShadow: '0 -4px 10px rgba(0,0,0,0.05)' }}>
-        <div style={{ maxWidth: '440px', width: '100%', margin: '0 auto', display: 'flex', justifyContent: 'space-around' }}>
-          <button onClick={() => { setActiveTab('tour'); setActiveObjekt(null); setActiveKunde(null); }} style={{ background: 'none', border: 'none', color: activeTab === 'tour' ? '#8cc63f' : textSub, fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-            <span>🗺️</span> Tour
-          </button>
-          <button onClick={() => { setActiveTab('kunden_lager'); setActiveObjekt(null); setActiveKunde(null); }} style={{ background: 'none', border: 'none', color: activeTab === 'kunden_lager' ? '#8cc63f' : textSub, fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-            <span>🏢</span> Kunden & Lager
-          </button>
-          <button onClick={() => { setActiveTab('history_saison'); setActiveObjekt(null); setActiveKunde(null); }} style={{ background: 'none', border: 'none', color: activeTab === 'history_saison' ? '#8cc63f' : textSub, fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-            <span>📊</span> Historie & Archiv
-          </button>
-        </div>
-      </nav>
+      {/* Daumen-Navigation unten */}
+      {!activeObjekt && (
+        <nav style={{ position: 'fixed', bottom: 0, left: 0, width: '100%', backgroundColor: bgCard, borderTop: '2px solid #8cc63f', boxShadow: '0 -4px 15px rgba(0,0,0,0.08)', zIndex: 100, transition: 'background-color 0.3s ease' }}>
+          <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', padding: '8px', gap: '8px' }}>
+            <button onClick={() => setActiveTab('tour')} style={{ padding: '10px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 'bold', borderRadius: '10px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'tour' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'tour' ? '#111827' : textSub }}>
+              🚗 Tour
+            </button>
+            <button onClick={() => setActiveTab('kunden_lager')} style={{ padding: '10px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 'bold', borderRadius: '10px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'kunden_lager' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'kunden_lager' ? '#111827' : textSub }}>
+              📋 Kunden & Lager
+            </button>
+            <button onClick={() => setActiveTab('history_saison')} style={{ padding: '10px', textAlign: 'center', fontSize: '0.85rem', fontWeight: 'bold', borderRadius: '10px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'history_saison' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'history_saison' ? '#111827' : textSub }}>
+              📊 Historie & Saison
+            </button>
+          </div>
+        </nav>
+      )}
 
     </div>
   );
