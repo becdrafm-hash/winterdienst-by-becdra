@@ -49,7 +49,8 @@ interface SaisonArchiv {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'tour' | 'kunden_lager' | 'history_saison'>('tour');
+  // Navigation jetzt aufgeteilt in: 'tour' | 'kunden' | 'lager' | 'history_saison'
+  const [activeTab, setActiveTab] = useState<'tour' | 'kunden' | 'lager' | 'history_saison'>('tour');
   const [statusMeldung, setStatusMeldung] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(false);
 
@@ -82,13 +83,11 @@ export default function App() {
     }, 3500);
   };
   
-  // Saubere Initialisierung ohne alte Testkunden
   const [kunden, setKunden] = useState<Kunde[]>(() => {
     const saved = localStorage.getItem('becdra_kunden');
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Saubere Lager-Initialisierung (startet bei 0)
   const [lagerBestand, setLagerBestand] = useState<number>(() => {
     const saved = localStorage.getItem('becdra_lager');
     return saved ? JSON.parse(saved) : 0;
@@ -1044,7 +1043,7 @@ export default function App() {
           </div>
         ) : (
           <>
-            {/* TOUR (Bereich 1) */}
+            {/* TOUR TAB */}
             {activeTab === 'tour' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ background: darkMode ? bgCard : 'linear-gradient(135deg, #ffffff, #f9fafb)', color: textApp, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1058,7 +1057,7 @@ export default function App() {
                 </div>
 
                 {alleLiegenschaftenSortiert.length === 0 ? (
-                  <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>Keine Liegenschaften vorhanden. Bitte im Tab "Kunden & Lager" anlegen.</p>
+                  <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>Keine Liegenschaften vorhanden. Bitte im Tab "Kunden" anlegen.</p>
                 ) : (
                   alleLiegenschaftenSortiert.map(({ kunde, liege }) => {
                     const istErledigt = isObjektErledigtVorKurzem(liege.name);
@@ -1088,51 +1087,10 @@ export default function App() {
               </div>
             )}
 
-            {/* KUNDEN & LAGER (Bereich 2) */}
-            {activeTab === 'kunden_lager' && (
+            {/* SEPARATER KUNDEN-TAB */}
+            {activeTab === 'kunden' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>🏠 Startpunkt / Basis festlegen</h2>
-                  <form onSubmit={speichereStartpunkt} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Adresse für Start / Lager</label>
-                      <input type="text" value={editingStartPunkt} onChange={e => setEditingStartPunkt(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Startpunkt speichern</button>
-                  </form>
-                </div>
-
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1rem', margin: 0 }}>Streusalz Lager & Sprit</h2>
-                  <div style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', border: '2px solid #8cc63f', padding: '12px', borderRadius: '12px', textAlign: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#8cc63f', textTransform: 'uppercase' }}>Streusalz Vorrat</span>
-                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: textApp, margin: '2px 0' }}>{Math.floor(lagerBestand)} <span style={{ fontSize: '0.9rem' }}>Säcke</span></div>
-                  </div>
-                  
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input 
-                      type="number" 
-                      min="1" 
-                      value={lagerAnzahlInput} 
-                      onChange={e => setLagerAnzahlInput(e.target.value)}
-                      style={{ width: '80px', padding: '10px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem' }}
-                    />
-                    <button onClick={() => anpasseLagerGenau('add')} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', border: 'none', cursor: 'pointer' }}>
-                      + Hinzufügen
-                    </button>
-                    <button onClick={() => anpasseLagerGenau('sub')} style={{ flex: 1, backgroundColor: '#fee2e2', color: '#b91c1c', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', border: 'none', cursor: 'pointer' }}>
-                      - Abziehen
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ backgroundColor: bgCard, padding: '12px', borderRadius: '16px', border: '1px solid #8cc63f', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', textAlign: 'center' }}>
-                  <button onClick={kopiereAlleAdresen} style={{ width: '100%', backgroundColor: darkMode ? '#14171a' : '#eef6e6', color: '#8cc63f', border: '1px solid #8cc63f', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}>
-                    📋 Alle Adressen inkl. Start/Endpunkt kopieren
-                  </button>
-                </div>
-
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>📋 Kunden & Liegenschaften verwalten</h2>
                   {kunden.length === 0 ? (
@@ -1262,7 +1220,55 @@ export default function App() {
               </div>
             )}
 
-            {/* HISTORIE & SAISON (Bereich 3) */}
+            {/* SEPARATER LAGER-TAB */}
+            {activeTab === 'lager' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>🏠 Startpunkt / Basis festlegen</h2>
+                  <form onSubmit={speichereStartpunkt} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Adresse für Start / Lager</label>
+                      <input type="text" value={editingStartPunkt} onChange={e => setEditingStartPunkt(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Startpunkt speichern</button>
+                  </form>
+                </div>
+
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1rem', margin: 0 }}>Streusalz Lager & Sprit</h2>
+                  <div style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', border: '2px solid #8cc63f', padding: '12px', borderRadius: '12px', textAlign: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#8cc63f', textTransform: 'uppercase' }}>Streusalz Vorrat</span>
+                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: textApp, margin: '2px 0' }}>{Math.floor(lagerBestand)} <span style={{ fontSize: '0.9rem' }}>Säcke</span></div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      value={lagerAnzahlInput} 
+                      onChange={e => setLagerAnzahlInput(e.target.value)}
+                      style={{ width: '80px', padding: '10px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem' }}
+                    />
+                    <button onClick={() => anpasseLagerGenau('add')} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', border: 'none', cursor: 'pointer' }}>
+                      + Hinzufügen
+                    </button>
+                    <button onClick={() => anpasseLagerGenau('sub')} style={{ flex: 1, backgroundColor: '#fee2e2', color: '#b91c1c', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', border: 'none', cursor: 'pointer' }}>
+                      - Abziehen
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: bgCard, padding: '12px', borderRadius: '16px', border: '1px solid #8cc63f', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', textAlign: 'center' }}>
+                  <button onClick={kopiereAlleAdresen} style={{ width: '100%', backgroundColor: darkMode ? '#14171a' : '#eef6e6', color: '#8cc63f', border: '1px solid #8cc63f', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}>
+                    📋 Alle Adressen inkl. Start/Endpunkt kopieren
+                  </button>
+                </div>
+
+              </div>
+            )}
+
+            {/* HISTORIE & SAISON TAB */}
             {activeTab === 'history_saison' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
@@ -1322,18 +1328,21 @@ export default function App() {
 
       </main>
 
-      {/* Daumen-Navigation unten */}
+      {/* Neue Daumen-Navigation unten mit 4 getrennten Tabs */}
       {!activeObjekt && (
         <nav style={{ position: 'fixed', bottom: 0, left: 0, width: '100%', backgroundColor: bgCard, borderTop: '2px solid #8cc63f', boxShadow: '0 -4px 15px rgba(0,0,0,0.08)', zIndex: 100, transition: 'background-color 0.3s ease' }}>
-          <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', padding: '8px', gap: '8px' }}>
-            <button onClick={() => setActiveTab('tour')} style={{ padding: '10px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 'bold', borderRadius: '10px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'tour' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'tour' ? '#111827' : textSub }}>
+          <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', padding: '6px', gap: '4px' }}>
+            <button onClick={() => setActiveTab('tour')} style={{ padding: '8px 4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'tour' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'tour' ? '#111827' : textSub }}>
               🚗 Tour
             </button>
-            <button onClick={() => setActiveTab('kunden_lager')} style={{ padding: '10px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 'bold', borderRadius: '10px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'kunden_lager' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'kunden_lager' ? '#111827' : textSub }}>
-              📋 Kunden & Lager
+            <button onClick={() => setActiveTab('kunden')} style={{ padding: '8px 4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'kunden' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'kunden' ? '#111827' : textSub }}>
+              👥 Kunden
             </button>
-            <button onClick={() => setActiveTab('history_saison')} style={{ padding: '10px', textAlign: 'center', fontSize: '0.85rem', fontWeight: 'bold', borderRadius: '10px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'history_saison' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'history_saison' ? '#111827' : textSub }}>
-              📊 Historie & Saison
+            <button onClick={() => setActiveTab('lager')} style={{ padding: '8px 4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'lager' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'lager' ? '#111827' : textSub }}>
+              📦 Lager
+            </button>
+            <button onClick={() => setActiveTab('history_saison')} style={{ padding: '8px 4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'history_saison' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'history_saison' ? '#111827' : textSub }}>
+              📊 Historie
             </button>
           </div>
         </nav>
