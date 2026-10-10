@@ -88,7 +88,6 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Lagerbestand startet bei 0
   const [lagerBestand, setLagerBestand] = useState<number>(() => {
     const saved = localStorage.getItem('becdra_lager');
     return saved ? JSON.parse(saved) : 0;
@@ -231,47 +230,77 @@ export default function App() {
     zeigeMeldung('Kunde aktualisiert!');
   };
 
-  // Verbesserter KI-PDF-Vertragsimport mit automatischem Öffnen der Stammdaten zum Anpassen
-  const handlePdfUploadFuerKi = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 🤖 Echte Gemini API Anbindung mit fest hinterlegtem API-Key und sauberer Datenextraktion
+  const handlePdfUploadFuerKi = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const reader = new FileReader();
 
-      reader.onload = () => {
-        const gefundeneFirma = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ") || "KI Vertrag Kunde";
-        const generierteEmail = "kontakt@" + gefundeneFirma.toLowerCase().replace(/[^a-z0-9]/g, "") + ".de";
-        
-        const neuerKunde: Kunde = {
-          id: Date.now(),
-          firma: gefundeneFirma,
-          email: generierteEmail,
-          whatsapp: '+4915100000000',
-          liegenschaften: [
-            {
-              id: Date.now() + 1,
-              name: 'Hauptobjekt aus PDF',
-              address: 'Bitte Adresse eintragen',
-              size: '250',
-              material: 'Reines Salz',
-              reihenfolge: kunden.length + 1
-            }
-          ]
-        };
+      reader.onload = async (event) => {
+        const textInhalt = event.target?.result as string || '';
+        const apiKey = 'AIzaSyBV5fDA1e2Z0TQjd5NIwwNMDgJuqd2_1BI';
 
-        setKunden(prev => [...prev, neuerKunde]);
-        setSelectedKundeId(neuerKunde.id);
-        
-        // Öffnet direkt den Bearbeitungsmodus für diesen neuen Kunden
-        startEditKunde(neuerKunde);
-        
-        zeigeMeldung(`PDF eingelesen! Passe jetzt die Stammdaten für "${gefundeneFirma}" an.`);
+        zeigeMeldung("🤖 Gemini analysiert den Vertrag...");
+
+        try {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [{
+                  text: `Analysiere diesen Winterdienst-Vertragstext und extrahiere die Daten. Gib mir exakt im folgenden JSON-Format (ohne Markdown-Backticks) die Werte zurück: 
+                  {
+                    "firma": "Echter Firmenname oder Hausverwaltung",
+                    "email": "E-Mail falls vorhanden sonst leer",
+                    "whatsapp": "Telefonnummer/WhatsApp falls vorhanden sonst leer",
+                    "adresse": "Straße Hausnummer, PLZ Ort",
+                    "flaeche": "Quadratmeter als reine Zahl"
+                  }
+                  
+                  Vertragstext:
+                  ${textInhalt.slice(0, 4000)}`
+                }]
+              }]
+            })
+          });
+
+          const data = await response.json();
+          const geminiAntwort = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          
+          const sauberesJson = JSON.parse(geminiAntwort.replace(/```json/g, '').replace(/```/g, '').trim());
+
+          const neuerKunde: Kunde = {
+            id: Date.now(),
+            firma: sauberesJson.firma || file.name.replace(/\.[^/.]+$/, ""),
+            email: sauberesJson.email || "",
+            whatsapp: sauberesJson.whatsapp || "",
+            liegenschaften: [
+              {
+                id: Date.now() + 1,
+                name: 'Hauptobjekt',
+                address: sauberesJson.adresse || '',
+                size: sauberesJson.flaeche || '0',
+                material: 'Reines Salz',
+                reihenfolge: kunden.length + 1
+              }
+            ]
+          };
+
+          setKunden(prev => [...prev, neuerKunde]);
+          setSelectedKundeId(neuerKunde.id);
+          zeigeMeldung(`✨ Gemini hat "${neuerKunde.firma}" erfolgreich importiert!`);
+
+        } catch (error) {
+          console.error("Gemini Fehler:", error);
+          zeigeMeldung("Fehler bei der KI-Analyse. Bitte Format prüfen.");
+        }
       };
 
       reader.readAsText(file);
     }
   };
 
-  // Funktion zum Löschen eines Kunden
   const deleteKunde = (kundeId: number) => {
     setDialogConfig({
       visible: true,
@@ -1145,18 +1174,18 @@ export default function App() {
               </div>
             )}
 
-            {/* KUNDEN TAB (inklusive angepasstem KI-Import & Lösch-Button) */}
+            {/* KUNDEN TAB */}
             {activeTab === 'kunden' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
-                {/* 🤖 KI-PDF-Vertragsimport Box */}
+                {/* 🤖 Echte Gemini AI PDF-Import Box */}
                 <div style={{ backgroundColor: bgCard, padding: '18px', borderRadius: '16px', border: '2px solid #8cc63f', boxShadow: '0 4px 12px rgba(140, 198, 63, 0.15)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: textApp }}>🤖 KI-Vertragsimport (PDF)</h2>
+                  <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: textApp }}>🤖 Gemini KI-Vertragsimport</h2>
                   <p style={{ fontSize: '0.8rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
-                    Lade ein PDF hoch. Der Dateiname wird als Kundenbasis übernommen und die App öffnet direkt die Stammdaten zum Anpassen.
+                    Lade den Vertrag hoch. Gemini analysiert das Dokument vollautomatisch und zieht Firma, Adresse und m² heraus.
                   </p>
                   <label style={{ display: 'block', width: '100%', backgroundColor: '#8cc63f', color: '#111827', padding: '12px', borderRadius: '10px', fontWeight: 'bold', textAlign: 'center', cursor: 'pointer', fontSize: '0.9rem', boxShadow: '0 2px 8px rgba(140, 198, 63, 0.3)', boxSizing: 'border-box' }}>
-                    📄 PDF-Vertrag hochladen & direkt bearbeiten
+                    📄 PDF mit Gemini KI auslesen
                     <input type="file" accept="application/pdf" onChange={handlePdfUploadFuerKi} style={{ display: 'none' }} />
                   </label>
                 </div>
@@ -1164,7 +1193,7 @@ export default function App() {
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>📋 Kunden & Liegenschaften verwalten</h2>
                   {kunden.length === 0 ? (
-                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.8rem' }}>Noch keine Kunden angelegt. Nutze oben den KI-Import oder lege manuell einen Kunden an!</p>
+                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Kunden angelegt. Nutze oben den KI-Import oder lege manuell einen Kunden an!</p>
                   ) : (
                     kunden.map(kunde => (
                       <div key={kunde.id} style={{ border: '1px solid ' + borderCard, borderRadius: '10px', padding: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1182,7 +1211,7 @@ export default function App() {
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
                               <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', margin: 0, color: textApp }}>{kunde.firma}</h3>
-                              <p style={{ fontSize: '0.7rem', color: textSub, margin: '2px 0 0 0' }}>✉ {kunde.email} | 📞 {kunde.whatsapp}</p>
+                              <p style={{ fontSize: '0.7rem', color: textSub, margin: '2px 0 0 0' }}>✉ {kunde.email || 'Keine E-Mail'} | 📞 {kunde.whatsapp || 'Keine Nummer'}</p>
                             </div>
                             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                               <button onClick={() => startEditKunde(kunde)} style={{ background: 'none', border: '1px solid ' + borderCard, padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer', color: textApp }}>✏️ Stammdaten</button>
