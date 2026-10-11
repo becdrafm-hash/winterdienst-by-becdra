@@ -49,7 +49,6 @@ interface SaisonArchiv {
 }
 
 export default function App() {
-  // Navigation: 3 Haupt-Tabs + 'mehr' (und Unterseiten wie kunden, statistik, history_saison)
   const [activeTab, setActiveTab] = useState<'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison'>('tour');
   const [statusMeldung, setStatusMeldung] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(false);
@@ -78,15 +77,15 @@ export default function App() {
     confirmText?: React.ReactNode;
     secondaryText?: React.ReactNode;
     cancelText?: React.ReactNode;
-  }>({ visible: false, titel: '', text: '', onConfirm: () => { } });
-
+  }>({ visible: false, titel: '', text: '', onConfirm: () => {} });
+  
   const zeigeMeldung = (text: string) => {
     setStatusMeldung(text);
     setTimeout(() => {
       setStatusMeldung(null);
     }, 3500);
   };
-
+  
   const [kunden, setKunden] = useState<Kunde[]>(() => {
     const saved = localStorage.getItem('becdra_kunden');
     return saved ? JSON.parse(saved) : [];
@@ -141,16 +140,17 @@ export default function App() {
   const [wetterLage, setWetterLage] = useState('Wird geladen...');
   const [materialSaecke, setMaterialSaecke] = useState('1');
   const [gefahreneKm, setGefahreneKm] = useState('0');
-
+  
   const [aufgenommenesFoto, setAufgenommenesFoto] = useState<string | null>(null);
   const [aufgenommenesFotoUrl, setAufgenommenesFotoUrl] = useState<string | null>(null);
-
-  const [hindernisNotiz] = useState('');
-  const [hindernisFoto] = useState<string | null>(null);
-  const [hindernisFotoUrl] = useState<string | null>(null);
+  
+  // Hindernis States im aktiven Einsatz
+  const [hindernisNotiz, setHindernisNotiz] = useState('');
+  const [hindernisFoto, setHindernisFoto] = useState<string | null>(null);
+  const [hindernisFotoUrl, setHindernisFotoUrl] = useState<string | null>(null);
 
   const [heuteBetreuteProKunde, setHeuteBetreuteProKunde] = useState<{ [kundeId: number]: { name: string; address: string; type: string }[] }>({});
-
+  
   const [history, setHistory] = useState<EinsatzLog[]>(() => {
     try {
       const saved = localStorage.getItem('becdra_history');
@@ -192,7 +192,6 @@ export default function App() {
     localStorage.setItem('becdra_saison_archiv', JSON.stringify(archivListe));
   }, [archivListe]);
 
-  // Backup-Funktionen zur Datensicherung
   const exportDatenBackup = () => {
     const backupData = {
       kunden,
@@ -206,7 +205,7 @@ export default function App() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `becdra_fm_backup_${new Date().toISOString().slice(0, 10)}.json`);
+    downloadAnchor.setAttribute("download", `becdra_fm_backup_${new Date().toISOString().slice(0,10)}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -229,14 +228,13 @@ export default function App() {
             if (parsed.startPunkt) setStartPunkt(parsed.startPunkt);
             if (parsed.spritPreisProLiter) setSpritPreisProLiter(parsed.spritPreisProLiter);
             if (parsed.archivListe) setArchivListe(parsed.archivListe);
-
+            
             zeigeMeldung('Daten erfolgreich aus Backup wiederhergestellt!');
           }
         } catch (err) {
           zeigeMeldung('Fehler beim Lesen der Backup-Datei.');
         }
       };
-      // Wichtig: Input zurücksetzen, damit dieselbe Datei erneut ausgewählt werden kann
       e.target.value = '';
     }
   };
@@ -362,7 +360,7 @@ export default function App() {
   const addLiegenschaft = (e: React.FormEvent) => {
     e.preventDefault();
     if (!neuObjName || !neuObjAddress || !neuObjSize) return;
-
+    
     const neueLiege: Liegenschaft = {
       id: Date.now(),
       kundeId: Number(selectedKundeId),
@@ -395,11 +393,11 @@ export default function App() {
 
   const saveEditLiege = () => {
     if (!editingLiege) return;
-    setLiegenschaften(liegenschaften.map(l => l.id === editingLiege.id ? {
-      ...l,
-      name: editObjName,
-      address: editObjAddress,
-      size: editObjSize,
+    setLiegenschaften(liegenschaften.map(l => l.id === editingLiege.id ? { 
+      ...l, 
+      name: editObjName, 
+      address: editObjAddress, 
+      size: editObjSize, 
       material: editObjMaterial,
       reihenfolge: Number(editObjReihenfolge) || 1,
       raeumPlan: editObjRaeumPlan || undefined
@@ -429,7 +427,9 @@ export default function App() {
     const zielWhatsapp = gefundenerKunde ? gefundenerKunde.whatsapp : '+4915100000000';
     const zielEmail = gefundenerKunde ? gefundenerKunde.email : 'kontakt@beispiel.de';
 
-    const berichtText =
+    const hindernisZeile = item.hindernisInfo ? `⚠️ *Hindernis / Vorfall:* ${item.hindernisInfo}\n` : '';
+
+    const berichtText = 
       `❄️ *WINTERDIENST - EINSATZBERICHT* ❄️\n` +
       `────────────────────────\n` +
       `🏢 *Auftraggeber:* ${item.kundeName}\n` +
@@ -437,6 +437,7 @@ export default function App() {
       `📅 *Datum & Zeit:* ${item.date}\n` +
       `🌤️ *Wetterlage:* ${item.wetter}\n` +
       `🛠️ *Maßnahme:* ${item.type}\n` +
+      hindernisZeile +
       `────────────────────────\n` +
       `✅ *Status:* ordnungsgemäß betreut\n\n` +
       `Mit freundlichen Grüßen\n` +
@@ -448,7 +449,7 @@ export default function App() {
       text: `Möchtest du den Bericht für "${item.kundeName}" (${item.objName}) per WhatsApp oder E-Mail senden?`,
       confirmText: (
         <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z" /></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z"/></svg>
           <span>WhatsApp senden</span>
         </span>
       ),
@@ -527,7 +528,7 @@ export default function App() {
     const iframe = document.createElement('iframe');
     iframe.style.display = 'none';
     document.body.appendChild(iframe);
-
+    
     const doc = iframe.contentWindow?.document;
     if (!doc) {
       zeigeMeldung('Fehler beim Erstellen des PDF-Berichts.');
@@ -638,6 +639,9 @@ export default function App() {
     setStartTime(new Date());
     setAufgenommenesFoto(null);
     setAufgenommenesFotoUrl(null);
+    setHindernisNotiz('');
+    setHindernisFoto(null);
+    setHindernisFotoUrl(null);
     setShowActiveRaeumPlanPopup(false);
     fetchLiveWetter();
 
@@ -692,6 +696,9 @@ export default function App() {
         setActiveObjekt(null);
         setAufgenommenesFoto(null);
         setAufgenommenesFotoUrl(null);
+        setHindernisNotiz('');
+        setHindernisFoto(null);
+        setHindernisFotoUrl(null);
         setShowActiveRaeumPlanPopup(false);
         setDialogConfig(prev => ({ ...prev, visible: false }));
         zeigeMeldung('Einsatz abgebrochen.');
@@ -706,6 +713,16 @@ export default function App() {
       setAufgenommenesFoto(file.name);
       komprimiereBild(file, (compressedUrl) => {
         setAufgenommenesFotoUrl(compressedUrl);
+      });
+    }
+  };
+
+  const handleHindernisFotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setHindernisFoto(file.name);
+      komprimiereBild(file, (compressedUrl) => {
+        setHindernisFotoUrl(compressedUrl);
       });
     }
   };
@@ -727,7 +744,7 @@ export default function App() {
       id: Date.now(),
       kundeName: activeKunde.firma,
       objName: activeObjekt.name,
-      date: new Date().toLocaleDateString('de-DE') + ' ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+      date: new Date().toLocaleDateString('de-DE') + ' ' + new Date().toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}),
       timestamp: Date.now(),
       wetter: wetterLage,
       type: einsatzType,
@@ -747,7 +764,7 @@ export default function App() {
     const kundeId = activeKunde.id;
     const aktuelleListeFuerKunden = heuteBetreuteProKunde[kundeId] || [];
     const updatedBetreut = [...aktuelleListeFuerKunden, { name: activeObjekt.name, address: activeObjekt.address, type: einsatzType }];
-
+    
     setHeuteBetreuteProKunde(prev => ({
       ...prev,
       [kundeId]: updatedBetreut
@@ -763,18 +780,24 @@ export default function App() {
     setActiveObjekt(null);
     setAufgenommenesFoto(null);
     setAufgenommenesFotoUrl(null);
+    setHindernisNotiz('');
+    setHindernisFoto(null);
+    setHindernisFotoUrl(null);
     setShowActiveRaeumPlanPopup(false);
 
     if (alleErledigt && alleObjekteDesKundenNamen.length > 0) {
       const liegenschaftsListeText = updatedBetreut.map(b => `• ${b.name} (${b.address}): ${b.type}`).join('\n');
+      
+      const hindernisHinweis = hindernisNotiz ? `\n⚠️ *Hinweis / Hindernis:* ${hindernisNotiz}` : '';
 
-      const berichtText =
+      const berichtText = 
         `❄️ *WINTERDIENST - EINSATZBERICHT* ❄️\n` +
         `────────────────────────\n` +
         `🏢 *Auftraggeber:* ${geforderterKunde.firma}\n` +
         `📅 *Datum:* ${new Date().toLocaleDateString('de-DE')}\n` +
         `🌤️ *Wetterlage:* ${wetterLage}\n\n` +
-        `📍 *Betreute Liegenschaften:*\n` + liegenschaftsListeText + `\n\n` +
+        `📍 *Betreute Liegenschaften:*\n` + liegenschaftsListeText + `\n` +
+        hindernisHinweis + `\n\n` +
         `────────────────────────\n` +
         `✅ *Status:* ordnungsgemäß betreut\n\n` +
         `Mit freundlichen Grüßen\n` +
@@ -786,7 +809,7 @@ export default function App() {
         text: `Alle Liegenschaften von "${geforderterKunde.firma}" wurden heute betreut! Wie möchtest du den Bericht senden?`,
         confirmText: (
           <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z"/></svg>
             <span>WhatsApp senden</span>
           </span>
         ),
@@ -820,11 +843,11 @@ export default function App() {
     }
 
     const lines = importText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
+    
     let anzahlAktualisiert = 0;
     const aktualisierteLiegen = liegenschaften.map(liege => {
-      const matchingLineIndex = lines.findIndex(line =>
-        line.toLowerCase().includes(liege.name.toLowerCase()) ||
+      const matchingLineIndex = lines.findIndex(line => 
+        line.toLowerCase().includes(liege.name.toLowerCase()) || 
         line.toLowerCase().includes(liege.address.toLowerCase())
       );
 
@@ -900,7 +923,7 @@ export default function App() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Becdra_FM_Winterdienst_Export_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `Becdra_FM_Winterdienst_Export_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -911,11 +934,11 @@ export default function App() {
       zeigeMeldung('Keine Liegenschaften vorhanden.');
       return;
     }
-    const liegenschaftsZeilen = alleLiegenschaftenSortiert.map((item, index) =>
+    const liegenschaftsZeilen = alleLiegenschaftenSortiert.map((item, index) => 
       `${index + 1}. ${item.kunde?.firma || 'Kunde'} - ${item.liege.name}: ${item.liege.address}`
     );
     const reinZuOptimierendeRoute = liegenschaftsZeilen.join('\n');
-    navigator.clipboard.writeText(reinZuOptimierendeRoute).catch(() => { });
+    navigator.clipboard.writeText(reinZuOptimierendeRoute).catch(() => {});
     zeigeMeldung('Nur die Liegenschaften wurden in die Zwischenablage kopiert!');
   };
 
@@ -958,7 +981,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: bgApp, color: textApp, fontFamily: 'sans-serif', paddingBottom: '90px', transition: 'background-color 0.3s ease' }}>
-
+      
       {statusMeldung && (
         <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#111827', color: '#ffffff', padding: '12px 20px', borderRadius: '12px', zIndex: 1000, boxShadow: '0 8px 25px rgba(0,0,0,0.2)', fontWeight: 'bold', fontSize: '0.85rem', border: '2px solid #8cc63f' }}>
           ✨ {statusMeldung}
@@ -994,9 +1017,9 @@ export default function App() {
             <p style={{ fontSize: '0.8rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
               Füge hier deine optimierte Reihenfolge ein. Die App sortiert deine Tour automatisch.
             </p>
-            <textarea
+            <textarea 
               rows={6}
-              value={importText}
+              value={importText} 
               onChange={e => setImportText(e.target.value)}
               placeholder="1. Commerzbank AG - Filiale Innenstadt&#10;2. Seniorenresidenz Sonnenschein..."
               style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem', boxSizing: 'border-box' }}
@@ -1177,6 +1200,22 @@ export default function App() {
               </label>
             </div>
 
+            {/* HINDERNISDOKUMENTATION IM AKTIVEN EINSATZ */}
+            <div style={{ backgroundColor: darkMode ? '#14171a' : '#fff1f2', border: '1px solid #fecaca', padding: '12px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#dc2626' }}>⚠️ Hindernis / Vorfall dokumentieren (optional)</label>
+              <input 
+                type="text" 
+                value={hindernisNotiz} 
+                onChange={e => setHindernisNotiz(e.target.value)} 
+                placeholder="z.B. PKW blockierte Einfahrt, Mülltonne..." 
+                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #fca5a5', backgroundColor: bgCard, color: textApp, fontSize: '0.8rem', boxSizing: 'border-box' }} 
+              />
+              <label style={{ display: 'block', width: '100%', border: '2px dashed #dc2626', backgroundColor: darkMode ? '#14171a' : '#ffffff', color: '#dc2626', padding: '8px', borderRadius: '8px', fontWeight: 600, textAlign: 'center', cursor: 'pointer', fontSize: '0.75rem', boxSizing: 'border-box' }}>
+                📷 {hindernisFoto ? `✓ Hindernis-Foto (${hindernisFoto})` : 'Hindernis fotografieren'}
+                <input type="file" accept="image/*" capture="environment" onChange={handleHindernisFotoCapture} style={{ display: 'none' }} />
+              </label>
+            </div>
+
             <button onClick={finishEinsatz} style={{ width: '100%', backgroundColor: '#8cc63f', color: '#111827', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', boxShadow: '0 4px 10px rgba(140, 198, 63, 0.3)' }}>
               ✓ Einsatz abschließen & Speichern
             </button>
@@ -1188,10 +1227,11 @@ export default function App() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ background: darkMode ? bgCard : 'linear-gradient(135deg, #ffffff, #f9fafb)', color: textApp, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div>
-                    <h2 style={{ fontWeight: 'bold', fontSize: '1.05rem', margin: 0 }}>Guten Tag, Micha! 👋</h2>
+                    {/* Helle Überschrift im Hellen Modus korrigiert */}
+                    <h2 style={{ fontWeight: 'bold', fontSize: '1.05rem', margin: 0, color: darkMode ? '#f3f4f6' : '#111827' }}>Guten Tag, Micha! 👋</h2>
                     <p style={{ fontSize: '0.75rem', color: '#8cc63f', margin: '4px 0 0 0', fontWeight: 'bold' }}>Aktueller Startpunkt: {startPunkt}</p>
                   </div>
-
+                  
                   <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                     <button onClick={kopiereAlleAdresen} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#eef6e6', color: '#598f1e', border: '1px solid #8cc63f', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
                       📋 Adressen kopieren
@@ -1232,6 +1272,73 @@ export default function App() {
                     );
                   })
                 )}
+              </div>
+            )}
+
+            {/* KUNDEN TAB */}
+            {activeTab === 'kunden' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <button onClick={() => setActiveTab('mehr')} style={{ background: 'none', border: 'none', color: '#8cc63f', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}>
+                  ← Zurück zu Mehr
+                </button>
+
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>👥 Kunden verwalten</h2>
+                  {kunden.length === 0 ? (
+                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Kunden angelegt.</p>
+                  ) : (
+                    kunden.map(kunde => (
+                      <div key={kunde.id} style={{ border: '1px solid ' + borderCard, borderRadius: '10px', padding: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {editingKundeId === kunde.id ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <input type="text" value={editFirma} onChange={e => setEditFirma(e.target.value)} placeholder="Firmenname" style={{ padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: bgCard, color: textApp }} />
+                            <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="E-Mail" style={{ padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: bgCard, color: textApp }} />
+                            <input type="text" value={editWhatsapp} onChange={e => setEditWhatsapp(e.target.value)} placeholder="WhatsApp" style={{ padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: bgCard, color: textApp }} />
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                              <button onClick={() => saveEditKunde(kunde.id)} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}>Speichern</button>
+                              <button onClick={() => setEditingKundeId(null)} style={{ flex: 1, backgroundColor: darkMode ? '#374151' : '#e5e7eb', color: textApp, border: 'none', padding: '10px', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer' }}>Abbrechen</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <div>
+                              <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', margin: 0, color: textApp }}>{kunde.firma}</h3>
+                              <p style={{ fontSize: '0.75rem', color: textSub, margin: '2px 0 0 0' }}>✉ {kunde.email || 'Keine E-Mail'} | 📞 {kunde.whatsapp || 'Keine Nummer'}</p>
+                            </div>
+                            {/* GROSSE BUTTONS UNTER DEM TEXT (Übersichtlich und einfach zu bedienen) */}
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button onClick={() => startEditKunde(kunde)} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                                ✏️ Bearbeiten
+                              </button>
+                              <button onClick={() => deleteKunde(kunde.id)} style={{ flex: 1, backgroundColor: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                                🗑️ Löschen
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>➕ Neuen Kunden anlegen</h2>
+                  <form onSubmit={addKunde} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Firmenname / Auftraggeber</label>
+                      <input type="text" value={neuFirma} onChange={e => setNeuFirma(e.target.value)} required placeholder="z.B. Neuer Kunde GmbH" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>E-Mail für Berichte</label>
+                      <input type="email" value={neuEmail} onChange={e => setNeuEmail(e.target.value)} required placeholder="kontakt@neuerkunde.de" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>WhatsApp-Nummer</label>
+                      <input type="text" value={neuWhatsapp} onChange={e => setNeuWhatsapp(e.target.value)} placeholder="+49151..." style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Kunden speichern</button>
+                  </form>
+                </div>
               </div>
             )}
 
@@ -1323,7 +1430,7 @@ export default function App() {
             {/* LAGER TAB */}
             {activeTab === 'lager' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
+                
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
                   <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>🏠 Startpunkt / Basis festlegen</h2>
                   <form onSubmit={speichereStartpunkt} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1352,12 +1459,12 @@ export default function App() {
                     <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#8cc63f', textTransform: 'uppercase' }}>Streusalz Vorrat</span>
                     <div style={{ fontSize: '2rem', fontWeight: 'bold', color: textApp, margin: '2px 0' }}>{Math.floor(lagerBestand)} <span style={{ fontSize: '0.9rem' }}>Säcke</span></div>
                   </div>
-
+                  
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input
-                      type="number"
-                      min="1"
-                      value={lagerAnzahlInput}
+                    <input 
+                      type="number" 
+                      min="1" 
+                      value={lagerAnzahlInput} 
                       onChange={e => setLagerAnzahlInput(e.target.value)}
                       style={{ width: '80px', padding: '10px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem' }}
                     />
@@ -1373,12 +1480,12 @@ export default function App() {
               </div>
             )}
 
-            {/* MEHR TAB (Zusammenfassung für Kunden, Statistik, Archiv & Backup) */}
+            {/* MEHR TAB */}
             {activeTab === 'mehr' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: '0 0 4px 0', color: textApp }}>⚙️ Weitere Bereiche</h2>
-
+                  
                   <button onClick={() => setActiveTab('kunden')} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>
                     👥 Kunden verwalten
                   </button>
@@ -1390,18 +1497,17 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* DATEN-SICHERUNG (BACKUP / WIEDERHERSTELLUNG) */}
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '2px solid #8cc63f', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>💾 Datensicherung (Backup)</h2>
                   <p style={{ fontSize: '0.75rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
                     Sichere deine Kunden und Liegenschaften als Datei, damit beim Aktualisieren niemals Daten verloren gehen.
                   </p>
-
+                  
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={exportDatenBackup} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
                       📥 Backup exportieren
                     </button>
-
+                    
                     <label style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', textAlign: 'center', cursor: 'pointer' }}>
                       📤 Backup einspielen
                       <input type="file" accept="application/json,.json,text/plain" onChange={importDatenBackup} style={{ display: 'none' }} />
@@ -1411,68 +1517,7 @@ export default function App() {
               </div>
             )}
 
-            {/* KUNDEN UNTERSEITE */}
-            {activeTab === 'kunden' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <button onClick={() => setActiveTab('mehr')} style={{ background: 'none', border: 'none', color: '#8cc63f', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}>
-                  ← Zurück zu Mehr
-                </button>
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>👥 Kunden verwalten</h2>
-                  {kunden.length === 0 ? (
-                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Kunden angelegt.</p>
-                  ) : (
-                    kunden.map(kunde => (
-                      <div key={kunde.id} style={{ border: '1px solid ' + borderCard, borderRadius: '10px', padding: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {editingKundeId === kunde.id ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <input type="text" value={editFirma} onChange={e => setEditFirma(e.target.value)} placeholder="Firmenname" style={{ padding: '6px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.8rem', backgroundColor: bgCard, color: textApp }} />
-                            <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="E-Mail" style={{ padding: '6px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.8rem', backgroundColor: bgCard, color: textApp }} />
-                            <input type="text" value={editWhatsapp} onChange={e => setEditWhatsapp(e.target.value)} placeholder="WhatsApp" style={{ padding: '6px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.8rem', backgroundColor: bgCard, color: textApp }} />
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <button onClick={() => saveEditKunde(kunde.id)} style={{ backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>Speichern</button>
-                              <button onClick={() => setEditingKundeId(null)} style={{ backgroundColor: darkMode ? '#374151' : '#e5e7eb', color: textApp, border: 'none', padding: '6px 10px', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer' }}>Abbrechen</button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                              <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', margin: 0, color: textApp }}>{kunde.firma}</h3>
-                              <p style={{ fontSize: '0.7rem', color: textSub, margin: '2px 0 0 0' }}>✉ {kunde.email || 'Keine E-Mail'} | 📞 {kunde.whatsapp || 'Keine Nummer'}</p>
-                            </div>
-                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                              <button onClick={() => startEditKunde(kunde)} style={{ background: 'none', border: '1px solid ' + borderCard, padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer', color: textApp }}>✏️</button>
-                              <button onClick={() => deleteKunde(kunde.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold', padding: '4px' }}>🗑️</button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>➕ Neuen Kunden anlegen</h2>
-                  <form onSubmit={addKunde} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Firmenname / Auftraggeber</label>
-                      <input type="text" value={neuFirma} onChange={e => setNeuFirma(e.target.value)} required placeholder="z.B. Neuer Kunde GmbH" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>E-Mail für Berichte</label>
-                      <input type="email" value={neuEmail} onChange={e => setNeuEmail(e.target.value)} required placeholder="kontakt@neuerkunde.de" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>WhatsApp-Nummer</label>
-                      <input type="text" value={neuWhatsapp} onChange={e => setNeuWhatsapp(e.target.value)} placeholder="+49151..." style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Kunden speichern</button>
-                  </form>
-                </div>
-              </div>
-            )}
-
-            {/* STATISTIK UNTERSEITE */}
+            {/* STATISTIK TAB */}
             {activeTab === 'statistik' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <button onClick={() => setActiveTab('mehr')} style={{ background: 'none', border: 'none', color: '#8cc63f', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}>
@@ -1480,7 +1525,7 @@ export default function App() {
                 </button>
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: textApp }}>📊 Einsatz-Statistik</h2>
-
+                  
                   <div style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '12px', borderRadius: '10px', border: '1px solid ' + borderCard }}>
                     <h3 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#8cc63f', margin: '0 0 6px 0', textTransform: 'uppercase' }}>📅 Heute ({heuteDatumString})</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '0.8rem' }}>
@@ -1504,7 +1549,7 @@ export default function App() {
               </div>
             )}
 
-            {/* HISTORIE UNTERSEITE */}
+            {/* HISTORIE TAB */}
             {activeTab === 'history_saison' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <button onClick={() => setActiveTab('mehr')} style={{ background: 'none', border: 'none', color: '#8cc63f', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}>
@@ -1537,6 +1582,7 @@ export default function App() {
                           </div>
                           <span style={{ fontSize: '0.65rem', fontFamily: 'monospace', color: textSub }}>{item.date}</span>
                           <p style={{ fontSize: '0.75rem', color: textApp, margin: 0 }}>Wetter: <b>{item.wetter}</b> | Typ: <b>{item.type}</b></p>
+                          {item.hindernisInfo && <p style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 'bold', margin: 0 }}>⚠️ Hindernis: {item.hindernisInfo}</p>}
                           <p style={{ fontSize: '0.75rem', color: '#8cc63f', fontWeight: 500, margin: 0 }}>
                             Verbrauch: {item.materialUsed} | Fahrstrecke: <b>{item.kmGefahren}</b> (~{item.spritKosten} Sprit)
                           </p>
@@ -1565,7 +1611,7 @@ export default function App() {
 
       </main>
 
-      {/* NEUE UNTERE NAVIGATION: 3 Haupt-Tabs + Mehr */}
+      {/* UNTERE NAVIGATION (3 Haupt-Tabs + Mehr) */}
       {!activeObjekt && (
         <nav style={{ position: 'fixed', bottom: 0, left: 0, width: '100%', backgroundColor: bgCard, borderTop: '2px solid #8cc63f', boxShadow: '0 -4px 15px rgba(0,0,0,0.08)', zIndex: 100, transition: 'background-color 0.3s ease' }}>
           <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', padding: '6px', gap: '2px' }}>
