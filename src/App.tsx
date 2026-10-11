@@ -439,21 +439,23 @@ export default function App() {
     const zielWhatsapp = gefundenerKunde ? gefundenerKunde.whatsapp : '+4915100000000';
     const zielEmail = gefundenerKunde ? gefundenerKunde.email : 'kontakt@beispiel.de';
 
-    const hindernisZeile = item.hindernisInfo ? `⚠️ *Hindernis / Vorfall:* ${item.hindernisInfo}\n` : '';
+    const hindernisZeile = item.hindernisInfo
+      ? `Hindernisse: ${item.hindernisInfo}\n`
+      : 'Hindernisse: Keine dokumentiert\n';
 
-    const berichtText = 
-      `❄️ *WINTERDIENST - EINSATZBERICHT* ❄️\n` +
+    const berichtText =
+      `WINTERDIENST - EINSATZBERICHT\n` +
       `────────────────────────\n` +
-      `🏢 *Auftraggeber:* ${item.kundeName}\n` +
-      `📍 *Objekt:* ${item.objName}\n` +
-      `📅 *Datum & Zeit:* ${item.date}\n` +
-      `🌤️ *Wetterlage:* ${item.wetter}\n` +
-      `🛠️ *Maßnahme:* ${item.type}\n` +
+      `Auftraggeber: ${item.kundeName}\n` +
+      `Objekt: ${item.objName}\n` +
+      `Datum und Uhrzeit: ${item.date}\n` +
+      `Wetter: ${item.wetter}\n` +
+      `Maßnahme: ${item.type}\n` +
       hindernisZeile +
       `────────────────────────\n` +
-      `✅ *Status:* ordnungsgemäß betreut\n\n` +
+      `Status: Ordnungsgemäß betreut\n\n` +
       `Mit freundlichen Grüßen\n` +
-      `*Becdra FM*`;
+      `Becdra FM`;
 
     setDialogConfig({
       visible: true,
@@ -798,22 +800,26 @@ export default function App() {
     setShowActiveRaeumPlanPopup(false);
 
     if (alleErledigt && alleObjekteDesKundenNamen.length > 0) {
-      const liegenschaftsListeText = updatedBetreut.map(b => `• ${b.name} (${b.address}): ${b.type}`).join('\n');
-      
-      const hindernisHinweis = hindernisNotiz ? `\n⚠️ *Hinweis / Hindernis:* ${hindernisNotiz}` : '';
+      const liegenschaftsListeText = updatedBetreut
+        .map(b => `Objekt: ${b.name}\nAdresse: ${b.address}\nMaßnahme: ${b.type}`)
+        .join('\n\n');
 
-      const berichtText = 
-        `❄️ *WINTERDIENST - EINSATZBERICHT* ❄️\n` +
+      const hindernisHinweis = hindernisNotiz
+        ? `Hindernisse: ${hindernisNotiz}`
+        : 'Hindernisse: Keine dokumentiert';
+
+      const berichtText =
+        `WINTERDIENST - EINSATZBERICHT\n` +
         `────────────────────────\n` +
-        `🏢 *Auftraggeber:* ${geforderterKunde.firma}\n` +
-        `📅 *Datum:* ${new Date().toLocaleDateString('de-DE')}\n` +
-        `🌤️ *Wetterlage:* ${wetterLage}\n\n` +
-        `📍 *Betreute Liegenschaften:*\n` + liegenschaftsListeText + `\n` +
-        hindernisHinweis + `\n\n` +
+        `Auftraggeber: ${geforderterKunde.firma}\n` +
+        `Datum: ${new Date().toLocaleDateString('de-DE')}\n` +
+        `Wetter: ${wetterLage}\n\n` +
+        `Betreute Objekte:\n${liegenschaftsListeText}\n\n` +
+        `${hindernisHinweis}\n` +
         `────────────────────────\n` +
-        `✅ *Status:* ordnungsgemäß betreut\n\n` +
+        `Status: Ordnungsgemäß betreut\n\n` +
         `Mit freundlichen Grüßen\n` +
-        `*Becdra FM*`;
+        `Becdra FM`;
 
       setDialogConfig({
         visible: true,
