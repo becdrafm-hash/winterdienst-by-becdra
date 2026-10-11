@@ -1360,9 +1360,9 @@ export default function App() {
                             <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textApp }}>{liege.name} (#{liege.reihenfolge})</div>
                             <div style={{ fontSize: '0.75rem', color: textSub }}>{liege.address} • {liege.size} m²</div>
                           </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                            <button onClick={() => startEditLiege(liege)} style={{ width: '100%', backgroundColor: darkMode ? '#20252a' : '#ffffff', border: '1px solid ' + borderCard, padding: '12px', borderRadius: '8px', cursor: 'pointer', color: textApp, fontSize: '0.9rem', fontWeight: 'bold' }}>✏️ Bearbeiten</button>
-                            <button onClick={() => deleteLiegenschaft(liege.id)} style={{ width: '100%', backgroundColor: darkMode ? '#3b1f23' : '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '12px', borderRadius: '8px', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️ Löschen</button>
+                          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                            <button onClick={() => startEditLiege(liege)} style={{ flex: 1, backgroundColor: darkMode ? '#20252a' : '#ffffff', border: '1px solid ' + borderCard, padding: '12px', borderRadius: '8px', cursor: 'pointer', color: textApp, fontSize: '0.9rem', fontWeight: 'bold' }}>✏️ Bearbeiten</button>
+                            <button onClick={() => deleteLiegenschaft(liege.id)} style={{ flex: 1, backgroundColor: darkMode ? '#3b1f23' : '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '12px', borderRadius: '8px', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️ Löschen</button>
                           </div>
                         </div>
                       );
