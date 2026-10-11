@@ -1260,15 +1260,14 @@ export default function App() {
                   alleLiegenschaftenSortiert.map(({ kunde, liege }) => {
                     const istErledigt = isObjektErledigtVorKurzem(liege.name);
                     return (
-                      <div key={liege.id} style={{ backgroundColor: bgCard, padding: '14px', borderRadius: '16px', border: istErledigt ? '2px solid #8cc63f' : '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '2px' }}>
-                            <span style={{ fontSize: '0.65rem', backgroundColor: darkMode ? '#14171a' : '#111827', color: '#ffffff', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>#{liege.reihenfolge || 1}</span>
-                            <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#8cc63f' }}>{kunde?.firma || 'Unbekannter Kunde'}</span>
-                            {istErledigt && <span style={{ fontSize: '0.65rem', backgroundColor: '#8cc63f', color: '#111827', padding: '1px 6px', borderRadius: '4px', fontWeight: 'bold' }}>✓ Erledigt</span>}
+                      <div key={liege.id} style={{ backgroundColor: bgCard, padding: '14px', borderRadius: '16px', border: istErledigt ? '2px solid #8cc63f' : '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', boxSizing: 'border-box' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', gap: '7px', alignItems: 'flex-start', minWidth: 0 }}>
+                            <span style={{ flexShrink: 0, fontSize: '0.7rem', backgroundColor: darkMode ? '#14171a' : '#111827', color: '#ffffff', padding: '3px 7px', borderRadius: '5px', fontWeight: 'bold' }}>#{liege.reihenfolge || 1}</span>
+                            <h3 style={{ minWidth: 0, overflowWrap: 'anywhere', fontWeight: 'bold', color: textApp, fontSize: '0.95rem', lineHeight: 1.3, margin: '1px 0 0' }}>{liege.name}</h3>
                           </div>
-                          <h3 style={{ fontWeight: 'bold', color: textApp, fontSize: '0.95rem', margin: '2px 0' }}>{liege.name}</h3>
-                          <p style={{ fontSize: '0.75rem', color: textSub, margin: '0' }}>{liege.address} • {liege.size} m²</p>
+                          <div style={{ fontSize: '0.7rem', color: textSub, margin: '5px 0 3px', overflowWrap: 'anywhere' }}>{kunde?.firma || 'Unbekannter Kunde'}</div>
+                          <p style={{ fontSize: '0.75rem', lineHeight: 1.35, color: textSub, margin: 0, overflowWrap: 'anywhere' }}>{liege.address} • {liege.size} m²</p>
                           {liege.raeumPlan && (
                             <button onClick={() => oeffneRaeumPlanAnsicht(liege.raeumPlan)} style={{ background: 'none', border: 'none', color: '#60a5fa', fontSize: '0.7rem', fontWeight: 'bold', padding: 0, marginTop: '4px', cursor: 'pointer' }}>
                               🗺️ Räumplan anzeigen
@@ -1276,9 +1275,12 @@ export default function App() {
                           )}
                         </div>
                         {kunde && (
-                          <button onClick={() => startEinsatzMitWaze(kunde, liege)} style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px 14px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', border: 'none', cursor: 'pointer', height: 'fit-content' }}>
-                            🚗 {istErledigt ? 'Nochmal' : 'Starten'}
-                          </button>
+                          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                            {istErledigt && <span style={{ whiteSpace: 'nowrap', fontSize: '0.65rem', backgroundColor: '#8cc63f', color: '#111827', padding: '4px 7px', borderRadius: '5px', fontWeight: 'bold' }}>✓ Erledigt</span>}
+                            <button onClick={() => startEinsatzMitWaze(kunde, liege)} style={{ minWidth: '92px', backgroundColor: '#8cc63f', color: '#111827', padding: '10px 9px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              🚗 {istErledigt ? 'Nochmal' : 'Starten'}
+                            </button>
+                          </div>
                         )}
                       </div>
                     );
