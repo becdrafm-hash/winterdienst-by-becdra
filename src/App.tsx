@@ -117,6 +117,7 @@ export default function App() {
     return localStorage.getItem('becdra_spritpreis') || '1.80';
   });
   const [editingSpritPreis, setEditingSpritPreis] = useState<string>(spritPreisProLiter);
+  const [streuMittelListe] = useState<string[]>(['Salz', 'Splitt', 'Sand', 'Lavagranulat', 'Acetat']);
 
   const [verbrauchAuf100Km] = useState<string>('10');
 
@@ -128,7 +129,7 @@ export default function App() {
   const [neuObjName, setNeuObjName] = useState('');
   const [neuObjAddress, setNeuObjAddress] = useState('');
   const [neuObjSize, setNeuObjSize] = useState('');
-  const [neuObjMaterial, setNeuObjMaterial] = useState('Reines Salz');
+  const [neuObjMaterial, setNeuObjMaterial] = useState('Salz');
   const [neuObjReihenfolge, setNeuObjReihenfolge] = useState('1');
   const [neuObjRaeumPlan, setNeuObjRaeumPlan] = useState<string>('');
 
@@ -141,7 +142,7 @@ export default function App() {
   const [editObjName, setEditObjName] = useState('');
   const [editObjAddress, setEditObjAddress] = useState('');
   const [editObjSize, setEditObjSize] = useState('');
-  const [editObjMaterial, setEditObjMaterial] = useState('Reines Salz');
+  const [editObjMaterial, setEditObjMaterial] = useState('Salz');
   const [editObjReihenfolge, setEditObjReihenfolge] = useState('1');
   const [editObjRaeumPlan, setEditObjRaeumPlan] = useState<string>('');
 
@@ -195,6 +196,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('becdra_lager', JSON.stringify(lagerBestand));
   }, [lagerBestand]);
+
+  useEffect(() => {
+    localStorage.setItem('becdra_streumittel', JSON.stringify(streuMittelListe));
+  }, [streuMittelListe]);
 
   useEffect(() => {
     localStorage.setItem('becdra_history', JSON.stringify(history));
@@ -398,7 +403,7 @@ export default function App() {
     setEditObjName(liege.name);
     setEditObjAddress(liege.address);
     setEditObjSize(liege.size);
-    setEditObjMaterial(liege.material);
+    setEditObjMaterial(streuMittelListe.includes(liege.material) ? liege.material : streuMittelListe[0]);
     setEditObjReihenfolge(liege.reihenfolge ? liege.reihenfolge.toString() : '1');
     setEditObjRaeumPlan(liege.raeumPlan || '');
   };
@@ -1126,8 +1131,9 @@ export default function App() {
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Streumittel</label>
               <select value={editObjMaterial} onChange={e => setEditObjMaterial(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }}>
-                <option value="Reines Salz">Reines Salz</option>
-                <option value="Salz-Sand-Gemisch">Salz-Sand-Gemisch</option>
+                {streuMittelListe.map(streuMittel => (
+                  <option key={streuMittel} value={streuMittel}>{streuMittel}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -1467,8 +1473,9 @@ export default function App() {
                       <div>
                         <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Streumittel</label>
                         <select value={neuObjMaterial} onChange={e => setNeuObjMaterial(e.target.value)} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp }}>
-                          <option value="Reines Salz">Reines Salz</option>
-                          <option value="Salz-Sand-Gemisch">Salz-Sand-Gemisch</option>
+                          {streuMittelListe.map(streuMittel => (
+                            <option key={streuMittel} value={streuMittel}>{streuMittel}</option>
+                          ))}
                         </select>
                       </div>
                     </div>
