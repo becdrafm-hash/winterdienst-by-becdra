@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface Liegenschaft {
   id: number;
+  kundeId: number;
   name: string;
   address: string;
   size: string;
@@ -15,7 +16,6 @@ interface Kunde {
   firma: string;
   email: string;
   whatsapp: string;
-  liegenschaften: Liegenschaft[];
 }
 
 interface EinsatzLog {
@@ -49,11 +49,10 @@ interface SaisonArchiv {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'tour' | 'kunden' | 'lager' | 'history_saison'>('tour');
+  const [activeTab, setActiveTab] = useState<'tour' | 'kunden' | 'liegenschaften' | 'lager' | 'statistik' | 'history_saison'>('tour');
   const [statusMeldung, setStatusMeldung] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(false);
 
-  // Flexibler Startpunkt
   const [startPunkt, setStartPunkt] = useState<string>(() => {
     return localStorage.getItem('becdra_startpunkt') || 'Groiner Allee 1, 46459 Rees';
   });
@@ -62,6 +61,11 @@ export default function App() {
   const [lagerAnzahlInput, setLagerAnzahlInput] = useState<string>('1');
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
   const [importText, setImportText] = useState<string>('');
+  const [showActiveRaeumPlanPopup, setShowActiveRaeumPlanPopup] = useState<boolean>(false);
+
+  const watchIdRef = useRef<number | null>(null);
+  const lastCoordsRef = useRef<{ lat: number; lon: number } | null>(null);
+  const accumulatedKmRef = useRef<number>(0);
 
   const [dialogConfig, setDialogConfig] = useState<{
     visible: boolean;
@@ -87,12 +91,21 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [liegenschaften, setLiegenschaften] = useState<Liegenschaft[]>(() => {
+    const saved = localStorage.getItem('becdra_liegenschaften');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [lagerBestand, setLagerBestand] = useState<number>(() => {
     const saved = localStorage.getItem('becdra_lager');
     return saved ? JSON.parse(saved) : 0;
   });
 
-  const [spritPreisProLiter] = useState<string>('1.80');
+  const [spritPreisProLiter, setSpritPreisProLiter] = useState<string>(() => {
+    return localStorage.getItem('becdra_spritpreis') || '1.80';
+  });
+  const [editingSpritPreis, setEditingSpritPreis] = useState<string>(spritPreisProLiter);
+
   const [verbrauchAuf100Km] = useState<string>('10');
 
   const [neuFirma, setNeuFirma] = useState('');
@@ -112,7 +125,7 @@ export default function App() {
   const [editEmail, setEditEmail] = useState('');
   const [editWhatsapp, setEditWhatsapp] = useState('');
 
-  const [editingLiege, setEditingLiege] = useState<{ kundeId: number; liege: Liegenschaft } | null>(null);
+  const [editingLiege, setEditingLiege] = useState<Liegenschaft | null>(null);
   const [editObjName, setEditObjName] = useState('');
   const [editObjAddress, setEditObjAddress] = useState('');
   const [editObjSize, setEditObjSize] = useState('');
@@ -126,7 +139,7 @@ export default function App() {
   const [einsatzType, setEinsatzType] = useState('Räumen & Streuen');
   const [wetterLage, setWetterLage] = useState('Wird geladen...');
   const [materialSaecke, setMaterialSaecke] = useState('1');
-  const [gefahreneKm, setGefahreneKm] = useState('12');
+  const [gefahreneKm, setGefahreneKm] = useState('0');
   
   const [aufgenommenesFoto, setAufgenommenesFoto] = useState<string | null>(null);
   const [aufgenommenesFotoUrl, setAufgenommenesFotoUrl] = useState<string | null>(null);
@@ -135,7 +148,8 @@ export default function App() {
   const [hindernisFoto, setHindernisFoto] = useState<string | null>(null);
   const [hindernisFotoUrl, setHindernisFotoUrl] = useState<string | null>(null);
 
-  const [heuteBetreuteObjekte, setHeuteBetreuteObjekte] = useState<{ name: string; type: string }[]>([]);
+  // Speichert pro Kunde die heute bereits betreuten Objekt-Namen sauber getrennt
+  const [heuteBetreuteProKunde, setHeuteBetreuteProKunde] = useState<{ [kundeId: number]: { name: string; address: string; type: string }[] }>({});
   
   const [history, setHistory] = useState<EinsatzLog[]>(() => {
     try {
@@ -163,6 +177,10 @@ export default function App() {
   }, [kunden]);
 
   useEffect(() => {
+    localStorage.setItem('becdra_liegenschaften', JSON.stringify(liegenschaften));
+  }, [liegenschaften]);
+
+  useEffect(() => {
     localStorage.setItem('becdra_lager', JSON.stringify(lagerBestand));
   }, [lagerBestand]);
 
@@ -179,6 +197,13 @@ export default function App() {
     setStartPunkt(editingStartPunkt);
     localStorage.setItem('becdra_startpunkt', editingStartPunkt);
     zeigeMeldung('Startpunkt erfolgreich aktualisiert!');
+  };
+
+  const speichereSpritPreis = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSpritPreisProLiter(editingSpritPreis);
+    localStorage.setItem('becdra_spritpreis', editingSpritPreis);
+    zeigeMeldung('Spritpreis erfolgreich aktualisiert!');
   };
 
   const anpasseLagerGenau = (modus: 'add' | 'sub') => {
@@ -205,8 +230,7 @@ export default function App() {
       id: Date.now(),
       firma: neuFirma,
       email: neuEmail,
-      whatsapp: neuWhatsapp,
-      liegenschaften: []
+      whatsapp: neuWhatsapp
     };
     setKunden([...kunden, neuerKunde]);
     setSelectedKundeId(neuerKunde.id);
@@ -233,19 +257,20 @@ export default function App() {
     setDialogConfig({
       visible: true,
       titel: 'Kunden löschen',
-      text: 'Möchtest du diesen Kunden und alle dazugehörigen Liegenschaften wirklich unwiderruflich löschen?',
+      text: 'Möchtest du diesen Kunden und alle zugehörigen Liegenschaften wirklich löschen?',
       confirmText: 'Löschen',
       cancelText: 'Abbrechen',
       onConfirm: () => {
-        setKunden(prevKunden => prevKunden.filter(k => k.id !== kundeId));
+        setKunden(prev => prev.filter(k => k.id !== kundeId));
+        setLiegenschaften(prev => prev.filter(l => l.kundeId !== kundeId));
         setDialogConfig(prev => ({ ...prev, visible: false }));
-        zeigeMeldung('Kunde erfolgreich gelöscht.');
+        zeigeMeldung('Kunde und zugehörige Liegenschaften gelöscht.');
       },
       onCancel: () => setDialogConfig(prev => ({ ...prev, visible: false }))
     });
   };
 
-  const deleteLiegenschaft = (kundeId: number, liegeId: number) => {
+  const deleteLiegenschaft = (liegeId: number) => {
     setDialogConfig({
       visible: true,
       titel: 'Liegenschaft löschen',
@@ -253,12 +278,7 @@ export default function App() {
       confirmText: 'Löschen',
       cancelText: 'Abbrechen',
       onConfirm: () => {
-        setKunden(kunden.map(k => {
-          if (k.id === kundeId) {
-            return { ...k, liegenschaften: k.liegenschaften.filter(l => l.id !== liegeId) };
-          }
-          return k;
-        }));
+        setLiegenschaften(prev => prev.filter(l => l.id !== liegeId));
         setDialogConfig(prev => ({ ...prev, visible: false }));
         zeigeMeldung('Liegenschaft gelöscht.');
       },
@@ -278,12 +298,25 @@ export default function App() {
     }
   };
 
-  const addObjectToKunde = (e: React.FormEvent) => {
+  const handleEditRaeumPlanUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditObjRaeumPlan(reader.result as string);
+        zeigeMeldung('Räumplan aktualisiert!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const addLiegenschaft = (e: React.FormEvent) => {
     e.preventDefault();
     if (!neuObjName || !neuObjAddress || !neuObjSize) return;
     
     const neueLiege: Liegenschaft = {
       id: Date.now(),
+      kundeId: Number(selectedKundeId),
       name: neuObjName,
       address: neuObjAddress,
       size: neuObjSize,
@@ -292,23 +325,17 @@ export default function App() {
       raeumPlan: neuObjRaeumPlan || undefined
     };
 
-    setKunden(kunden.map(k => {
-      if (k.id === Number(selectedKundeId)) {
-        return { ...k, liegenschaften: [...k.liegenschaften, neueLiege] };
-      }
-      return k;
-    }));
-
+    setLiegenschaften([...liegenschaften, neueLiege]);
     setNeuObjName('');
     setNeuObjAddress('');
     setNeuObjSize('');
     setNeuObjReihenfolge('1');
     setNeuObjRaeumPlan('');
-    zeigeMeldung('Liegenschaft inklusive Räumplan hinzugefügt!');
+    zeigeMeldung('Liegenschaft erfolgreich hinzugefügt!');
   };
 
-  const startEditLiege = (kundeId: number, liege: Liegenschaft) => {
-    setEditingLiege({ kundeId, liege });
+  const startEditLiege = (liege: Liegenschaft) => {
+    setEditingLiege(liege);
     setEditObjName(liege.name);
     setEditObjAddress(liege.address);
     setEditObjSize(liege.size);
@@ -319,21 +346,15 @@ export default function App() {
 
   const saveEditLiege = () => {
     if (!editingLiege) return;
-    setKunden(kunden.map(k => {
-      if (k.id === editingLiege.kundeId) {
-        const updatedLieges = k.liegenschaften.map(l => l.id === editingLiege.liege.id ? { 
-          ...l, 
-          name: editObjName, 
-          address: editObjAddress, 
-          size: editObjSize, 
-          material: editObjMaterial,
-          reihenfolge: Number(editObjReihenfolge) || 1,
-          raeumPlan: editObjRaeumPlan || undefined
-        } : l);
-        return { ...k, liegenschaften: updatedLieges };
-      }
-      return k;
-    }));
+    setLiegenschaften(liegenschaften.map(l => l.id === editingLiege.id ? { 
+      ...l, 
+      name: editObjName, 
+      address: editObjAddress, 
+      size: editObjSize, 
+      material: editObjMaterial,
+      reihenfolge: Number(editObjReihenfolge) || 1,
+      raeumPlan: editObjRaeumPlan || undefined
+    } : l));
     setEditingLiege(null);
     zeigeMeldung('Liegenschaft aktualisiert!');
   };
@@ -354,6 +375,7 @@ export default function App() {
     });
   };
 
+  // Korrigierter Bericht mit exaktem Status ("ordnungsgemäß betreut") und reiner Signatur ("Becdra FM")
   const sendeHistorienBericht = (item: EinsatzLog) => {
     const gefundenerKunde = kunden.find(k => k.firma === item.kundeName);
     const zielWhatsapp = gefundenerKunde ? gefundenerKunde.whatsapp : '+4915100000000';
@@ -368,10 +390,9 @@ export default function App() {
       `🌤️ *Wetterlage:* ${item.wetter}\n` +
       `🛠️ *Maßnahme:* ${item.type}\n` +
       `────────────────────────\n` +
-      `✅ *Status:* Alle vertraglichen Flächen wurden ordnungsgemäß geräumt und gestreut.\n\n` +
+      `✅ *Status:* ordnungsgemäß betreut\n\n` +
       `Mit freundlichen Grüßen\n` +
-      `*Becdra FM* (Michael Beckers)\n` +
-      `🌿 *Garten- & Hausmeisterservice*`;
+      `*Becdra FM*`;
 
     setDialogConfig({
       visible: true,
@@ -550,39 +571,16 @@ export default function App() {
     }
   };
 
-  const berechneGpsKilometer = () => {
-    if (!navigator.geolocation) {
-      setGefahreneKm('10');
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat1 = position.coords.latitude;
-        const lon1 = position.coords.longitude;
-        const lat2 = 51.7563; 
-        const lon2 = 6.4042;
-
-        const R = 6371;
-        const dLat = ((lat2 - lat1) * Math.PI) / 180;
-        const dLon = ((lon2 - lon1) * Math.PI) / 180;
-        const a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos((lat1 * Math.PI) / 180) *
-            Math.cos((lat2 * Math.PI) / 180) *
-            Math.sin(dLon / 2) *
-            Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        let distanzKm = R * c * 2;
-
-        if (distanzKm < 2) distanzKm = 4;
-        setGefahreneKm(Math.round(distanzKm).toString());
-      },
-      () => {
-        setGefahreneKm('10');
-      },
-      { timeout: 5000 }
-    );
+  const berechneDistanzKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
   };
 
   const startEinsatzMitWaze = (kunde: Kunde, obj: Liegenschaft) => {
@@ -595,8 +593,45 @@ export default function App() {
     setHindernisNotiz('');
     setHindernisFoto(null);
     setHindernisFotoUrl(null);
+    setShowActiveRaeumPlanPopup(false);
     fetchLiveWetter();
-    berechneGpsKilometer();
+
+    accumulatedKmRef.current = 0;
+    lastCoordsRef.current = null;
+    setGefahreneKm('0');
+
+    if (navigator.geolocation) {
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (position) => {
+          const currentLat = position.coords.latitude;
+          const currentLon = position.coords.longitude;
+          const currentCoords = { lat: currentLat, lon: currentLon };
+
+          if (lastCoordsRef.current) {
+            const dist = berechneDistanzKm(
+              lastCoordsRef.current.lat, lastCoordsRef.current.lon,
+              currentLat, currentLon
+            );
+            if (dist > 0.005) {
+              accumulatedKmRef.current += dist;
+              setGefahreneKm(Math.max(1, Math.round(accumulatedKmRef.current)).toString());
+            }
+          }
+          lastCoordsRef.current = currentCoords;
+        },
+        (error) => {
+          console.error("GPS-Tracking Fehler:", error);
+        },
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+      );
+    }
+  };
+
+  const stopGpsTracking = () => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
   };
 
   const cancelEinsatz = () => {
@@ -607,10 +642,12 @@ export default function App() {
       confirmText: 'Ja, abbrechen',
       cancelText: 'Weiterarbeiten',
       onConfirm: () => {
+        stopGpsTracking();
         setActiveKunde(null);
         setActiveObjekt(null);
         setAufgenommenesFoto(null);
         setAufgenommenesFotoUrl(null);
+        setShowActiveRaeumPlanPopup(false);
         setDialogConfig(prev => ({ ...prev, visible: false }));
         zeigeMeldung('Einsatz abgebrochen.');
       },
@@ -640,6 +677,8 @@ export default function App() {
 
   const finishEinsatz = () => {
     if (!activeKunde || !activeObjekt || !startTime) return;
+    stopGpsTracking();
+
     const endTime = new Date();
     const diffMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
     const saeckeNum = Number(materialSaecke) || 0;
@@ -670,10 +709,18 @@ export default function App() {
 
     setHistory(prev => [newLog, ...prev]);
 
-    const updatedBetreut = [...heuteBetreuteObjekte, { name: activeObjekt.name, type: einsatzType }];
-    setHeuteBetreuteObjekte(updatedBetreut);
+    // Korrekte, kundenspezifische Erfassung der heute betreuten Objekte für DIESEN Kunden
+    const kundeId = activeKunde.id;
+    const aktuelleListeFuerKunden = heuteBetreuteProKunde[kundeId] || [];
+    const updatedBetreut = [...aktuelleListeFuerKunden, { name: activeObjekt.name, address: activeObjekt.address, type: einsatzType }];
+    
+    setHeuteBetreuteProKunde(prev => ({
+      ...prev,
+      [kundeId]: updatedBetreut
+    }));
 
-    const alleObjekteDesKundenNamen = activeKunde.liegenschaften.map(l => l.name);
+    const kundenLiegen = liegenschaften.filter(l => l.kundeId === kundeId);
+    const alleObjekteDesKundenNamen = kundenLiegen.map(l => l.name);
     const erledigteObjekteNamen = updatedBetreut.map(b => b.name);
     const alleErledigt = alleObjekteDesKundenNamen.every(name => erledigteObjekteNamen.includes(name));
 
@@ -682,9 +729,11 @@ export default function App() {
     setActiveObjekt(null);
     setAufgenommenesFoto(null);
     setAufgenommenesFotoUrl(null);
+    setShowActiveRaeumPlanPopup(false);
 
     if (alleErledigt && alleObjekteDesKundenNamen.length > 0) {
-      const liegenschaftsListeText = updatedBetreut.map(b => `• ${b.name} (${b.type})`).join('\n');
+      // Exakter Berichtsaufbau: Liegenschaften des AKTUELLEN Kunden mit Adresse und Doppelpunkt
+      const liegenschaftsListeText = updatedBetreut.map(b => `• ${b.name} (${b.address}): ${b.type}`).join('\n');
       
       const berichtText = 
         `❄️ *WINTERDIENST - EINSATZBERICHT* ❄️\n` +
@@ -694,10 +743,9 @@ export default function App() {
         `🌤️ *Wetterlage:* ${wetterLage}\n\n` +
         `📍 *Betreute Liegenschaften:*\n` + liegenschaftsListeText + `\n\n` +
         `────────────────────────\n` +
-        `✅ *Status:* Alle vertraglichen Flächen wurden ordnungsgemäß geräumt und gestreut.\n\n` +
+        `✅ *Status:* ordnungsgemäß betreut\n\n` +
         `Mit freundlichen Grüßen\n` +
-        `*Becdra FM* (Michael Beckers)\n` +
-        `🌿 *Garten- & Hausmeisterservice*`;
+        `*Becdra FM*`;
 
       setDialogConfig({
         visible: true,
@@ -740,26 +788,21 @@ export default function App() {
 
     const lines = importText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     
-    let aktualisierteKunden = [...kunden];
     let anzahlAktualisiert = 0;
+    const aktualisierteLiegen = liegenschaften.map(liege => {
+      const matchingLineIndex = lines.findIndex(line => 
+        line.toLowerCase().includes(liege.name.toLowerCase()) || 
+        line.toLowerCase().includes(liege.address.toLowerCase())
+      );
 
-    aktualisierteKunden = aktualisierteKunden.map(kunde => {
-      const neueLiegenschaften = kunde.liegenschaften.map(liege => {
-        const matchingLineIndex = lines.findIndex(line => 
-          line.toLowerCase().includes(liege.name.toLowerCase()) || 
-          line.toLowerCase().includes(liege.address.toLowerCase())
-        );
-
-        if (matchingLineIndex !== -1) {
-          anzahlAktualisiert++;
-          return { ...liege, reihenfolge: matchingLineIndex + 1 };
-        }
-        return liege;
-      });
-      return { ...kunde, liegenschaften: neueLiegenschaften };
+      if (matchingLineIndex !== -1) {
+        anzahlAktualisiert++;
+        return { ...liege, reihenfolge: matchingLineIndex + 1 };
+      }
+      return liege;
     });
 
-    setKunden(aktualisierteKunden);
+    setLiegenschaften(aktualisierteLiegen);
     setShowImportModal(false);
     setImportText('');
     zeigeMeldung(`Route erfolgreich aktualisiert! (${anzahlAktualisiert} Objekte sortiert)`);
@@ -831,27 +874,48 @@ export default function App() {
   };
 
   const kopiereAlleAdresen = () => {
-    const liegenschaftsZeilen = alleLiegenschaftenSortiert.map(item => `${item.kunde.firma} - ${item.liege.name}: ${item.liege.address}`);
-    
-    const kompletteRoute = [
-      `🏁 START / BASIS: ${startPunkt}`,
-      ...liegenschaftsZeilen,
-      `🏁 ZIEL / RÜCKKEHR: ${startPunkt}`
-    ].join('\n');
-
-    navigator.clipboard.writeText(kompletteRoute).catch(() => {});
-    zeigeMeldung('Route inkl. Start- und Endpunkt in Zwischenablage kopiert!');
+    if (alleLiegenschaftenSortiert.length === 0) {
+      zeigeMeldung('Keine Liegenschaften vorhanden.');
+      return;
+    }
+    const liegenschaftsZeilen = alleLiegenschaftenSortiert.map((item, index) => 
+      `${index + 1}. ${item.kunde?.firma || 'Kunde'} - ${item.liege.name}: ${item.liege.address}`
+    );
+    const reinZuOptimierendeRoute = liegenschaftsZeilen.join('\n');
+    navigator.clipboard.writeText(reinZuOptimierendeRoute).catch(() => {});
+    zeigeMeldung('Nur die Liegenschaften wurden in die Zwischenablage kopiert!');
   };
 
   const isObjektErledigtVorKurzem = (objName: string) => {
     const zwStundenMs = 12 * 60 * 60 * 1000;
-    const jetzt = Date.now();
-    return history.some(item => item.objName === objName && (jetzt - item.timestamp) < zwStundenMs);
+    return history.some(item => item.objName === objName && (Date.now() - item.timestamp) < zwStundenMs);
   };
 
-  const alleLiegenschaftenSortiert = kunden.flatMap(kunde => 
-    kunde.liegenschaften.map(liege => ({ kunde, liege }))
-  ).sort((a, b) => (a.liege.reihenfolge || 1) - (b.liege.reihenfolge || 1));
+  const alleLiegenschaftenSortiert = liegenschaften.map(liege => {
+    const kunde = kunden.find(k => k.id === liege.kundeId);
+    return { kunde, liege };
+  }).sort((a, b) => (a.liege.reihenfolge || 1) - (b.liege.reihenfolge || 1));
+
+  const heuteDatumString = new Date().toLocaleDateString('de-DE');
+
+  const berechneStatistikWerte = (einsätzeListe: EinsatzLog[]) => {
+    let anzahl = einsätzeListe.length;
+    let km = 0;
+    let sprit = 0;
+    let saecke = 0;
+
+    einsätzeListe.forEach(item => {
+      km += parseFloat(item.kmGefahren) || 0;
+      sprit += parseFloat(item.spritKosten.replace(' €', '').replace(',', '.')) || 0;
+      const matchSaecke = item.materialUsed.match(/^([\d.]+)/);
+      if (matchSaecke) saecke += parseFloat(matchSaecke[1]) || 0;
+    });
+
+    return { anzahl, km: Math.round(km), sprit: sprit.toFixed(2), saecke: Math.floor(saecke) };
+  };
+
+  const heuStat = berechneStatistikWerte(history.filter(h => h.date.startsWith(heuteDatumString)));
+  const gesamtStat = berechneStatistikWerte(history);
 
   const bgApp = darkMode ? '#14171a' : '#f4f6f8';
   const textApp = darkMode ? '#f3f4f6' : '#1f2937';
@@ -868,12 +932,34 @@ export default function App() {
         </div>
       )}
 
+      {/* Räumplan Pop-up im aktiven Einsatz */}
+      {showActiveRaeumPlanPopup && activeObjekt && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 4000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '16px' }}>
+          <div style={{ backgroundColor: bgCard, border: '2px solid #8cc63f', borderRadius: '16px', maxWidth: '400px', width: '100%', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>🗺️ Räumplan: {activeObjekt.name}</h3>
+              <button onClick={() => setShowActiveRaeumPlanPopup(false)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', fontWeight: 'bold', color: textApp, cursor: 'pointer' }}>✕</button>
+            </div>
+            <div style={{ width: '100%', height: '300px', backgroundColor: '#111', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+              {activeObjekt.raeumPlan ? (
+                <img src={activeObjekt.raeumPlan} alt="Räumplan" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              ) : (
+                <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>Kein Räumplan für dieses Objekt hinterlegt.</p>
+              )}
+            </div>
+            <button onClick={() => setShowActiveRaeumPlanPopup(false)} style={{ backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}>
+              Schließen
+            </button>
+          </div>
+        </div>
+      )}
+
       {showImportModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '16px' }}>
           <div style={{ backgroundColor: bgCard, border: '2px solid #8cc63f', color: textApp, padding: '24px', borderRadius: '16px', maxWidth: '400px', width: '100%', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: 0 }}>🔄 Route optimieren & importieren</h3>
             <p style={{ fontSize: '0.8rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
-              Füge hier deine optimierte Reihenfolge ein. Die App sortiert deine Tour automatisch basierend auf deinem Startpunkt.
+              Füge hier deine optimierte Reihenfolge ein. Die App sortiert deine Tour automatisch.
             </p>
             <textarea 
               rows={6}
@@ -894,9 +980,10 @@ export default function App() {
         </div>
       )}
 
+      {/* Liegenschaft bearbeiten (inkl. Räumplan) */}
       {editingLiege && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '16px' }}>
-          <div style={{ backgroundColor: bgCard, border: '2px solid #8cc63f', color: textApp, padding: '24px', borderRadius: '16px', maxWidth: '380px', width: '100%', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ backgroundColor: bgCard, border: '2px solid #8cc63f', color: textApp, padding: '24px', borderRadius: '16px', maxWidth: '380px', width: '100%', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: 0 }}>📍 Liegenschaft bearbeiten</h3>
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Objektname</label>
@@ -922,6 +1009,20 @@ export default function App() {
                 <option value="Reines Salz">Reines Salz</option>
                 <option value="Salz-Sand-Gemisch">Salz-Sand-Gemisch</option>
               </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Räumplan (Nachträglich hinzufügen / ändern)</label>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <label style={{ flex: 1, border: '2px dashed #8cc63f', backgroundColor: darkMode ? '#14171a' : '#f4fce3', color: '#8cc63f', padding: '8px', borderRadius: '6px', fontWeight: 600, textAlign: 'center', cursor: 'pointer', fontSize: '0.75rem' }}>
+                  📸 Foto
+                  <input type="file" accept="image/*" capture="environment" onChange={handleEditRaeumPlanUpload} style={{ display: 'none' }} />
+                </label>
+                <label style={{ flex: 1, border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, padding: '8px', borderRadius: '6px', fontWeight: 'bold', textAlign: 'center', cursor: 'pointer', fontSize: '0.75rem' }}>
+                  📁 Datei
+                  <input type="file" accept="image/*,application/pdf" onChange={handleEditRaeumPlanUpload} style={{ display: 'none' }} />
+                </label>
+              </div>
+              {editObjRaeumPlan && <span style={{ fontSize: '0.7rem', color: '#8cc63f', display: 'block', marginTop: '2px', fontWeight: 'bold' }}>✓ Räumplan hinterlegt!</span>}
             </div>
             <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
               <button onClick={() => setEditingLiege(null)} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}>
@@ -997,9 +1098,10 @@ export default function App() {
               <p style={{ fontSize: '0.8rem', color: textSub, margin: 0 }}>📍 {activeObjekt.address} • {activeObjekt.size} m² (Pos: #{activeObjekt.reihenfolge})</p>
             </div>
 
+            {/* Räumplan Pop-up Button im aktiven Einsatz */}
             {activeObjekt.raeumPlan && (
-              <button onClick={() => oeffneRaeumPlanAnsicht(activeObjekt.raeumPlan)} style={{ backgroundColor: '#111827', color: '#ffffff', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.85rem' }}>
-                🗺️ Räumplan anzeigen / öffnen
+              <button onClick={() => setShowActiveRaeumPlanPopup(true)} style={{ backgroundColor: '#111827', color: '#ffffff', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.85rem' }}>
+                🗺️ Räumplan als Pop-up öffnen
               </button>
             )}
 
@@ -1030,7 +1132,7 @@ export default function App() {
                 </div>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textApp, marginBottom: '4px' }}>Gefahrene km (GPS)</label>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textApp, marginBottom: '4px' }}>Gefahrene km (Auto-GPS)</label>
                 <input type="number" value={gefahreneKm} onChange={(e) => setGefahreneKm(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, textAlign: 'center', fontWeight: 'bold' }} />
               </div>
             </div>
@@ -1040,15 +1142,6 @@ export default function App() {
               <label style={{ display: 'block', width: '100%', border: '2px dashed #8cc63f', backgroundColor: darkMode ? '#14171a' : '#f4fce3', color: '#8cc63f', padding: '10px', borderRadius: '10px', fontWeight: 600, textAlign: 'center', cursor: 'pointer', fontSize: '0.8rem', boxSizing: 'border-box' }}>
                 📷 {aufgenommenesFoto ? `✓ Foto komprimiert (${aufgenommenesFoto})` : 'Kamera öffnen & Fläche fotografieren'}
                 <input type="file" accept="image/*" capture="environment" onChange={handleFotoCapture} style={{ display: 'none' }} />
-              </label>
-            </div>
-
-            <div style={{ backgroundColor: darkMode ? '#2a1a1a' : '#fef2f2', padding: '12px', borderRadius: '10px', border: '1px solid #fecaca', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#dc2626', textTransform: 'uppercase' }}>⚠️ Hindernis / Schaden vor Ort (Optional)</span>
-              <input type="text" value={hindernisNotiz} onChange={e => setHindernisNotiz(e.target.value)} placeholder="z.B. Auto blockiert Zufahrt" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #fca5a5', fontSize: '0.8rem', backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp }} />
-              <label style={{ display: 'block', width: '100%', border: '1px dashed #dc2626', backgroundColor: darkMode ? '#14171a' : '#ffffff', color: '#dc2626', padding: '8px', borderRadius: '6px', fontWeight: 600, textAlign: 'center', cursor: 'pointer', fontSize: '0.75rem', boxSizing: 'border-box' }}>
-                📸 {hindernisFoto ? `✓ Hindernis-Foto komprimiert (${hindernisFoto})` : 'Hindernis fotografieren'}
-                <input type="file" accept="image/*" capture="environment" onChange={handleHindernisFotoCapture} style={{ display: 'none' }} />
               </label>
             </div>
 
@@ -1066,13 +1159,19 @@ export default function App() {
                     <h2 style={{ fontWeight: 'bold', fontSize: '1.05rem', margin: 0 }}>Guten Tag, Micha! 👋</h2>
                     <p style={{ fontSize: '0.75rem', color: '#8cc63f', margin: '4px 0 0 0', fontWeight: 'bold' }}>Aktueller Startpunkt: {startPunkt}</p>
                   </div>
-                  <button onClick={() => setShowImportModal(true)} style={{ backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                    <span>🔄 Optimierte Route importieren</span>
-                  </button>
+                  
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                    <button onClick={kopiereAlleAdresen} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#eef6e6', color: '#598f1e', border: '1px solid #8cc63f', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
+                      📋 Adressen kopieren
+                    </button>
+                    <button onClick={() => setShowImportModal(true)} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
+                      🔄 Route importieren
+                    </button>
+                  </div>
                 </div>
 
                 {alleLiegenschaftenSortiert.length === 0 ? (
-                  <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>Keine Liegenschaften vorhanden. Bitte im Tab "Kunden" anlegen.</p>
+                  <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>Keine Liegenschaften vorhanden. Bitte im Tab "Objekte" anlegen.</p>
                 ) : (
                   alleLiegenschaftenSortiert.map(({ kunde, liege }) => {
                     const istErledigt = isObjektErledigtVorKurzem(liege.name);
@@ -1081,7 +1180,7 @@ export default function App() {
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '2px' }}>
                             <span style={{ fontSize: '0.65rem', backgroundColor: darkMode ? '#14171a' : '#111827', color: '#ffffff', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>#{liege.reihenfolge || 1}</span>
-                            <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#8cc63f' }}>{kunde.firma}</span>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#8cc63f' }}>{kunde?.firma || 'Unbekannter Kunde'}</span>
                             {istErledigt && <span style={{ fontSize: '0.65rem', backgroundColor: '#8cc63f', color: '#111827', padding: '1px 6px', borderRadius: '4px', fontWeight: 'bold' }}>✓ Erledigt</span>}
                           </div>
                           <h3 style={{ fontWeight: 'bold', color: textApp, fontSize: '0.95rem', margin: '2px 0' }}>{liege.name}</h3>
@@ -1092,9 +1191,11 @@ export default function App() {
                             </button>
                           )}
                         </div>
-                        <button onClick={() => startEinsatzMitWaze(kunde, liege)} style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px 14px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', border: 'none', cursor: 'pointer', height: 'fit-content' }}>
-                          🚗 {istErledigt ? 'Nochmal' : 'Starten'}
-                        </button>
+                        {kunde && (
+                          <button onClick={() => startEinsatzMitWaze(kunde, liege)} style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px 14px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', border: 'none', cursor: 'pointer', height: 'fit-content' }}>
+                            🚗 {istErledigt ? 'Nochmal' : 'Starten'}
+                          </button>
+                        )}
                       </div>
                     );
                   })
@@ -1102,14 +1203,14 @@ export default function App() {
               </div>
             )}
 
-            {/* KUNDEN TAB (Sauber ohne KI, rein manuelle Erfassung & Verwaltung) */}
+            {/* KUNDEN TAB */}
             {activeTab === 'kunden' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>📋 Kunden & Liegenschaften verwalten</h2>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>👥 Kunden verwalten</h2>
                   {kunden.length === 0 ? (
-                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Kunden angelegt. Lege unten manuell einen Kunden an!</p>
+                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Kunden angelegt.</p>
                   ) : (
                     kunden.map(kunde => (
                       <div key={kunde.id} style={{ border: '1px solid ' + borderCard, borderRadius: '10px', padding: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1130,33 +1231,11 @@ export default function App() {
                               <p style={{ fontSize: '0.7rem', color: textSub, margin: '2px 0 0 0' }}>✉ {kunde.email || 'Keine E-Mail'} | 📞 {kunde.whatsapp || 'Keine Nummer'}</p>
                             </div>
                             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                              <button onClick={() => startEditKunde(kunde)} style={{ background: 'none', border: '1px solid ' + borderCard, padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer', color: textApp }}>✏️ Stammdaten</button>
-                              <button onClick={() => deleteKunde(kunde.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold', padding: '4px' }} title="Kunden löschen">🗑️</button>
+                              <button onClick={() => startEditKunde(kunde)} style={{ background: 'none', border: '1px solid ' + borderCard, padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer', color: textApp }}>✏️</button>
+                              <button onClick={() => deleteKunde(kunde.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold', padding: '4px' }}>🗑️</button>
                             </div>
                           </div>
                         )}
-
-                        <div style={{ marginTop: '4px', borderTop: '1px dashed ' + borderCard, paddingTop: '8px' }}>
-                          <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#8cc63f', textTransform: 'uppercase' }}>Zugehörige Liegenschaften ({kunde.liegenschaften.length}):</span>
-                          {kunde.liegenschaften.length === 0 ? (
-                            <p style={{ fontSize: '0.75rem', color: textSub, margin: '4px 0 0 0' }}>Keine Liegenschaften hinterlegt.</p>
-                          ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                              {kunde.liegenschaften.map(liege => (
-                                <div key={liege.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: darkMode ? '#22262a' : '#ffffff', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard }}>
-                                  <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: textApp }}>📍 {liege.name} (#{liege.reihenfolge})</div>
-                                    <div style={{ fontSize: '0.7rem', color: textSub }}>{liege.address} • {liege.size} m²</div>
-                                  </div>
-                                  <div style={{ display: 'flex', gap: '4px' }}>
-                                    <button onClick={() => startEditLiege(kunde.id, liege)} style={{ background: 'none', border: '1px solid ' + borderCard, padding: '4px 6px', borderRadius: '4px', fontSize: '0.65rem', cursor: 'pointer', color: textApp }}>✏️</button>
-                                    <button onClick={() => deleteLiegenschaft(kunde.id, liege.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️</button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
                       </div>
                     ))
                   )}
@@ -1177,13 +1256,44 @@ export default function App() {
                       <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>WhatsApp-Nummer</label>
                       <input type="text" value={neuWhatsapp} onChange={e => setNeuWhatsapp(e.target.value)} placeholder="+49151..." style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
                     </div>
-                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Kunden anlegen</button>
+                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Kunden speichern</button>
                   </form>
                 </div>
 
+              </div>
+            )}
+
+            {/* LIEGENSCHAFTEN TAB */}
+            {activeTab === 'liegenschaften' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>📍 Alle Liegenschaften verwalten</h2>
+                  {liegenschaften.length === 0 ? (
+                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Liegenschaften angelegt.</p>
+                  ) : (
+                    liegenschaften.map(liege => {
+                      const zugehKunde = kunden.find(k => k.id === liege.kundeId);
+                      return (
+                        <div key={liege.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '10px', borderRadius: '8px', border: '1px solid ' + borderCard }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#8cc63f' }}>{zugehKunde?.firma || 'Kein Kunde'}</div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textApp }}>{liege.name} (#{liege.reihenfolge})</div>
+                            <div style={{ fontSize: '0.75rem', color: textSub }}>{liege.address} • {liege.size} m²</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button onClick={() => startEditLiege(liege)} style={{ background: 'none', border: '1px solid ' + borderCard, padding: '6px', borderRadius: '6px', cursor: 'pointer', color: textApp, fontSize: '0.8rem' }}>✏️</button>
+                            <button onClick={() => deleteLiegenschaft(liege.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️</button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>📍 Liegenschaft & Räumplan hinzufügen</h2>
-                  <form onSubmit={addObjectToKunde} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>➕ Neue Liegenschaft hinzufügen</h2>
+                  <form onSubmit={addLiegenschaft} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Kunde auswählen</label>
                       <select value={selectedKundeId} onChange={e => setSelectedKundeId(Number(e.target.value))} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp }}>
@@ -1221,11 +1331,11 @@ export default function App() {
                       <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Räumplan (Kamera oder Datei)</label>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <label style={{ flex: 1, border: '2px dashed #8cc63f', backgroundColor: darkMode ? '#14171a' : '#f4fce3', color: '#8cc63f', padding: '10px', borderRadius: '8px', fontWeight: 600, textAlign: 'center', cursor: 'pointer', fontSize: '0.8rem' }}>
-                          📸 Plan abfotografieren
+                          📸 Foto
                           <input type="file" accept="image/*" capture="environment" onChange={handleNeuRaeumPlanUpload} style={{ display: 'none' }} />
                         </label>
                         <label style={{ flex: 1, border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, padding: '10px', borderRadius: '8px', fontWeight: 'bold', textAlign: 'center', cursor: 'pointer', fontSize: '0.8rem' }}>
-                          📁 Datei wählen
+                          📁 Datei
                           <input type="file" accept="image/*,application/pdf" onChange={handleNeuRaeumPlanUpload} style={{ display: 'none' }} />
                         </label>
                       </div>
@@ -1253,8 +1363,19 @@ export default function App() {
                   </form>
                 </div>
 
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>⛽ Spritpreis anpassen</h2>
+                  <form onSubmit={speichereSpritPreis} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Preis pro Liter (€)</label>
+                      <input type="number" step="0.01" value={editingSpritPreis} onChange={e => setEditingSpritPreis(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Spritpreis speichern</button>
+                  </form>
+                </div>
+
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1rem', margin: 0 }}>Streusalz Lager & Sprit</h2>
+                  <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1rem', margin: 0 }}>Streusalz Lager</h2>
                   <div style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', border: '2px solid #8cc63f', padding: '12px', borderRadius: '12px', textAlign: 'center' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#8cc63f', textTransform: 'uppercase' }}>Streusalz Vorrat</span>
                     <div style={{ fontSize: '2rem', fontWeight: 'bold', color: textApp, margin: '2px 0' }}>{Math.floor(lagerBestand)} <span style={{ fontSize: '0.9rem' }}>Säcke</span></div>
@@ -1277,12 +1398,36 @@ export default function App() {
                   </div>
                 </div>
 
-                <div style={{ backgroundColor: bgCard, padding: '12px', borderRadius: '16px', border: '1px solid #8cc63f', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', textAlign: 'center' }}>
-                  <button onClick={kopiereAlleAdresen} style={{ width: '100%', backgroundColor: darkMode ? '#14171a' : '#eef6e6', color: '#8cc63f', border: '1px solid #8cc63f', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}>
-                    📋 Alle Adressen inkl. Start/Endpunkt kopieren
-                  </button>
-                </div>
+              </div>
+            )}
 
+            {/* STATISTIK TAB */}
+            {activeTab === 'statistik' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: textApp }}>📊 Einsatz-Statistik</h2>
+                  
+                  <div style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '12px', borderRadius: '10px', border: '1px solid ' + borderCard }}>
+                    <h3 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#8cc63f', margin: '0 0 6px 0', textTransform: 'uppercase' }}>📅 Heute ({heuteDatumString})</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '0.8rem' }}>
+                      <div>Einsätze: <b>{heuStat.anzahl}</b></div>
+                      <div>Km: <b>{heuStat.km} km</b></div>
+                      <div>Sprit: <b>{heuStat.sprit} €</b></div>
+                      <div>Material: <b>{heuStat.saecke} Säcke</b></div>
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: darkMode ? '#14171a' : '#f4fce3', padding: '12px', borderRadius: '10px', border: '1px solid #8cc63f' }}>
+                    <h3 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#598f1e', margin: '0 0 6px 0', textTransform: 'uppercase' }}>📦 Gesamte Saison ({saisonName})</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '0.8rem' }}>
+                      <div>Einsätze: <b>{gesamtStat.anzahl}</b></div>
+                      <div>Km: <b>{gesamtStat.km} km</b></div>
+                      <div>Sprit: <b>{gesamtStat.sprit} €</b></div>
+                      <div>Material: <b>{gesamtStat.saecke} Säcke</b></div>
+                    </div>
+                  </div>
+
+                </div>
               </div>
             )}
 
@@ -1346,21 +1491,27 @@ export default function App() {
 
       </main>
 
-      {/* Navigation unten mit 4 Tabs */}
+      {/* Navigation unten mit 6 Tabs */}
       {!activeObjekt && (
         <nav style={{ position: 'fixed', bottom: 0, left: 0, width: '100%', backgroundColor: bgCard, borderTop: '2px solid #8cc63f', boxShadow: '0 -4px 15px rgba(0,0,0,0.08)', zIndex: 100, transition: 'background-color 0.3s ease' }}>
-          <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', padding: '6px', gap: '4px' }}>
-            <button onClick={() => setActiveTab('tour')} style={{ padding: '8px 4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'tour' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'tour' ? '#111827' : textSub }}>
+          <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', padding: '6px', gap: '2px' }}>
+            <button onClick={() => setActiveTab('tour')} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'tour' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'tour' ? '#111827' : textSub }}>
               🚗 Tour
             </button>
-            <button onClick={() => setActiveTab('kunden')} style={{ padding: '8px 4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'kunden' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'kunden' ? '#111827' : textSub }}>
+            <button onClick={() => setActiveTab('kunden')} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'kunden' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'kunden' ? '#111827' : textSub }}>
               👥 Kunden
             </button>
-            <button onClick={() => setActiveTab('lager')} style={{ padding: '8px 4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'lager' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'lager' ? '#111827' : textSub }}>
+            <button onClick={() => setActiveTab('liegenschaften')} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'liegenschaften' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'liegenschaften' ? '#111827' : textSub }}>
+              📍 Objekte
+            </button>
+            <button onClick={() => setActiveTab('lager')} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'lager' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'lager' ? '#111827' : textSub }}>
               📦 Lager
             </button>
-            <button onClick={() => setActiveTab('history_saison')} style={{ padding: '8px 4px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'history_saison' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'history_saison' ? '#111827' : textSub }}>
-              📊 Historie
+            <button onClick={() => setActiveTab('statistik')} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'statistik' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'statistik' ? '#111827' : textSub }}>
+              📊 Stats
+            </button>
+            <button onClick={() => history_saison_fix_tab(setActiveTab('history_saison'))} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'history_saison' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'history_saison' ? '#111827' : textSub }}>
+              📜 Archiv
             </button>
           </div>
         </nav>
@@ -1368,4 +1519,9 @@ export default function App() {
 
     </div>
   );
+}
+
+// (Hilfsfunktion für den Tab-Wechsel)
+function history_saison_fix_tab(callback: void) {
+  return callback;
 }
