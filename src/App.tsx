@@ -1140,7 +1140,7 @@ export default function App() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '0.7rem', backgroundColor: darkMode ? '#14171a' : '#eef6e6', color: '#8cc63f', border: '1px solid #8cc63f', padding: '5px 8px', borderRadius: '6px', fontWeight: 'bold' }}>
+            <span style={{ fontSize: '0.7rem', backgroundColor: lagerBestand < 3 ? (darkMode ? '#3b1f23' : '#fef2f2') : (darkMode ? '#14171a' : '#eef6e6'), color: lagerBestand < 3 ? '#dc2626' : '#8cc63f', border: '1px solid ' + (lagerBestand < 3 ? '#dc2626' : '#8cc63f'), padding: '5px 8px', borderRadius: '6px', fontWeight: 'bold' }}>
               Lager: {Math.floor(lagerBestand)}
             </span>
             <button onClick={() => setDarkMode(!darkMode)} style={{ backgroundColor: darkMode ? '#8cc63f' : '#111827', color: darkMode ? '#111827' : '#ffffff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
