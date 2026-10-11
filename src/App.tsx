@@ -51,7 +51,19 @@ interface SaisonArchiv {
 export default function App() {
   const [activeTab, setActiveTab] = useState<'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison'>('tour');
   const [statusMeldung, setStatusMeldung] = useState<string | null>(null);
-  const [darkMode, setDarkMode] = useState<boolean>(false);
+  const [darkMode, setDarkMode] = useState<boolean>(() =>
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
+
+  useEffect(() => {
+    const farbschema = window.matchMedia('(prefers-color-scheme: dark)');
+    const synchronisiereFarbschema = (event: MediaQueryListEvent) => {
+      setDarkMode(event.matches);
+    };
+
+    farbschema.addEventListener('change', synchronisiereFarbschema);
+    return () => farbschema.removeEventListener('change', synchronisiereFarbschema);
+  }, []);
 
   const [startPunkt, setStartPunkt] = useState<string>(() => {
     return localStorage.getItem('becdra_startpunkt') || 'Groiner Allee 1, 46459 Rees';
