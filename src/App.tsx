@@ -434,10 +434,48 @@ export default function App() {
     });
   };
 
+  const teileBerichtMitHindernisfoto = (
+    berichtText: string,
+    hindernisFotoUrl?: string,
+    hindernisFotoName?: string
+  ) => {
+    if (!hindernisFotoUrl) return false;
+
+    const bildDaten = hindernisFotoUrl.match(/^data:(image\/[\w.+-]+);base64,(.+)$/);
+    const dateiname = `${hindernisFotoName?.replace(/\.[^.]+$/, '') || 'hindernisfoto'}.jpg`;
+    if (bildDaten && typeof navigator.share === 'function' && navigator.canShare) {
+      const bildBytes = Uint8Array.from(atob(bildDaten[2]), zeichen => zeichen.charCodeAt(0));
+      const fotoDatei = new File([bildBytes], dateiname, { type: bildDaten[1] });
+
+      if (navigator.canShare({ files: [fotoDatei] })) {
+        void navigator.share({
+          title: 'Winterdienst-Einsatzbericht',
+          text: berichtText,
+          files: [fotoDatei]
+        }).catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === 'AbortError') return;
+          console.error('Bericht mit Hindernisfoto konnte nicht geteilt werden:', error);
+          zeigeMeldung('Bericht und Hindernisfoto konnten nicht geteilt werden.');
+        });
+        return true;
+      }
+    }
+
+    const downloadLink = document.createElement('a');
+    downloadLink.href = hindernisFotoUrl;
+    downloadLink.download = dateiname;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
+    zeigeMeldung('Hindernisfoto heruntergeladen. Bitte füge es im geöffneten Bericht manuell an.');
+    return false;
+  };
+
   const sendeHistorienBericht = (item: EinsatzLog) => {
     const gefundenerKunde = kunden.find(k => k.firma === item.kundeName);
     const zielWhatsapp = gefundenerKunde ? gefundenerKunde.whatsapp : '+4915100000000';
     const zielEmail = gefundenerKunde ? gefundenerKunde.email : 'kontakt@beispiel.de';
+    const hatHindernisFoto = Boolean(item.hindernisFotoUrl);
 
     const hindernisZeile = item.hindernisInfo
       ? `Hindernisse: ${item.hindernisInfo}\n`
@@ -460,22 +498,26 @@ export default function App() {
     setDialogConfig({
       visible: true,
       titel: 'Bericht nachträglich senden',
-      text: `Möchtest du den Bericht für "${item.kundeName}" (${item.objName}) per WhatsApp oder E-Mail senden?`,
+      text: hatHindernisFoto
+        ? `Möchtest du den Bericht für "${item.kundeName}" (${item.objName}) mit dem Hindernisfoto teilen? Es öffnet sich die Teilen-Auswahl deines Geräts.`
+        : `Möchtest du den Bericht für "${item.kundeName}" (${item.objName}) per WhatsApp oder E-Mail senden?`,
       confirmText: (
         <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z"/></svg>
-          <span>WhatsApp senden</span>
+          {!hatHindernisFoto && <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z"/></svg>}
+          <span>{hatHindernisFoto ? 'Bericht + Foto teilen' : 'WhatsApp senden'}</span>
         </span>
       ),
-      secondaryText: '✉️ E-Mail senden',
+      secondaryText: hatHindernisFoto ? 'Bericht + Foto teilen' : '✉️ E-Mail senden',
       cancelText: 'Abbrechen',
       onConfirm: () => {
         setDialogConfig(prev => ({ ...prev, visible: false }));
+        if (teileBerichtMitHindernisfoto(berichtText, item.hindernisFotoUrl, item.hindernisFoto)) return;
         const cleanPhone = zielWhatsapp.replace(/[^0-9]/g, '');
         window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(berichtText)}`, '_blank');
       },
       onSecondary: () => {
         setDialogConfig(prev => ({ ...prev, visible: false }));
+        if (teileBerichtMitHindernisfoto(berichtText, item.hindernisFotoUrl, item.hindernisFoto)) return;
         const mailSubject = encodeURIComponent(`Winterdienst-Einsatzbericht - ${item.kundeName} (${item.objName})`);
         const mailBody = encodeURIComponent(berichtText);
         window.location.href = `mailto:${zielEmail}?subject=${mailSubject}&body=${mailBody}`;
@@ -824,22 +866,26 @@ export default function App() {
       setDialogConfig({
         visible: true,
         titel: 'Kunde vollständig betreut',
-        text: `Alle Liegenschaften von "${geforderterKunde.firma}" wurden heute betreut! Wie möchtest du den Bericht senden?`,
+        text: hindernisFotoUrl
+          ? `Alle Liegenschaften von "${geforderterKunde.firma}" wurden heute betreut. Der Bericht wird zusammen mit dem Hindernisfoto über die Teilen-Auswahl deines Geräts bereitgestellt.`
+          : `Alle Liegenschaften von "${geforderterKunde.firma}" wurden heute betreut! Wie möchtest du den Bericht senden?`,
         confirmText: (
           <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z"/></svg>
-            <span>WhatsApp senden</span>
+            {!hindernisFotoUrl && <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z"/></svg>}
+            <span>{hindernisFotoUrl ? 'Bericht + Foto teilen' : 'WhatsApp senden'}</span>
           </span>
         ),
-        secondaryText: '✉️ E-Mail senden',
+        secondaryText: hindernisFotoUrl ? 'Bericht + Foto teilen' : '✉️ E-Mail senden',
         cancelText: '⏰ Später',
         onConfirm: () => {
           setDialogConfig(prev => ({ ...prev, visible: false }));
+          if (teileBerichtMitHindernisfoto(berichtText, hindernisFotoUrl || undefined, hindernisFoto || undefined)) return;
           const cleanPhone = geforderterKunde.whatsapp.replace(/[^0-9]/g, '');
           window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(berichtText)}`, '_blank');
         },
         onSecondary: () => {
           setDialogConfig(prev => ({ ...prev, visible: false }));
+          if (teileBerichtMitHindernisfoto(berichtText, hindernisFotoUrl || undefined, hindernisFoto || undefined)) return;
           const mailSubject = encodeURIComponent(`Winterdienst-Einsatzbericht - ${geforderterKunde.firma} (${new Date().toLocaleDateString('de-DE')})`);
           const mailBody = encodeURIComponent(berichtText);
           window.location.href = `mailto:${geforderterKunde.email}?subject=${mailSubject}&body=${mailBody}`;
