@@ -78,15 +78,15 @@ export default function App() {
     confirmText?: React.ReactNode;
     secondaryText?: React.ReactNode;
     cancelText?: React.ReactNode;
-  }>({ visible: false, titel: '', text: '', onConfirm: () => {} });
-  
+  }>({ visible: false, titel: '', text: '', onConfirm: () => { } });
+
   const zeigeMeldung = (text: string) => {
     setStatusMeldung(text);
     setTimeout(() => {
       setStatusMeldung(null);
     }, 3500);
   };
-  
+
   const [kunden, setKunden] = useState<Kunde[]>(() => {
     const saved = localStorage.getItem('becdra_kunden');
     return saved ? JSON.parse(saved) : [];
@@ -141,16 +141,16 @@ export default function App() {
   const [wetterLage, setWetterLage] = useState('Wird geladen...');
   const [materialSaecke, setMaterialSaecke] = useState('1');
   const [gefahreneKm, setGefahreneKm] = useState('0');
-  
+
   const [aufgenommenesFoto, setAufgenommenesFoto] = useState<string | null>(null);
   const [aufgenommenesFotoUrl, setAufgenommenesFotoUrl] = useState<string | null>(null);
-  
+
   const [hindernisNotiz] = useState('');
   const [hindernisFoto] = useState<string | null>(null);
   const [hindernisFotoUrl] = useState<string | null>(null);
 
   const [heuteBetreuteProKunde, setHeuteBetreuteProKunde] = useState<{ [kundeId: number]: { name: string; address: string; type: string }[] }>({});
-  
+
   const [history, setHistory] = useState<EinsatzLog[]>(() => {
     try {
       const saved = localStorage.getItem('becdra_history');
@@ -206,17 +206,18 @@ export default function App() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `becdra_fm_backup_${new Date().toISOString().slice(0,10)}.json`);
+    downloadAnchor.setAttribute("download", `becdra_fm_backup_${new Date().toISOString().slice(0, 10)}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
     zeigeMeldung('Backup erfolgreich auf deinem Gerät gespeichert!');
   };
 
-const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileReader = new FileReader();
     if (e.target.files && e.target.files[0]) {
-      fileReader.readAsText(e.target.files[0], "UTF-8");
+      const file = e.target.files[0];
+      fileReader.readAsText(file, "UTF-8");
       fileReader.onload = (event) => {
         try {
           if (event.target && event.target.result) {
@@ -228,13 +229,15 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
             if (parsed.startPunkt) setStartPunkt(parsed.startPunkt);
             if (parsed.spritPreisProLiter) setSpritPreisProLiter(parsed.spritPreisProLiter);
             if (parsed.archivListe) setArchivListe(parsed.archivListe);
-            
+
             zeigeMeldung('Daten erfolgreich aus Backup wiederhergestellt!');
           }
         } catch (err) {
           zeigeMeldung('Fehler beim Lesen der Backup-Datei.');
         }
       };
+      // Wichtig: Input zurücksetzen, damit dieselbe Datei erneut ausgewählt werden kann
+      e.target.value = '';
     }
   };
 
@@ -359,7 +362,7 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
   const addLiegenschaft = (e: React.FormEvent) => {
     e.preventDefault();
     if (!neuObjName || !neuObjAddress || !neuObjSize) return;
-    
+
     const neueLiege: Liegenschaft = {
       id: Date.now(),
       kundeId: Number(selectedKundeId),
@@ -392,11 +395,11 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
 
   const saveEditLiege = () => {
     if (!editingLiege) return;
-    setLiegenschaften(liegenschaften.map(l => l.id === editingLiege.id ? { 
-      ...l, 
-      name: editObjName, 
-      address: editObjAddress, 
-      size: editObjSize, 
+    setLiegenschaften(liegenschaften.map(l => l.id === editingLiege.id ? {
+      ...l,
+      name: editObjName,
+      address: editObjAddress,
+      size: editObjSize,
       material: editObjMaterial,
       reihenfolge: Number(editObjReihenfolge) || 1,
       raeumPlan: editObjRaeumPlan || undefined
@@ -426,7 +429,7 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     const zielWhatsapp = gefundenerKunde ? gefundenerKunde.whatsapp : '+4915100000000';
     const zielEmail = gefundenerKunde ? gefundenerKunde.email : 'kontakt@beispiel.de';
 
-    const berichtText = 
+    const berichtText =
       `❄️ *WINTERDIENST - EINSATZBERICHT* ❄️\n` +
       `────────────────────────\n` +
       `🏢 *Auftraggeber:* ${item.kundeName}\n` +
@@ -445,7 +448,7 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
       text: `Möchtest du den Bericht für "${item.kundeName}" (${item.objName}) per WhatsApp oder E-Mail senden?`,
       confirmText: (
         <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z" /></svg>
           <span>WhatsApp senden</span>
         </span>
       ),
@@ -524,7 +527,7 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     const iframe = document.createElement('iframe');
     iframe.style.display = 'none';
     document.body.appendChild(iframe);
-    
+
     const doc = iframe.contentWindow?.document;
     if (!doc) {
       zeigeMeldung('Fehler beim Erstellen des PDF-Berichts.');
@@ -724,7 +727,7 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
       id: Date.now(),
       kundeName: activeKunde.firma,
       objName: activeObjekt.name,
-      date: new Date().toLocaleDateString('de-DE') + ' ' + new Date().toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}),
+      date: new Date().toLocaleDateString('de-DE') + ' ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
       timestamp: Date.now(),
       wetter: wetterLage,
       type: einsatzType,
@@ -744,7 +747,7 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     const kundeId = activeKunde.id;
     const aktuelleListeFuerKunden = heuteBetreuteProKunde[kundeId] || [];
     const updatedBetreut = [...aktuelleListeFuerKunden, { name: activeObjekt.name, address: activeObjekt.address, type: einsatzType }];
-    
+
     setHeuteBetreuteProKunde(prev => ({
       ...prev,
       [kundeId]: updatedBetreut
@@ -764,8 +767,8 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
 
     if (alleErledigt && alleObjekteDesKundenNamen.length > 0) {
       const liegenschaftsListeText = updatedBetreut.map(b => `• ${b.name} (${b.address}): ${b.type}`).join('\n');
-      
-      const berichtText = 
+
+      const berichtText =
         `❄️ *WINTERDIENST - EINSATZBERICHT* ❄️\n` +
         `────────────────────────\n` +
         `🏢 *Auftraggeber:* ${geforderterKunde.firma}\n` +
@@ -783,7 +786,7 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
         text: `Alle Liegenschaften von "${geforderterKunde.firma}" wurden heute betreut! Wie möchtest du den Bericht senden?`,
         confirmText: (
           <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z" /></svg>
             <span>WhatsApp senden</span>
           </span>
         ),
@@ -817,11 +820,11 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     }
 
     const lines = importText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    
+
     let anzahlAktualisiert = 0;
     const aktualisierteLiegen = liegenschaften.map(liege => {
-      const matchingLineIndex = lines.findIndex(line => 
-        line.toLowerCase().includes(liege.name.toLowerCase()) || 
+      const matchingLineIndex = lines.findIndex(line =>
+        line.toLowerCase().includes(liege.name.toLowerCase()) ||
         line.toLowerCase().includes(liege.address.toLowerCase())
       );
 
@@ -897,7 +900,7 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Becdra_FM_Winterdienst_Export_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute("download", `Becdra_FM_Winterdienst_Export_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -908,11 +911,11 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
       zeigeMeldung('Keine Liegenschaften vorhanden.');
       return;
     }
-    const liegenschaftsZeilen = alleLiegenschaftenSortiert.map((item, index) => 
+    const liegenschaftsZeilen = alleLiegenschaftenSortiert.map((item, index) =>
       `${index + 1}. ${item.kunde?.firma || 'Kunde'} - ${item.liege.name}: ${item.liege.address}`
     );
     const reinZuOptimierendeRoute = liegenschaftsZeilen.join('\n');
-    navigator.clipboard.writeText(reinZuOptimierendeRoute).catch(() => {});
+    navigator.clipboard.writeText(reinZuOptimierendeRoute).catch(() => { });
     zeigeMeldung('Nur die Liegenschaften wurden in die Zwischenablage kopiert!');
   };
 
@@ -955,7 +958,7 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: bgApp, color: textApp, fontFamily: 'sans-serif', paddingBottom: '90px', transition: 'background-color 0.3s ease' }}>
-      
+
       {statusMeldung && (
         <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#111827', color: '#ffffff', padding: '12px 20px', borderRadius: '12px', zIndex: 1000, boxShadow: '0 8px 25px rgba(0,0,0,0.2)', fontWeight: 'bold', fontSize: '0.85rem', border: '2px solid #8cc63f' }}>
           ✨ {statusMeldung}
@@ -991,9 +994,9 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
             <p style={{ fontSize: '0.8rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
               Füge hier deine optimierte Reihenfolge ein. Die App sortiert deine Tour automatisch.
             </p>
-            <textarea 
+            <textarea
               rows={6}
-              value={importText} 
+              value={importText}
               onChange={e => setImportText(e.target.value)}
               placeholder="1. Commerzbank AG - Filiale Innenstadt&#10;2. Seniorenresidenz Sonnenschein..."
               style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem', boxSizing: 'border-box' }}
@@ -1188,7 +1191,7 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
                     <h2 style={{ fontWeight: 'bold', fontSize: '1.05rem', margin: 0 }}>Guten Tag, Micha! 👋</h2>
                     <p style={{ fontSize: '0.75rem', color: '#8cc63f', margin: '4px 0 0 0', fontWeight: 'bold' }}>Aktueller Startpunkt: {startPunkt}</p>
                   </div>
-                  
+
                   <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                     <button onClick={kopiereAlleAdresen} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#eef6e6', color: '#598f1e', border: '1px solid #8cc63f', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
                       📋 Adressen kopieren
@@ -1320,7 +1323,7 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
             {/* LAGER TAB */}
             {activeTab === 'lager' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                
+
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
                   <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>🏠 Startpunkt / Basis festlegen</h2>
                   <form onSubmit={speichereStartpunkt} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1349,12 +1352,12 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
                     <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#8cc63f', textTransform: 'uppercase' }}>Streusalz Vorrat</span>
                     <div style={{ fontSize: '2rem', fontWeight: 'bold', color: textApp, margin: '2px 0' }}>{Math.floor(lagerBestand)} <span style={{ fontSize: '0.9rem' }}>Säcke</span></div>
                   </div>
-                  
+
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input 
-                      type="number" 
-                      min="1" 
-                      value={lagerAnzahlInput} 
+                    <input
+                      type="number"
+                      min="1"
+                      value={lagerAnzahlInput}
                       onChange={e => setLagerAnzahlInput(e.target.value)}
                       style={{ width: '80px', padding: '10px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem' }}
                     />
@@ -1375,7 +1378,7 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: '0 0 4px 0', color: textApp }}>⚙️ Weitere Bereiche</h2>
-                  
+
                   <button onClick={() => setActiveTab('kunden')} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>
                     👥 Kunden verwalten
                   </button>
@@ -1393,15 +1396,15 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
                   <p style={{ fontSize: '0.75rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
                     Sichere deine Kunden und Liegenschaften als Datei, damit beim Aktualisieren niemals Daten verloren gehen.
                   </p>
-                  
+
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={exportDatenBackup} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
                       📥 Backup exportieren
                     </button>
-                    
+
                     <label style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', textAlign: 'center', cursor: 'pointer' }}>
                       📤 Backup einspielen
-                      <input type="file" accept=".json" onChange={importDatenBackup} style={{ display: 'none' }} />
+                      <input type="file" accept="application/json,.json,text/plain" onChange={importDatenBackup} style={{ display: 'none' }} />
                     </label>
                   </div>
                 </div>
@@ -1477,7 +1480,7 @@ const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
                 </button>
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: textApp }}>📊 Einsatz-Statistik</h2>
-                  
+
                   <div style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '12px', borderRadius: '10px', border: '1px solid ' + borderCard }}>
                     <h3 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#8cc63f', margin: '0 0 6px 0', textTransform: 'uppercase' }}>📅 Heute ({heuteDatumString})</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '0.8rem' }}>
