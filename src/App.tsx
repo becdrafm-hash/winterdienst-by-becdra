@@ -1354,15 +1354,15 @@ export default function App() {
                     liegenschaften.map(liege => {
                       const zugehKunde = kunden.find(k => k.id === liege.kundeId);
                       return (
-                        <div key={liege.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '10px', borderRadius: '8px', border: '1px solid ' + borderCard }}>
-                          <div style={{ flex: 1 }}>
+                        <div key={liege.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '12px', borderRadius: '8px', border: '1px solid ' + borderCard }}>
+                          <div>
                             <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#8cc63f' }}>{zugehKunde?.firma || 'Kein Kunde'}</div>
                             <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textApp }}>{liege.name} (#{liege.reihenfolge})</div>
                             <div style={{ fontSize: '0.75rem', color: textSub }}>{liege.address} • {liege.size} m²</div>
                           </div>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            <button onClick={() => startEditLiege(liege)} style={{ background: 'none', border: '1px solid ' + borderCard, padding: '6px', borderRadius: '6px', cursor: 'pointer', color: textApp, fontSize: '0.8rem' }}>✏️</button>
-                            <button onClick={() => deleteLiegenschaft(liege.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️</button>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                            <button onClick={() => startEditLiege(liege)} style={{ width: '100%', backgroundColor: darkMode ? '#20252a' : '#ffffff', border: '1px solid ' + borderCard, padding: '12px', borderRadius: '8px', cursor: 'pointer', color: textApp, fontSize: '0.9rem', fontWeight: 'bold' }}>✏️ Bearbeiten</button>
+                            <button onClick={() => deleteLiegenschaft(liege.id)} style={{ width: '100%', backgroundColor: darkMode ? '#3b1f23' : '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '12px', borderRadius: '8px', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️ Löschen</button>
                           </div>
                         </div>
                       );
