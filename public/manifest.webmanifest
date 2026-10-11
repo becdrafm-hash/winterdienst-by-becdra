@@ -1,0 +1,24 @@
+{
+  "name": "Becdra FM Winterdienst",
+  "short_name": "Becdra FM",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#06264b",
+  "theme_color": "#06264b",
+  "icons": [
+    {
+      "src": "/becdra-fm-winterdienst-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/becdra-fm-winterdienst-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
