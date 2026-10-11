@@ -49,7 +49,8 @@ interface SaisonArchiv {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'tour' | 'kunden' | 'liegenschaften' | 'lager' | 'statistik' | 'history_saison'>('tour');
+  // Navigation: 3 Haupt-Tabs + 'mehr' (und Unterseiten wie kunden, statistik, history_saison)
+  const [activeTab, setActiveTab] = useState<'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison'>('tour');
   const [statusMeldung, setStatusMeldung] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(false);
 
@@ -190,6 +191,52 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('becdra_saison_archiv', JSON.stringify(archivListe));
   }, [archivListe]);
+
+  // Backup-Funktionen zur Datensicherung
+  const exportDatenBackup = () => {
+    const backupData = {
+      kunden,
+      liegenschaften,
+      history,
+      lagerBestand,
+      startPunkt,
+      spritPreisProLiter,
+      archivListe
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `becdra_fm_backup_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    zeigeMeldung('Backup erfolgreich auf deinem Gerät gespeichert!');
+  };
+
+const importDatenBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], "UTF-8");
+      fileReader.onload = (event) => {
+        try {
+          if (event.target && event.target.result) {
+            const parsed = JSON.parse(event.target.result as string);
+            if (parsed.kunden) setKunden(parsed.kunden);
+            if (parsed.liegenschaften) setLiegenschaften(parsed.liegenschaften);
+            if (parsed.history) setHistory(parsed.history);
+            if (parsed.lagerBestand !== undefined) setLagerBestand(parsed.lagerBestand);
+            if (parsed.startPunkt) setStartPunkt(parsed.startPunkt);
+            if (parsed.spritPreisProLiter) setSpritPreisProLiter(parsed.spritPreisProLiter);
+            if (parsed.archivListe) setArchivListe(parsed.archivListe);
+            
+            zeigeMeldung('Daten erfolgreich aus Backup wiederhergestellt!');
+          }
+        } catch (err) {
+          zeigeMeldung('Fehler beim Lesen der Backup-Datei.');
+        }
+      };
+    }
+  };
 
   const speichereStartpunkt = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1081,7 +1128,6 @@ export default function App() {
               <p style={{ fontSize: '0.8rem', color: textSub, margin: 0 }}>📍 {activeObjekt.address} • {activeObjekt.size} m² (Pos: #{activeObjekt.reihenfolge})</p>
             </div>
 
-            {/* Räumplan Pop-up Button im aktiven Einsatz */}
             {activeObjekt.raeumPlan && (
               <button onClick={() => setShowActiveRaeumPlanPopup(true)} style={{ backgroundColor: '#111827', color: '#ffffff', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.85rem' }}>
                 🗺️ Räumplan als Pop-up öffnen
@@ -1183,66 +1229,6 @@ export default function App() {
                     );
                   })
                 )}
-              </div>
-            )}
-
-            {/* KUNDEN TAB */}
-            {activeTab === 'kunden' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>👥 Kunden verwalten</h2>
-                  {kunden.length === 0 ? (
-                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Kunden angelegt.</p>
-                  ) : (
-                    kunden.map(kunde => (
-                      <div key={kunde.id} style={{ border: '1px solid ' + borderCard, borderRadius: '10px', padding: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {editingKundeId === kunde.id ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <input type="text" value={editFirma} onChange={e => setEditFirma(e.target.value)} placeholder="Firmenname" style={{ padding: '6px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.8rem', backgroundColor: bgCard, color: textApp }} />
-                            <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="E-Mail" style={{ padding: '6px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.8rem', backgroundColor: bgCard, color: textApp }} />
-                            <input type="text" value={editWhatsapp} onChange={e => setEditWhatsapp(e.target.value)} placeholder="WhatsApp" style={{ padding: '6px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.8rem', backgroundColor: bgCard, color: textApp }} />
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <button onClick={() => saveEditKunde(kunde.id)} style={{ backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>Speichern</button>
-                              <button onClick={() => setEditingKundeId(null)} style={{ backgroundColor: darkMode ? '#374151' : '#e5e7eb', color: textApp, border: 'none', padding: '6px 10px', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer' }}>Abbrechen</button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                              <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', margin: 0, color: textApp }}>{kunde.firma}</h3>
-                              <p style={{ fontSize: '0.7rem', color: textSub, margin: '2px 0 0 0' }}>✉ {kunde.email || 'Keine E-Mail'} | 📞 {kunde.whatsapp || 'Keine Nummer'}</p>
-                            </div>
-                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                              <button onClick={() => startEditKunde(kunde)} style={{ background: 'none', border: '1px solid ' + borderCard, padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer', color: textApp }}>✏️</button>
-                              <button onClick={() => deleteKunde(kunde.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold', padding: '4px' }}>🗑️</button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>➕ Neuen Kunden anlegen</h2>
-                  <form onSubmit={addKunde} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Firmenname / Auftraggeber</label>
-                      <input type="text" value={neuFirma} onChange={e => setNeuFirma(e.target.value)} required placeholder="z.B. Neuer Kunde GmbH" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>E-Mail für Berichte</label>
-                      <input type="email" value={neuEmail} onChange={e => setNeuEmail(e.target.value)} required placeholder="kontakt@neuerkunde.de" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>WhatsApp-Nummer</label>
-                      <input type="text" value={neuWhatsapp} onChange={e => setNeuWhatsapp(e.target.value)} placeholder="+49151..." style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Kunden speichern</button>
-                  </form>
-                </div>
-
               </div>
             )}
 
@@ -1384,9 +1370,111 @@ export default function App() {
               </div>
             )}
 
-            {/* STATISTIK TAB */}
+            {/* MEHR TAB (Zusammenfassung für Kunden, Statistik, Archiv & Backup) */}
+            {activeTab === 'mehr' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: '0 0 4px 0', color: textApp }}>⚙️ Weitere Bereiche</h2>
+                  
+                  <button onClick={() => setActiveTab('kunden')} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>
+                    👥 Kunden verwalten
+                  </button>
+                  <button onClick={() => setActiveTab('statistik')} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>
+                    📊 Einsatz-Statistik (Tag & Saison)
+                  </button>
+                  <button onClick={() => setActiveTab('history_saison')} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>
+                    📜 Einsatz-Historie & Archiv
+                  </button>
+                </div>
+
+                {/* DATEN-SICHERUNG (BACKUP / WIEDERHERSTELLUNG) */}
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '2px solid #8cc63f', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>💾 Datensicherung (Backup)</h2>
+                  <p style={{ fontSize: '0.75rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
+                    Sichere deine Kunden und Liegenschaften als Datei, damit beim Aktualisieren niemals Daten verloren gehen.
+                  </p>
+                  
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={exportDatenBackup} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
+                      📥 Backup exportieren
+                    </button>
+                    
+                    <label style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', textAlign: 'center', cursor: 'pointer' }}>
+                      📤 Backup einspielen
+                      <input type="file" accept=".json" onChange={importDatenBackup} style={{ display: 'none' }} />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* KUNDEN UNTERSEITE */}
+            {activeTab === 'kunden' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <button onClick={() => setActiveTab('mehr')} style={{ background: 'none', border: 'none', color: '#8cc63f', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}>
+                  ← Zurück zu Mehr
+                </button>
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>👥 Kunden verwalten</h2>
+                  {kunden.length === 0 ? (
+                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Kunden angelegt.</p>
+                  ) : (
+                    kunden.map(kunde => (
+                      <div key={kunde.id} style={{ border: '1px solid ' + borderCard, borderRadius: '10px', padding: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {editingKundeId === kunde.id ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <input type="text" value={editFirma} onChange={e => setEditFirma(e.target.value)} placeholder="Firmenname" style={{ padding: '6px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.8rem', backgroundColor: bgCard, color: textApp }} />
+                            <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="E-Mail" style={{ padding: '6px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.8rem', backgroundColor: bgCard, color: textApp }} />
+                            <input type="text" value={editWhatsapp} onChange={e => setEditWhatsapp(e.target.value)} placeholder="WhatsApp" style={{ padding: '6px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.8rem', backgroundColor: bgCard, color: textApp }} />
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button onClick={() => saveEditKunde(kunde.id)} style={{ backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>Speichern</button>
+                              <button onClick={() => setEditingKundeId(null)} style={{ backgroundColor: darkMode ? '#374151' : '#e5e7eb', color: textApp, border: 'none', padding: '6px 10px', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer' }}>Abbrechen</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                              <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', margin: 0, color: textApp }}>{kunde.firma}</h3>
+                              <p style={{ fontSize: '0.7rem', color: textSub, margin: '2px 0 0 0' }}>✉ {kunde.email || 'Keine E-Mail'} | 📞 {kunde.whatsapp || 'Keine Nummer'}</p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <button onClick={() => startEditKunde(kunde)} style={{ background: 'none', border: '1px solid ' + borderCard, padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer', color: textApp }}>✏️</button>
+                              <button onClick={() => deleteKunde(kunde.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold', padding: '4px' }}>🗑️</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>➕ Neuen Kunden anlegen</h2>
+                  <form onSubmit={addKunde} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Firmenname / Auftraggeber</label>
+                      <input type="text" value={neuFirma} onChange={e => setNeuFirma(e.target.value)} required placeholder="z.B. Neuer Kunde GmbH" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>E-Mail für Berichte</label>
+                      <input type="email" value={neuEmail} onChange={e => setNeuEmail(e.target.value)} required placeholder="kontakt@neuerkunde.de" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>WhatsApp-Nummer</label>
+                      <input type="text" value={neuWhatsapp} onChange={e => setNeuWhatsapp(e.target.value)} placeholder="+49151..." style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Kunden speichern</button>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* STATISTIK UNTERSEITE */}
             {activeTab === 'statistik' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <button onClick={() => setActiveTab('mehr')} style={{ background: 'none', border: 'none', color: '#8cc63f', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}>
+                  ← Zurück zu Mehr
+                </button>
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: textApp }}>📊 Einsatz-Statistik</h2>
                   
@@ -1409,15 +1497,16 @@ export default function App() {
                       <div>Material: <b>{gesamtStat.saecke} Säcke</b></div>
                     </div>
                   </div>
-
                 </div>
               </div>
             )}
 
-            {/* HISTORIE TAB */}
-{activeTab === 'history_saison' && (
+            {/* HISTORIE UNTERSEITE */}
+            {activeTab === 'history_saison' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                
+                <button onClick={() => setActiveTab('mehr')} style={{ background: 'none', border: 'none', color: '#8cc63f', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}>
+                  ← Zurück zu Mehr
+                </button>
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
@@ -1466,7 +1555,6 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-
               </div>
             )}
           </>
@@ -1474,27 +1562,21 @@ export default function App() {
 
       </main>
 
-      {/* Navigation unten mit 6 Tabs */}
+      {/* NEUE UNTERE NAVIGATION: 3 Haupt-Tabs + Mehr */}
       {!activeObjekt && (
         <nav style={{ position: 'fixed', bottom: 0, left: 0, width: '100%', backgroundColor: bgCard, borderTop: '2px solid #8cc63f', boxShadow: '0 -4px 15px rgba(0,0,0,0.08)', zIndex: 100, transition: 'background-color 0.3s ease' }}>
-          <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', padding: '6px', gap: '2px' }}>
-            <button onClick={() => setActiveTab('tour')} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'tour' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'tour' ? '#111827' : textSub }}>
+          <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', padding: '6px', gap: '2px' }}>
+            <button onClick={() => setActiveTab('tour')} style={{ padding: '8px 2px', textAlign: 'center', fontSize: '0.7rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'tour' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'tour' ? '#111827' : textSub }}>
               🚗 Tour
             </button>
-            <button onClick={() => setActiveTab('kunden')} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'kunden' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'kunden' ? '#111827' : textSub }}>
-              👥 Kunden
-            </button>
-            <button onClick={() => setActiveTab('liegenschaften')} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'liegenschaften' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'liegenschaften' ? '#111827' : textSub }}>
+            <button onClick={() => setActiveTab('liegenschaften')} style={{ padding: '8px 2px', textAlign: 'center', fontSize: '0.7rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'liegenschaften' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'liegenschaften' ? '#111827' : textSub }}>
               📍 Objekte
             </button>
-            <button onClick={() => setActiveTab('lager')} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'lager' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'lager' ? '#111827' : textSub }}>
+            <button onClick={() => setActiveTab('lager')} style={{ padding: '8px 2px', textAlign: 'center', fontSize: '0.7rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'lager' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'lager' ? '#111827' : textSub }}>
               📦 Lager
             </button>
-            <button onClick={() => setActiveTab('statistik')} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'statistik' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'statistik' ? '#111827' : textSub }}>
-              📊 Stats
-            </button>
-            <button onClick={() => setActiveTab('history_saison')} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'history_saison' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'history_saison' ? '#111827' : textSub }}>
-              📜 Archiv
+            <button onClick={() => setActiveTab('mehr')} style={{ padding: '8px 2px', textAlign: 'center', fontSize: '0.7rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: ['mehr', 'kunden', 'statistik', 'history_saison'].includes(activeTab) ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: ['mehr', 'kunden', 'statistik', 'history_saison'].includes(activeTab) ? '#111827' : textSub }}>
+              ⚙️ Mehr
             </button>
           </div>
         </nav>
