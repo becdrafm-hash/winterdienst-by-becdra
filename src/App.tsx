@@ -119,7 +119,10 @@ export default function App() {
   const [editingSpritPreis, setEditingSpritPreis] = useState<string>(spritPreisProLiter);
   const [streuMittelListe] = useState<string[]>(['Salz', 'Splitt', 'Sand', 'Lavagranulat', 'Acetat']);
 
-  const [verbrauchAuf100Km] = useState<string>('10');
+  const [verbrauchAuf100Km, setVerbrauchAuf100Km] = useState<string>(() =>
+    localStorage.getItem('becdra_verbrauch') || '10'
+  );
+  const [editingVerbrauch, setEditingVerbrauch] = useState<string>(verbrauchAuf100Km);
 
   const [neuFirma, setNeuFirma] = useState('');
   const [neuEmail, setNeuEmail] = useState('');
@@ -217,6 +220,7 @@ export default function App() {
       lagerBestand,
       startPunkt,
       spritPreisProLiter,
+      verbrauchAuf100Km,
       archivListe
     };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
@@ -244,6 +248,10 @@ export default function App() {
             if (parsed.lagerBestand !== undefined) setLagerBestand(parsed.lagerBestand);
             if (parsed.startPunkt) setStartPunkt(parsed.startPunkt);
             if (parsed.spritPreisProLiter) setSpritPreisProLiter(parsed.spritPreisProLiter);
+            if (parsed.verbrauchAuf100Km) {
+              setVerbrauchAuf100Km(parsed.verbrauchAuf100Km);
+              setEditingVerbrauch(parsed.verbrauchAuf100Km);
+            }
             if (parsed.archivListe) setArchivListe(parsed.archivListe);
             
             zeigeMeldung('Daten erfolgreich aus Backup wiederhergestellt!');
@@ -268,6 +276,20 @@ export default function App() {
     setSpritPreisProLiter(editingSpritPreis);
     localStorage.setItem('becdra_spritpreis', editingSpritPreis);
     zeigeMeldung('Spritpreis erfolgreich aktualisiert!');
+  };
+
+  const speichereVerbrauch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const verbrauch = Number(editingVerbrauch);
+    if (!Number.isFinite(verbrauch) || verbrauch <= 0) {
+      zeigeMeldung('Bitte einen Verbrauch größer als 0 eingeben.');
+      return;
+    }
+
+    const gespeicherterVerbrauch = String(verbrauch);
+    setVerbrauchAuf100Km(gespeicherterVerbrauch);
+    localStorage.setItem('becdra_verbrauch', gespeicherterVerbrauch);
+    zeigeMeldung('Fahrzeugverbrauch erfolgreich aktualisiert!');
   };
 
   const anpasseLagerGenau = (modus: 'add' | 'sub') => {
@@ -797,7 +819,7 @@ export default function App() {
     const saeckeNum = Number(materialSaecke) || 0;
     const kmNum = Number(gefahreneKm) || 0;
 
-    const berechneteSpritKosten = (kmNum * (Number(verbrauchAuf100Km) || 10) / 100) * (Number(spritPreisProLiter) || 1.80);
+    const berechneteSpritKosten = (kmNum * Number(verbrauchAuf100Km) / 100) * (Number(spritPreisProLiter) || 1.80);
 
     setLagerBestand(prev => Math.max(0, prev - saeckeNum));
 
@@ -1523,6 +1545,17 @@ export default function App() {
                       <input type="number" step="0.01" value={editingSpritPreis} onChange={e => setEditingSpritPreis(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
                     </div>
                     <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Spritpreis speichern</button>
+                  </form>
+                </div>
+
+                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>🚗 Fahrzeugverbrauch anpassen</h2>
+                  <form onSubmit={speichereVerbrauch} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Verbrauch (Liter auf 100 km)</label>
+                      <input type="number" min="0.1" step="0.1" value={editingVerbrauch} onChange={e => setEditingVerbrauch(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+                    </div>
+                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Verbrauch speichern</button>
                   </form>
                 </div>
 
