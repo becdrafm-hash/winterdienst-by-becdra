@@ -1677,21 +1677,21 @@ export default function App() {
 
       </main>
 
-      {/* UNTERE NAVIGATION (3 Haupt-Tabs + Mehr) */}
+      {/* UNTERE NAVIGATION */}
       {!activeObjekt && (
         <nav style={{ position: 'fixed', bottom: 0, left: 0, width: '100%', backgroundColor: bgCard, borderTop: '2px solid #8cc63f', boxShadow: '0 -4px 15px rgba(0,0,0,0.08)', zIndex: 100, transition: 'background-color 0.3s ease' }}>
-          <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', padding: '6px', gap: '2px' }}>
-            <button onClick={() => setActiveTab('tour')} style={{ padding: '8px 2px', textAlign: 'center', fontSize: '0.7rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'tour' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'tour' ? '#111827' : textSub }}>
+          <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', padding: '8px', gap: '6px' }}>
+            <button onClick={() => setActiveTab('mehr')} style={{ minHeight: '48px', padding: '12px 4px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 'bold', borderRadius: '9px', border: 'none', cursor: 'pointer', backgroundColor: ['mehr', 'kunden', 'statistik', 'history_saison'].includes(activeTab) ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: ['mehr', 'kunden', 'statistik', 'history_saison'].includes(activeTab) ? '#111827' : textSub }}>
+              ⚙️ Mehr
+            </button>
+            <button onClick={() => setActiveTab('tour')} style={{ minHeight: '48px', padding: '12px 4px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 'bold', borderRadius: '9px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'tour' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'tour' ? '#111827' : textSub }}>
               🚗 Tour
             </button>
-            <button onClick={() => setActiveTab('liegenschaften')} style={{ padding: '8px 2px', textAlign: 'center', fontSize: '0.7rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'liegenschaften' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'liegenschaften' ? '#111827' : textSub }}>
+            <button onClick={() => setActiveTab('liegenschaften')} style={{ minHeight: '48px', padding: '12px 4px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 'bold', borderRadius: '9px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'liegenschaften' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'liegenschaften' ? '#111827' : textSub }}>
               📍 Objekte
             </button>
-            <button onClick={() => setActiveTab('lager')} style={{ padding: '8px 2px', textAlign: 'center', fontSize: '0.7rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'lager' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'lager' ? '#111827' : textSub }}>
+            <button onClick={() => setActiveTab('lager')} style={{ minHeight: '48px', padding: '12px 4px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 'bold', borderRadius: '9px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'lager' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'lager' ? '#111827' : textSub }}>
               📦 Lager
-            </button>
-            <button onClick={() => setActiveTab('mehr')} style={{ padding: '8px 2px', textAlign: 'center', fontSize: '0.7rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: ['mehr', 'kunden', 'statistik', 'history_saison'].includes(activeTab) ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: ['mehr', 'kunden', 'statistik', 'history_saison'].includes(activeTab) ? '#111827' : textSub }}>
-              ⚙️ Mehr
             </button>
           </div>
         </nav>
