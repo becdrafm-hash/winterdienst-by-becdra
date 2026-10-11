@@ -144,11 +144,10 @@ export default function App() {
   const [aufgenommenesFoto, setAufgenommenesFoto] = useState<string | null>(null);
   const [aufgenommenesFotoUrl, setAufgenommenesFotoUrl] = useState<string | null>(null);
   
-  const [hindernisNotiz, setHindernisNotiz] = useState('');
-  const [hindernisFoto, setHindernisFoto] = useState<string | null>(null);
-  const [hindernisFotoUrl, setHindernisFotoUrl] = useState<string | null>(null);
+  const [hindernisNotiz] = useState('');
+  const [hindernisFoto] = useState<string | null>(null);
+  const [hindernisFotoUrl] = useState<string | null>(null);
 
-  // Speichert pro Kunde die heute bereits betreuten Objekt-Namen sauber getrennt
   const [heuteBetreuteProKunde, setHeuteBetreuteProKunde] = useState<{ [kundeId: number]: { name: string; address: string; type: string }[] }>({});
   
   const [history, setHistory] = useState<EinsatzLog[]>(() => {
@@ -375,7 +374,6 @@ export default function App() {
     });
   };
 
-  // Korrigierter Bericht mit exaktem Status ("ordnungsgemäß betreut") und reiner Signatur ("Becdra FM")
   const sendeHistorienBericht = (item: EinsatzLog) => {
     const gefundenerKunde = kunden.find(k => k.firma === item.kundeName);
     const zielWhatsapp = gefundenerKunde ? gefundenerKunde.whatsapp : '+4915100000000';
@@ -590,9 +588,6 @@ export default function App() {
     setStartTime(new Date());
     setAufgenommenesFoto(null);
     setAufgenommenesFotoUrl(null);
-    setHindernisNotiz('');
-    setHindernisFoto(null);
-    setHindernisFotoUrl(null);
     setShowActiveRaeumPlanPopup(false);
     fetchLiveWetter();
 
@@ -665,16 +660,6 @@ export default function App() {
     }
   };
 
-  const handleHindernisFotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setHindernisFoto(file.name);
-      komprimiereBild(file, (compressedUrl) => {
-        setHindernisFotoUrl(compressedUrl);
-      });
-    }
-  };
-
   const finishEinsatz = () => {
     if (!activeKunde || !activeObjekt || !startTime) return;
     stopGpsTracking();
@@ -709,7 +694,6 @@ export default function App() {
 
     setHistory(prev => [newLog, ...prev]);
 
-    // Korrekte, kundenspezifische Erfassung der heute betreuten Objekte für DIESEN Kunden
     const kundeId = activeKunde.id;
     const aktuelleListeFuerKunden = heuteBetreuteProKunde[kundeId] || [];
     const updatedBetreut = [...aktuelleListeFuerKunden, { name: activeObjekt.name, address: activeObjekt.address, type: einsatzType }];
@@ -732,7 +716,6 @@ export default function App() {
     setShowActiveRaeumPlanPopup(false);
 
     if (alleErledigt && alleObjekteDesKundenNamen.length > 0) {
-      // Exakter Berichtsaufbau: Liegenschaften des AKTUELLEN Kunden mit Adresse und Doppelpunkt
       const liegenschaftsListeText = updatedBetreut.map(b => `• ${b.name} (${b.address}): ${b.type}`).join('\n');
       
       const berichtText = 
@@ -1432,7 +1415,7 @@ export default function App() {
             )}
 
             {/* HISTORIE TAB */}
-            {activeTab === 'history_saison' && (
+{activeTab === 'history_saison' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -1510,7 +1493,7 @@ export default function App() {
             <button onClick={() => setActiveTab('statistik')} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'statistik' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'statistik' ? '#111827' : textSub }}>
               📊 Stats
             </button>
-            <button onClick={() => history_saison_fix_tab(setActiveTab('history_saison'))} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'history_saison' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'history_saison' ? '#111827' : textSub }}>
+            <button onClick={() => setActiveTab('history_saison')} style={{ padding: '6px 2px', textAlign: 'center', fontSize: '0.65rem', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'history_saison' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'history_saison' ? '#111827' : textSub }}>
               📜 Archiv
             </button>
           </div>
@@ -1519,9 +1502,4 @@ export default function App() {
 
     </div>
   );
-}
-
-// (Hilfsfunktion für den Tab-Wechsel)
-function history_saison_fix_tab(callback: void) {
-  return callback;
 }
