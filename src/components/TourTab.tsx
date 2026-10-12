@@ -60,7 +60,14 @@ export default function TourTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <DwdWetterBanner regionen={dwdRegionen} />
+      <DwdWetterBanner
+        regionen={dwdRegionen}
+        darkMode={darkMode}
+        bgCard={bgCard}
+        textApp={textApp}
+        textSub={textSub}
+        borderCard={borderCard}
+      />
       <div style={{ background: darkMode ? bgCard : 'linear-gradient(135deg, #ffffff, #f9fafb)', color: textApp, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <div>
           <h2 style={{ fontWeight: 'bold', fontSize: '1.05rem', margin: 0, color: darkMode ? '#f3f4f6' : '#111827' }}>Guten Tag, Micha! 👋</h2>

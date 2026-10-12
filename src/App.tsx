@@ -26,6 +26,7 @@ function istOptionaleKoordinateGueltig(wert: string, minimum: number, maximum: n
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison'>('tour');
+  const [mehrEinstellungenGeoeffnet, setMehrEinstellungenGeoeffnet] = useState(false);
   const [statusMeldung, setStatusMeldung] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(() =>
     window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -1475,28 +1476,43 @@ export default function App() {
 
             {/* MEHR TAB */}
             {activeTab === 'mehr' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <EinstellungenTab
-                  editingStartPunkt={editingStartPunkt}
-                  setEditingStartPunkt={setEditingStartPunkt}
-                  editingSpritPreis={editingSpritPreis}
-                  setEditingSpritPreis={setEditingSpritPreis}
-                  editingVerbrauch={editingVerbrauch}
-                  setEditingVerbrauch={setEditingVerbrauch}
-                  dwdRegionen={dwdRegionen}
-                  setDwdRegionen={setDwdRegionen}
-                  darkMode={darkMode}
-                  textApp={textApp}
-                  textSub={textSub}
-                  borderCard={borderCard}
-                  bgCard={bgCard}
-                  onSaveStartpunkt={speichereStartpunkt}
-                  onSaveSpritPreis={speichereSpritPreis}
-                  onSaveVerbrauch={speichereVerbrauch}
-                />
+              mehrEinstellungenGeoeffnet ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setMehrEinstellungenGeoeffnet(false)}
+                    style={{ alignSelf: 'flex-start', backgroundColor: darkMode ? '#22262a' : '#ffffff', border: '1px solid ' + borderCard, borderRadius: '8px', color: textApp, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', padding: '10px 12px' }}
+                  >
+                    ← Zurück zu Weitere Bereiche
+                  </button>
+                  <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: textApp }}>🛠️ Einstellungen & Wetter</h2>
+                  <EinstellungenTab
+                    editingStartPunkt={editingStartPunkt}
+                    setEditingStartPunkt={setEditingStartPunkt}
+                    editingSpritPreis={editingSpritPreis}
+                    setEditingSpritPreis={setEditingSpritPreis}
+                    editingVerbrauch={editingVerbrauch}
+                    setEditingVerbrauch={setEditingVerbrauch}
+                    dwdRegionen={dwdRegionen}
+                    setDwdRegionen={setDwdRegionen}
+                    darkMode={darkMode}
+                    textApp={textApp}
+                    textSub={textSub}
+                    borderCard={borderCard}
+                    bgCard={bgCard}
+                    onSaveStartpunkt={speichereStartpunkt}
+                    onSaveSpritPreis={speichereSpritPreis}
+                    onSaveVerbrauch={speichereVerbrauch}
+                  />
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: '0 0 4px 0', color: textApp }}>⚙️ Weitere Bereiche</h2>
                   
+                  <button onClick={() => setMehrEinstellungenGeoeffnet(true)} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>
+                    🛠️ Einstellungen & Wetter
+                  </button>
                   <button onClick={() => setActiveTab('kunden')} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>
                     👥 Kunden verwalten
                   </button>
@@ -1525,7 +1541,8 @@ export default function App() {
                     </label>
                   </div>
                 </div>
-              </div>
+                </div>
+              )
             )}
 
             {(activeTab === 'statistik' || activeTab === 'history_saison') && (
