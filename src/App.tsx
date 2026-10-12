@@ -77,7 +77,6 @@ export default function App() {
 
   const watchIdRef = useRef<number | null>(null);
   const lastCoordsRef = useRef<{ lat: number; lon: number } | null>(null);
-  const accumulatedKmRef = useRef<number>(0);
 
   const [dialogConfig, setDialogConfig] = useState<{
     visible: boolean;
@@ -149,13 +148,27 @@ export default function App() {
   const [editObjReihenfolge, setEditObjReihenfolge] = useState('1');
   const [editObjRaeumPlan, setEditObjRaeumPlan] = useState<string>('');
 
-  const [activeKunde, setActiveKunde] = useState<Kunde | null>(null);
-  const [activeObjekt, setActiveObjekt] = useState<Liegenschaft | null>(null);
-  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [activeKunde, setActiveKunde] = useState<Kunde | null>(() => {
+    const saved = localStorage.getItem('becdra_active_kunde');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [activeObjekt, setActiveObjekt] = useState<Liegenschaft | null>(() => {
+    const saved = localStorage.getItem('becdra_active_objekt');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [startTime, setStartTime] = useState<Date | null>(() => {
+    const saved = localStorage.getItem('becdra_starttime');
+    if (!saved) return null;
+    const date = new Date(saved);
+    return Number.isNaN(date.getTime()) ? null : date;
+  });
   const [einsatzType, setEinsatzType] = useState('Räumen & Streuen');
   const [wetterLage, setWetterLage] = useState('Wird geladen...');
   const [materialSaecke, setMaterialSaecke] = useState('1');
-  const [gefahreneKm, setGefahreneKm] = useState('0');
+  const [gefahreneKm, setGefahreneKm] = useState(() =>
+    localStorage.getItem('becdra_gefahrene_km') || '0'
+  );
+  const accumulatedKmRef = useRef<number>(Number(gefahreneKm) || 0);
   
   const [aufgenommenesFoto, setAufgenommenesFoto] = useState<string | null>(null);
   const [aufgenommenesFotoUrl, setAufgenommenesFotoUrl] = useState<string | null>(null);
@@ -171,7 +184,7 @@ export default function App() {
     try {
       const saved = localStorage.getItem('becdra_history');
       return saved ? JSON.parse(saved) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -183,7 +196,7 @@ export default function App() {
     try {
       const saved = localStorage.getItem('becdra_saison_archiv');
       return saved ? JSON.parse(saved) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -211,6 +224,38 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('becdra_saison_archiv', JSON.stringify(archivListe));
   }, [archivListe]);
+
+  useEffect(() => {
+    if (activeKunde) {
+      localStorage.setItem('becdra_active_kunde', JSON.stringify(activeKunde));
+    } else {
+      localStorage.removeItem('becdra_active_kunde');
+    }
+  }, [activeKunde]);
+
+  useEffect(() => {
+    if (activeObjekt) {
+      localStorage.setItem('becdra_active_objekt', JSON.stringify(activeObjekt));
+    } else {
+      localStorage.removeItem('becdra_active_objekt');
+    }
+  }, [activeObjekt]);
+
+  useEffect(() => {
+    if (startTime) {
+      localStorage.setItem('becdra_starttime', startTime.toISOString());
+    } else {
+      localStorage.removeItem('becdra_starttime');
+    }
+  }, [startTime]);
+
+  useEffect(() => {
+    if (activeKunde && activeObjekt && startTime) {
+      localStorage.setItem('becdra_gefahrene_km', gefahreneKm);
+    } else {
+      localStorage.removeItem('becdra_gefahrene_km');
+    }
+  }, [activeKunde, activeObjekt, startTime, gefahreneKm]);
 
   const exportDatenBackup = () => {
     const backupData = {
@@ -256,7 +301,7 @@ export default function App() {
             
             zeigeMeldung('Daten erfolgreich aus Backup wiederhergestellt!');
           }
-        } catch (err) {
+        } catch {
           zeigeMeldung('Fehler beim Lesen der Backup-Datei.');
         }
       };
@@ -698,21 +743,9 @@ export default function App() {
       } else {
         setWetterLage('Leichtes Überfrieren (Standard)');
       }
-    } catch (error) {
+    } catch {
       setWetterLage('Leichtes Überfrieren (Offline)');
     }
-  };
-
-  const berechneDistanzKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
   };
 
   const startEinsatzMitWaze = (kunde: Kunde, obj: Liegenschaft) => {
@@ -731,39 +764,63 @@ export default function App() {
     accumulatedKmRef.current = 0;
     lastCoordsRef.current = null;
     setGefahreneKm('0');
-
-    if (navigator.geolocation) {
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        (position) => {
-          const currentLat = position.coords.latitude;
-          const currentLon = position.coords.longitude;
-          const currentCoords = { lat: currentLat, lon: currentLon };
-
-          if (lastCoordsRef.current) {
-            const dist = berechneDistanzKm(
-              lastCoordsRef.current.lat, lastCoordsRef.current.lon,
-              currentLat, currentLon
-            );
-            if (dist > 0.005) {
-              accumulatedKmRef.current += dist;
-              setGefahreneKm(Math.max(1, Math.round(accumulatedKmRef.current)).toString());
-            }
-          }
-          lastCoordsRef.current = currentCoords;
-        },
-        (error) => {
-          console.error("GPS-Tracking Fehler:", error);
-        },
-        { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
-      );
-    }
   };
+
+  useEffect(() => {
+    if (!activeKunde || !activeObjekt || !startTime || !navigator.geolocation) return;
+
+    lastCoordsRef.current = null;
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const currentLat = position.coords.latitude;
+        const currentLon = position.coords.longitude;
+        const currentCoords = { lat: currentLat, lon: currentLon };
+
+        if (lastCoordsRef.current) {
+          const lat1 = (lastCoordsRef.current.lat * Math.PI) / 180;
+          const lat2 = (currentLat * Math.PI) / 180;
+          const deltaLat = lat2 - lat1;
+          const deltaLon = ((currentLon - lastCoordsRef.current.lon) * Math.PI) / 180;
+          const a =
+            Math.sin(deltaLat / 2) ** 2 +
+            Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+          const distance = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          if (distance > 0.005) {
+            accumulatedKmRef.current += distance;
+            setGefahreneKm(Math.max(1, Math.round(accumulatedKmRef.current)).toString());
+          }
+        }
+        lastCoordsRef.current = currentCoords;
+      },
+      (error) => {
+        console.error("GPS-Tracking Fehler:", error);
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    );
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+  }, [activeKunde, activeObjekt, startTime]);
 
   const stopGpsTracking = () => {
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
+  };
+
+  const clearActiveEinsatz = () => {
+    localStorage.removeItem('becdra_active_kunde');
+    localStorage.removeItem('becdra_active_objekt');
+    localStorage.removeItem('becdra_starttime');
+    localStorage.removeItem('becdra_gefahrene_km');
+    setActiveKunde(null);
+    setActiveObjekt(null);
+    setStartTime(null);
+    setGefahreneKm('0');
   };
 
   const cancelEinsatz = () => {
@@ -775,8 +832,7 @@ export default function App() {
       cancelText: 'Weiterarbeiten',
       onConfirm: () => {
         stopGpsTracking();
-        setActiveKunde(null);
-        setActiveObjekt(null);
+        clearActiveEinsatz();
         setAufgenommenesFoto(null);
         setAufgenommenesFotoUrl(null);
         setHindernisNotiz('');
@@ -859,8 +915,7 @@ export default function App() {
     const alleErledigt = alleObjekteDesKundenNamen.every(name => erledigteObjekteNamen.includes(name));
 
     const geforderterKunde = activeKunde;
-    setActiveKunde(null);
-    setActiveObjekt(null);
+    clearActiveEinsatz();
     setAufgenommenesFoto(null);
     setAufgenommenesFotoUrl(null);
     setHindernisNotiz('');
@@ -1046,7 +1101,7 @@ export default function App() {
   const heuteDatumString = new Date().toLocaleDateString('de-DE');
 
   const berechneStatistikWerte = (einsätzeListe: EinsatzLog[]) => {
-    let anzahl = einsätzeListe.length;
+    const anzahl = einsätzeListe.length;
     let km = 0;
     let sprit = 0;
     let saecke = 0;
