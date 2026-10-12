@@ -1,5 +1,8 @@
 import type { ChangeEvent, Dispatch, FormEvent, SetStateAction } from 'react';
 import type { Kunde, Liegenschaft } from '../types';
+import type { STREUMITTEL } from '../constants/streuMittel';
+
+type StreuMittelOption = typeof STREUMITTEL[number];
 
 interface ObjekteTabProps {
   liegenschaften: Liegenschaft[];
@@ -19,7 +22,7 @@ interface ObjekteTabProps {
   neuObjNurWochenendeFeiertag: boolean;
   setNeuObjNurWochenendeFeiertag: Dispatch<SetStateAction<boolean>>;
   neuObjRaeumPlan: string;
-  streuMittelListe: string[];
+  streuMittelListe: readonly StreuMittelOption[];
   darkMode: boolean;
   textApp: string;
   textSub: string;
@@ -126,7 +129,7 @@ export default function ObjekteTab({
             <div>
               <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Streumittel</label>
               <select value={neuObjMaterial} onChange={e => setNeuObjMaterial(e.target.value)} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp }}>
-                {streuMittelListe.map(streuMittel => <option key={streuMittel} value={streuMittel}>{streuMittel}</option>)}
+                {streuMittelListe.map(streuMittel => <option key={streuMittel.id} value={streuMittel.id}>{streuMittel.name}</option>)}
               </select>
             </div>
           </div>

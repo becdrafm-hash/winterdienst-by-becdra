@@ -12,8 +12,44 @@ import AktiverEinsatz from './components/AktiverEinsatz';
 import Navigation from './components/Navigation';
 import { DWD_REGIONEN, DWD_STANDARD_REGIONEN, type DwdRegionId } from './services/dwdWetter';
 import { ermittleLiegenschaftKoordinaten } from './services/liegenschaftGeocoding';
+import { normalisiereStreuMittelId, STREUMITTEL, type LagerBestaende, type StreuMittelId } from './constants/streuMittel';
 
 const LAGER_KG_MIGRATION_KEY = 'becdra_lager_kg_migration_v1';
+const LAGER_BESTAENDE_KEY = 'becdra_lager_bestaende';
+
+function ladeLagerBestaende(): LagerBestaende {
+  const standard: LagerBestaende = { Salz: 0, Splitt: 0, Sand: 0, Lava: 0, Acetat: 0 };
+  const gespeicherteBestaende = localStorage.getItem(LAGER_BESTAENDE_KEY);
+  if (gespeicherteBestaende) {
+    try {
+      const parsed: unknown = JSON.parse(gespeicherteBestaende);
+      if (typeof parsed === 'object' && parsed !== null) {
+        for (const material of STREUMITTEL) {
+          const bestand = (parsed as Record<string, unknown>)[material.id];
+          if (typeof bestand === 'number' && Number.isFinite(bestand)) standard[material.id] = bestand;
+        }
+        return standard;
+      }
+    } catch (error) {
+      console.error('Gespeicherte Lagerbestände konnten nicht gelesen werden:', error);
+    }
+  }
+
+  const alterBestand = localStorage.getItem('becdra_lager');
+  let wert = 0;
+  if (alterBestand) {
+    try {
+      const parsed: unknown = JSON.parse(alterBestand);
+      wert = typeof parsed === 'number' ? parsed : Number(parsed);
+    } catch (error) {
+      console.error('Der alte Salzbestand konnte nicht gelesen werden:', error);
+    }
+  }
+  if (Number.isFinite(wert)) {
+    standard.Salz = localStorage.getItem(LAGER_KG_MIGRATION_KEY) === 'true' ? wert : wert * 25;
+  }
+  return standard;
+}
 
 function leseGueltigeKoordinaten(liegenschaft: Pick<Liegenschaft, 'lat' | 'lon'>): { lat: number; lon: number } | null {
   if (typeof liegenschaft.lat !== 'number'
@@ -35,8 +71,8 @@ function leseMaterialverbrauchKg(einsatz: Pick<EinsatzLog, 'materialUsed' | 'mat
     return einsatz.materialVerbrauchKg;
   }
 
-  const wert = Number.parseFloat(einsatz.materialUsed.replace(',', '.')) || 0;
-  return einsatz.materialUsed.includes('Sack') ? wert * 25 : wert;
+  if (!einsatz.materialUsed.includes('Sack')) return 0;
+  return (Number.parseFloat(einsatz.materialUsed.replace(',', '.')) || 0) * 25;
 }
 
 interface ArbeitszeitStatus {
@@ -82,7 +118,6 @@ export default function App() {
   });
   const [editingStartPunkt, setEditingStartPunkt] = useState<string>(startPunkt);
 
-  const [lagerAnzahlInput, setLagerAnzahlInput] = useState<string>('1');
   const [showActiveRaeumPlanPopup, setShowActiveRaeumPlanPopup] = useState<boolean>(false);
 
   const watchIdRef = useRef<number | null>(null);
@@ -118,24 +153,13 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [lagerBestand, setLagerBestand] = useState<number>(() => {
-    const saved = localStorage.getItem('becdra_lager');
-    const bestand = saved ? Number(JSON.parse(saved)) : 0;
-    if (localStorage.getItem(LAGER_KG_MIGRATION_KEY) === 'true') {
-      return Number.isFinite(bestand) ? bestand : 0;
-    }
-
-    const bestandInKg = Number.isFinite(bestand) ? bestand * 25 : 0;
-    localStorage.setItem('becdra_lager', JSON.stringify(bestandInKg));
-    localStorage.setItem(LAGER_KG_MIGRATION_KEY, 'true');
-    return bestandInKg;
-  });
+  const [lagerBestaende, setLagerBestaende] = useState<LagerBestaende>(ladeLagerBestaende);
 
   const [spritPreisProLiter, setSpritPreisProLiter] = useState<string>(() => {
     return localStorage.getItem('becdra_spritpreis') || '1.80';
   });
   const [editingSpritPreis, setEditingSpritPreis] = useState<string>(spritPreisProLiter);
-  const [streuMittelListe] = useState<string[]>(['Salz', 'Splitt', 'Sand', 'Lavagranulat', 'Acetat']);
+  const streuMittelListe = STREUMITTEL;
 
   const [verbrauchAuf100Km, setVerbrauchAuf100Km] = useState<string>(() =>
     localStorage.getItem('becdra_verbrauch') || '10'
@@ -251,8 +275,10 @@ export default function App() {
   }, [liegenschaften]);
 
   useEffect(() => {
-    localStorage.setItem('becdra_lager', JSON.stringify(lagerBestand));
-  }, [lagerBestand]);
+    localStorage.setItem(LAGER_BESTAENDE_KEY, JSON.stringify(lagerBestaende));
+    localStorage.setItem('becdra_lager', JSON.stringify(lagerBestaende.Salz));
+    localStorage.setItem(LAGER_KG_MIGRATION_KEY, 'true');
+  }, [lagerBestaende]);
 
   useEffect(() => {
     localStorage.setItem('becdra_dwd_regionen', JSON.stringify(dwdRegionen));
@@ -315,7 +341,8 @@ export default function App() {
       kunden,
       liegenschaften,
       history,
-      lagerBestand,
+      lagerBestaende,
+      lagerBestand: lagerBestaende.Salz,
       lagerEinheit: 'kg',
       startPunkt,
       spritPreisProLiter,
@@ -344,13 +371,27 @@ export default function App() {
             if (parsed.kunden) setKunden(parsed.kunden);
             if (parsed.liegenschaften) setLiegenschaften(parsed.liegenschaften);
             if (parsed.history) setHistory(parsed.history);
-            if (parsed.lagerBestand !== undefined) {
+            if (parsed.lagerBestaende !== undefined) {
+              const backupBestaende: LagerBestaende = { Salz: 0, Splitt: 0, Sand: 0, Lava: 0, Acetat: 0 };
+              if (typeof parsed.lagerBestaende !== 'object' || parsed.lagerBestaende === null) {
+                throw new Error('Die Lagerbestände im Backup sind ungültig.');
+              }
+              for (const material of STREUMITTEL) {
+                const bestand = Number(parsed.lagerBestaende[material.id] ?? 0);
+                if (!Number.isFinite(bestand) || bestand < 0) {
+                  throw new Error(`Der Lagerbestand für ${material.name} im Backup ist ungültig.`);
+                }
+                backupBestaende[material.id] = bestand;
+              }
+              setLagerBestaende(backupBestaende);
+              localStorage.setItem(LAGER_KG_MIGRATION_KEY, 'true');
+            } else if (parsed.lagerBestand !== undefined) {
               const backupBestand = Number(parsed.lagerBestand);
               const backupLagerKg = parsed.lagerEinheit === 'kg' ? backupBestand : backupBestand * 25;
               if (!Number.isFinite(backupLagerKg) || backupLagerKg < 0) {
                 throw new Error('Der Lagerbestand im Backup ist ungültig.');
               }
-              setLagerBestand(backupLagerKg);
+              setLagerBestaende(prev => ({ ...prev, Salz: backupLagerKg }));
               localStorage.setItem(LAGER_KG_MIGRATION_KEY, 'true');
             }
             if (parsed.startPunkt) setStartPunkt(parsed.startPunkt);
@@ -399,21 +440,20 @@ export default function App() {
     zeigeMeldung('Fahrzeugverbrauch erfolgreich aktualisiert!');
   };
 
-  const anpasseLagerGenau = (modus: 'add' | 'sub') => {
-    const wert = Number(lagerAnzahlInput);
-    if (!Number.isFinite(wert) || wert <= 0) {
-      zeigeMeldung('Bitte eine gültige Menge in kg eingeben.');
+  const anpasseLagerGenau = (material: StreuMittelId, modus: 'add' | 'sub', wert: number) => {
+    const materialInfo = STREUMITTEL.find(eintrag => eintrag.id === material);
+    if (!materialInfo || !Number.isFinite(wert) || wert <= 0) {
+      zeigeMeldung('Bitte eine gültige Lagermenge eingeben.');
       return;
     }
 
     if (modus === 'add') {
-      setLagerBestand(prev => prev + wert);
-      zeigeMeldung(`+${wert.toLocaleString('de-DE')} kg zum Lager hinzugefügt.`);
+      setLagerBestaende(prev => ({ ...prev, [material]: prev[material] + wert }));
+      zeigeMeldung(`+${wert.toLocaleString('de-DE')} ${materialInfo.einheit} ${materialInfo.name} hinzugefügt.`);
     } else {
-      setLagerBestand(prev => Math.max(0, prev - wert));
-      zeigeMeldung(`-${wert.toLocaleString('de-DE')} kg aus dem Lager entfernt.`);
+      setLagerBestaende(prev => ({ ...prev, [material]: prev[material] - wert }));
+      zeigeMeldung(`-${wert.toLocaleString('de-DE')} ${materialInfo.einheit} ${materialInfo.name} abgezogen.`);
     }
-    setLagerAnzahlInput('1');
   };
 
   const addKunde = (e: React.FormEvent) => {
@@ -548,7 +588,7 @@ export default function App() {
     setEditObjName(liege.name);
     setEditObjAddress(liege.address);
     setEditObjSize(liege.size);
-    setEditObjMaterial(streuMittelListe.includes(liege.material) ? liege.material : streuMittelListe[0]);
+    setEditObjMaterial(normalisiereStreuMittelId(liege.material));
     setEditObjReihenfolge(liege.reihenfolge ? liege.reihenfolge.toString() : '1');
     setEditObjNurWochenendeFeiertag(liege.nurWochenendeFeiertag === true);
     setEditObjRaeumPlan(liege.raeumPlan || '');
@@ -662,7 +702,7 @@ export default function App() {
       `Wetter: ${item.wetter}\n` +
       (item.wetterVorOrt ? `Wetterverhältnisse vor Ort: ${item.wetterVorOrt}\n` : '') +
       `Maßnahme: ${item.type}\n` +
-      (item.materialVerbrauchKg !== undefined ? `Streumittelverbrauch: ${item.materialVerbrauchKg.toLocaleString('de-DE')} kg\n` : '') +
+      (item.materialUsed ? `Streumittelverbrauch: ${item.materialUsed}\n` : '') +
       hindernisZeile +
       `────────────────────────\n` +
       `Status: Ordnungsgemäß betreut\n\n` +
@@ -990,17 +1030,15 @@ export default function App() {
 
   const finishEinsatz = () => {
     if (!activeKunde || !activeObjekt || !startTime) return;
-    const verbrauchKg = Number(materialVerbrauchKg);
-    if (materialVerbrauchKg.trim() === '' || !Number.isFinite(verbrauchKg) || verbrauchKg < 0) {
-      zeigeMeldung('Bitte einen gültigen Streumittelverbrauch in kg eingeben.');
+    const verbrauchMenge = Number(materialVerbrauchKg);
+    if (materialVerbrauchKg.trim() === '' || !Number.isFinite(verbrauchMenge) || verbrauchMenge < 0) {
+      zeigeMeldung('Bitte einen gültigen Streumittelverbrauch eingeben.');
       return;
     }
     if (!wetterVorOrt) {
       zeigeMeldung('Bitte die Wetterverhältnisse vor Ort auswählen.');
       return;
     }
-    stopGpsTracking();
-
     const endTime = new Date();
     const aktuellePauseMs = arbeitszeitStatus.pauseBeginn === null
       ? 0
@@ -1011,10 +1049,17 @@ export default function App() {
     );
     const diffMinutes = Math.round(arbeitsdauerMs / 60000);
     const kmNum = Number(gefahreneKm) || 0;
+    const materialId = normalisiereStreuMittelId(activeObjekt.material);
+    const materialInfo = STREUMITTEL.find(material => material.id === materialId);
+    if (!materialInfo) {
+      zeigeMeldung('Das Streumittel des Objekts ist ungültig.');
+      return;
+    }
 
+    stopGpsTracking();
     const berechneteSpritKosten = (kmNum * Number(verbrauchAuf100Km) / 100) * (Number(spritPreisProLiter) || 1.80);
 
-    setLagerBestand(prev => prev - verbrauchKg);
+    setLagerBestaende(prev => ({ ...prev, [materialId]: prev[materialId] - verbrauchMenge }));
 
     const newLog: EinsatzLog = {
       id: Date.now(),
@@ -1026,8 +1071,9 @@ export default function App() {
       wetterVorOrt,
       type: einsatzType,
       duration: `${Math.max(1, diffMinutes)} Min.`,
-      materialUsed: `${verbrauchKg.toLocaleString('de-DE')} kg (${activeObjekt.material})`,
-      materialVerbrauchKg: verbrauchKg,
+      materialUsed: `${verbrauchMenge.toLocaleString('de-DE')} ${materialInfo.einheit} (${materialInfo.name})`,
+      materialVerbrauchKg: materialInfo.einheit === 'kg' ? verbrauchMenge : undefined,
+      materialVerbrauchEinheit: materialInfo.einheit,
       kmGefahren: `${kmNum} km`,
       spritKosten: `${berechneteSpritKosten.toFixed(2)} €`,
       fotoName: aufgenommenesFoto || undefined,
@@ -1080,7 +1126,7 @@ export default function App() {
         `Datum: ${new Date().toLocaleDateString('de-DE')}\n` +
         `Wetter: ${wetterLage}\n\n` +
         `Wetterverhältnisse vor Ort: ${wetterVorOrt}\n` +
-        `Streumittelverbrauch: ${verbrauchKg.toLocaleString('de-DE')} kg (${activeObjekt.material})\n\n` +
+        `Streumittelverbrauch: ${verbrauchMenge.toLocaleString('de-DE')} ${materialInfo.einheit} (${materialInfo.name})\n\n` +
         `Betreute Objekte:\n${liegenschaftsListeText}\n\n` +
         `${hindernisHinweis}\n` +
         `────────────────────────\n` +
@@ -1210,7 +1256,7 @@ export default function App() {
       zeigeMeldung('Keine Daten für den Export vorhanden.');
       return;
     }
-    let csvContent = "data:text/csv;charset=utf-8,Kunde;Liegenschaft;Datum;Wetter;Wetter vor Ort;Art;Material;Verbrauch kg;Km;Sprit;Besonderheiten/Hindernisse\n";
+    let csvContent = "data:text/csv;charset=utf-8,Kunde;Liegenschaft;Datum;Wetter;Wetter vor Ort;Art;Material;Verbrauch;Einheit;Km;Sprit;Besonderheiten/Hindernisse\n";
     history.forEach(item => {
       const csvWert = (wert: string | number | undefined) => `"${String(wert ?? '').replaceAll('"', '""')}"`;
       csvContent += [
@@ -1221,7 +1267,7 @@ export default function App() {
         item.wetterVorOrt,
         item.type,
         item.materialUsed,
-        item.materialVerbrauchKg,
+        item.materialVerbrauchEinheit,
         item.kmGefahren,
         item.spritKosten,
         item.hindernisInfo
@@ -1317,7 +1363,7 @@ export default function App() {
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Streumittel</label>
               <select value={editObjMaterial} onChange={e => setEditObjMaterial(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }}>
                 {streuMittelListe.map(streuMittel => (
-                  <option key={streuMittel} value={streuMittel}>{streuMittel}</option>
+                  <option key={streuMittel.id} value={streuMittel.id}>{streuMittel.name}</option>
                 ))}
               </select>
             </div>
@@ -1375,7 +1421,7 @@ export default function App() {
         cancelText={dialogConfig.cancelText}
       />
 
-      <Header lagerBestand={lagerBestand} darkMode={darkMode} setDarkMode={setDarkMode} />
+      <Header lagerBestand={lagerBestaende.Salz} darkMode={darkMode} setDarkMode={setDarkMode} />
 
       <main style={{ maxWidth: '440px', margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
@@ -1400,6 +1446,7 @@ export default function App() {
             setEinsatzType={setEinsatzType}
             materialVerbrauchKg={materialVerbrauchKg}
             setMaterialVerbrauchKg={setMaterialVerbrauchKg}
+            materialEinheit={STREUMITTEL.find(material => material.id === normalisiereStreuMittelId(activeObjekt.material))?.einheit ?? 'kg'}
             gefahreneKm={gefahreneKm}
             setGefahreneKm={setGefahreneKm}
             aufgenommenesFoto={aufgenommenesFoto}
@@ -1498,9 +1545,7 @@ export default function App() {
 
             {activeTab === 'lager' && (
               <LagerTab
-                lagerBestand={lagerBestand}
-                lagerAnzahlInput={lagerAnzahlInput}
-                setLagerAnzahlInput={setLagerAnzahlInput}
+                lagerBestaende={lagerBestaende}
                 darkMode={darkMode}
                 onAdjustLager={anpasseLagerGenau}
               />

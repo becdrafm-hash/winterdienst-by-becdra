@@ -21,6 +21,7 @@ interface AktiverEinsatzProps {
   setEinsatzType: Dispatch<SetStateAction<string>>;
   materialVerbrauchKg: string;
   setMaterialVerbrauchKg: Dispatch<SetStateAction<string>>;
+  materialEinheit: string;
   gefahreneKm: string;
   setGefahreneKm: Dispatch<SetStateAction<string>>;
   aufgenommenesFoto: string | null;
@@ -55,6 +56,7 @@ export default function AktiverEinsatz({
   setEinsatzType,
   materialVerbrauchKg,
   setMaterialVerbrauchKg,
+  materialEinheit,
   gefahreneKm,
   setGefahreneKm,
   aufgenommenesFoto,
@@ -180,7 +182,7 @@ export default function AktiverEinsatz({
             <label htmlFor="materialverbrauch-kg" style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textApp, marginBottom: '4px' }}>Streumittelverbrauch</label>
             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
               <input id="materialverbrauch-kg" type="number" min="0" step="0.1" required value={materialVerbrauchKg} onChange={event => setMaterialVerbrauchKg(event.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, textAlign: 'center', fontWeight: 'bold', boxSizing: 'border-box' }} />
-              <span style={{ fontSize: '0.75rem', color: textSub }}>kg</span>
+              <span style={{ fontSize: '0.75rem', color: textSub }}>{materialEinheit}</span>
             </div>
           </div>
           <div>

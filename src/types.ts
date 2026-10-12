@@ -31,6 +31,7 @@ export interface EinsatzLog {
   duration: string;
   materialUsed: string;
   materialVerbrauchKg?: number;
+  materialVerbrauchEinheit?: string;
   kmGefahren: string;
   spritKosten: string;
   fotoName?: string;

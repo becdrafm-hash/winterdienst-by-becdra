@@ -115,7 +115,7 @@ export default function HistorieStatistikTab({
                 {item.wetterVorOrt && <p style={{ fontSize: '0.75rem', color: textApp, margin: 0 }}>Wetter vor Ort: <b>{item.wetterVorOrt}</b></p>}
                 {item.hindernisInfo && <p style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 'bold', margin: 0 }}>⚠️ Hindernis: {item.hindernisInfo}</p>}
                 <p style={{ fontSize: '0.75rem', color: '#8cc63f', fontWeight: 500, margin: 0 }}>
-                  Verbrauch: {item.materialVerbrauchKg !== undefined ? `${item.materialVerbrauchKg.toLocaleString('de-DE')} kg (${item.materialUsed})` : item.materialUsed} | Fahrstrecke: <b>{item.kmGefahren}</b> (~{item.spritKosten} Sprit)
+                  Verbrauch: {item.materialUsed} | Fahrstrecke: <b>{item.kmGefahren}</b> (~{item.spritKosten} Sprit)
                 </p>
               </div>
             ))}
