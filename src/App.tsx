@@ -9,6 +9,8 @@ import TourTab from './components/TourTab';
 import HistorieStatistikTab from './components/HistorieStatistikTab';
 import AktiverEinsatz from './components/AktiverEinsatz';
 import Navigation from './components/Navigation';
+import { istWochenendeOderFeiertag } from './feiertage';
+import { DWD_REGIONEN, DWD_STANDARD_REGIONEN, type DwdRegionId } from './services/dwdWetter';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison'>('tour');
@@ -29,6 +31,20 @@ export default function App() {
 
   const [startPunkt, setStartPunkt] = useState<string>(() => {
     return localStorage.getItem('becdra_startpunkt') || 'Groiner Allee 1, 46459 Rees';
+  });
+  const [dwdRegionen, setDwdRegionen] = useState<DwdRegionId[]>(() => {
+    const gespeicherteRegionen = localStorage.getItem('becdra_dwd_regionen');
+    if (!gespeicherteRegionen) return DWD_STANDARD_REGIONEN;
+
+    try {
+      const parsed: unknown = JSON.parse(gespeicherteRegionen);
+      if (!Array.isArray(parsed)) return DWD_STANDARD_REGIONEN;
+      return DWD_REGIONEN
+        .map(region => region.id)
+        .filter((region): region is DwdRegionId => parsed.includes(region));
+    } catch {
+      return DWD_STANDARD_REGIONEN;
+    }
   });
   const [editingStartPunkt, setEditingStartPunkt] = useState<string>(startPunkt);
 
@@ -95,6 +111,7 @@ export default function App() {
   const [neuObjSize, setNeuObjSize] = useState('');
   const [neuObjMaterial, setNeuObjMaterial] = useState('Salz');
   const [neuObjReihenfolge, setNeuObjReihenfolge] = useState('1');
+  const [neuObjNurWochenendeFeiertag, setNeuObjNurWochenendeFeiertag] = useState(false);
   const [neuObjRaeumPlan, setNeuObjRaeumPlan] = useState<string>('');
 
   const [editingKundeId, setEditingKundeId] = useState<number | null>(null);
@@ -108,6 +125,7 @@ export default function App() {
   const [editObjSize, setEditObjSize] = useState('');
   const [editObjMaterial, setEditObjMaterial] = useState('Salz');
   const [editObjReihenfolge, setEditObjReihenfolge] = useState('1');
+  const [editObjNurWochenendeFeiertag, setEditObjNurWochenendeFeiertag] = useState(false);
   const [editObjRaeumPlan, setEditObjRaeumPlan] = useState<string>('');
 
   const [activeKunde, setActiveKunde] = useState<Kunde | null>(() => {
@@ -174,6 +192,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('becdra_lager', JSON.stringify(lagerBestand));
   }, [lagerBestand]);
+
+  useEffect(() => {
+    localStorage.setItem('becdra_dwd_regionen', JSON.stringify(dwdRegionen));
+  }, [dwdRegionen]);
 
   useEffect(() => {
     localStorage.setItem('becdra_streumittel', JSON.stringify(streuMittelListe));
@@ -415,6 +437,7 @@ export default function App() {
       size: neuObjSize,
       material: neuObjMaterial,
       reihenfolge: Number(neuObjReihenfolge) || 1,
+      nurWochenendeFeiertag: neuObjNurWochenendeFeiertag,
       raeumPlan: neuObjRaeumPlan || undefined
     };
 
@@ -423,6 +446,7 @@ export default function App() {
     setNeuObjAddress('');
     setNeuObjSize('');
     setNeuObjReihenfolge('1');
+    setNeuObjNurWochenendeFeiertag(false);
     setNeuObjRaeumPlan('');
     zeigeMeldung('Liegenschaft erfolgreich hinzugefügt!');
   };
@@ -434,6 +458,7 @@ export default function App() {
     setEditObjSize(liege.size);
     setEditObjMaterial(streuMittelListe.includes(liege.material) ? liege.material : streuMittelListe[0]);
     setEditObjReihenfolge(liege.reihenfolge ? liege.reihenfolge.toString() : '1');
+    setEditObjNurWochenendeFeiertag(liege.nurWochenendeFeiertag === true);
     setEditObjRaeumPlan(liege.raeumPlan || '');
   };
 
@@ -446,6 +471,7 @@ export default function App() {
       size: editObjSize, 
       material: editObjMaterial,
       reihenfolge: Number(editObjReihenfolge) || 1,
+      nurWochenendeFeiertag: editObjNurWochenendeFeiertag,
       raeumPlan: editObjRaeumPlan || undefined
     } : l));
     setEditingLiege(null);
@@ -1038,11 +1064,14 @@ export default function App() {
   };
 
   const kopiereAlleAdresen = () => {
-    if (alleLiegenschaftenSortiert.length === 0) {
-      zeigeMeldung('Keine Liegenschaften vorhanden.');
+    const liegenschaftenDerTour = alleLiegenschaftenSortiert.filter(
+      ({ liege }) => !liege.nurWochenendeFeiertag || istWochenendeOderFeiertag()
+    );
+    if (liegenschaftenDerTour.length === 0) {
+      zeigeMeldung('Aktuell gibt es keine Liegenschaften für die Tour.');
       return;
     }
-    const liegenschaftsZeilen = alleLiegenschaftenSortiert.map((item, index) => 
+    const liegenschaftsZeilen = liegenschaftenDerTour.map((item, index) =>
       `${index + 1}. ${item.kunde?.firma || 'Kunde'} - ${item.liege.name}: ${item.liege.address}`
     );
     const reinZuOptimierendeRoute = liegenschaftsZeilen.join('\n');
@@ -1153,6 +1182,14 @@ export default function App() {
                 ))}
               </select>
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: textApp, fontSize: '0.85rem' }}>
+              <input
+                type="checkbox"
+                checked={editObjNurWochenendeFeiertag}
+                onChange={e => setEditObjNurWochenendeFeiertag(e.target.checked)}
+              />
+              Nur am Wochenende und an Feiertagen anzeigen
+            </label>
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Räumplan (Nachträglich hinzufügen / ändern)</label>
               <div style={{ display: 'flex', gap: '6px' }}>
@@ -1233,6 +1270,7 @@ export default function App() {
             {activeTab === 'tour' && (
               <TourTab
                 startPunkt={startPunkt}
+                dwdRegionen={dwdRegionen}
                 alleLiegenschaftenSortiert={alleLiegenschaftenSortiert}
                 darkMode={darkMode}
                 textApp={textApp}
@@ -1293,6 +1331,8 @@ export default function App() {
                 setNeuObjMaterial={setNeuObjMaterial}
                 neuObjReihenfolge={neuObjReihenfolge}
                 setNeuObjReihenfolge={setNeuObjReihenfolge}
+                neuObjNurWochenendeFeiertag={neuObjNurWochenendeFeiertag}
+                setNeuObjNurWochenendeFeiertag={setNeuObjNurWochenendeFeiertag}
                 neuObjRaeumPlan={neuObjRaeumPlan}
                 streuMittelListe={streuMittelListe}
                 darkMode={darkMode}
@@ -1318,6 +1358,8 @@ export default function App() {
                 lagerBestand={lagerBestand}
                 lagerAnzahlInput={lagerAnzahlInput}
                 setLagerAnzahlInput={setLagerAnzahlInput}
+                dwdRegionen={dwdRegionen}
+                setDwdRegionen={setDwdRegionen}
                 darkMode={darkMode}
                 onSaveStartpunkt={speichereStartpunkt}
                 onSaveSpritPreis={speichereSpritPreis}

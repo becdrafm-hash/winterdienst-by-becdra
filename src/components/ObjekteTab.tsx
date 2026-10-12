@@ -16,6 +16,8 @@ interface ObjekteTabProps {
   setNeuObjMaterial: Dispatch<SetStateAction<string>>;
   neuObjReihenfolge: string;
   setNeuObjReihenfolge: Dispatch<SetStateAction<string>>;
+  neuObjNurWochenendeFeiertag: boolean;
+  setNeuObjNurWochenendeFeiertag: Dispatch<SetStateAction<boolean>>;
   neuObjRaeumPlan: string;
   streuMittelListe: string[];
   darkMode: boolean;
@@ -44,6 +46,8 @@ export default function ObjekteTab({
   setNeuObjMaterial,
   neuObjReihenfolge,
   setNeuObjReihenfolge,
+  neuObjNurWochenendeFeiertag,
+  setNeuObjNurWochenendeFeiertag,
   neuObjRaeumPlan,
   streuMittelListe,
   darkMode,
@@ -115,6 +119,14 @@ export default function ObjekteTab({
               </select>
             </div>
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: textApp, fontSize: '0.85rem' }}>
+            <input
+              type="checkbox"
+              checked={neuObjNurWochenendeFeiertag}
+              onChange={e => setNeuObjNurWochenendeFeiertag(e.target.checked)}
+            />
+            Nur am Wochenende und an Feiertagen anzeigen
+          </label>
           <div>
             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Räumplan (Kamera oder Datei)</label>
             <div style={{ display: 'flex', gap: '6px' }}>

@@ -1,4 +1,5 @@
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
+import { DWD_REGIONEN, type DwdRegionId } from '../services/dwdWetter';
 
 interface LagerTabProps {
   editingStartPunkt: string;
@@ -10,6 +11,8 @@ interface LagerTabProps {
   lagerBestand: number;
   lagerAnzahlInput: string;
   setLagerAnzahlInput: Dispatch<SetStateAction<string>>;
+  dwdRegionen: DwdRegionId[];
+  setDwdRegionen: Dispatch<SetStateAction<DwdRegionId[]>>;
   darkMode: boolean;
   onSaveStartpunkt: (event: FormEvent<HTMLFormElement>) => void;
   onSaveSpritPreis: (event: FormEvent<HTMLFormElement>) => void;
@@ -27,6 +30,8 @@ export default function LagerTab({
   lagerBestand,
   lagerAnzahlInput,
   setLagerAnzahlInput,
+  dwdRegionen,
+  setDwdRegionen,
   darkMode,
   onSaveStartpunkt,
   onSaveSpritPreis,
@@ -72,6 +77,27 @@ export default function LagerTab({
           <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Verbrauch speichern</button>
         </form>
       </div>
+
+      <fieldset style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <legend style={{ fontSize: '1rem', fontWeight: 'bold', color: textApp, padding: '0 6px' }}>🌨️ DWD-Wetterwarnungen</legend>
+        <p style={{ color: textSub, fontSize: '0.8rem', lineHeight: 1.4, margin: 0 }}>
+          Wähle die Landkreise aus, für die akute Schnee- und Glättewarnungen im Tour-Tab angezeigt werden.
+        </p>
+        {DWD_REGIONEN.map(region => (
+          <label key={region.id} style={{ alignItems: 'center', color: textApp, display: 'flex', gap: '8px', fontSize: '0.9rem' }}>
+            <input
+              type="checkbox"
+              checked={dwdRegionen.includes(region.id)}
+              onChange={event => setDwdRegionen(aktuelleRegionen =>
+                event.target.checked
+                  ? [...aktuelleRegionen, region.id]
+                  : aktuelleRegionen.filter(id => id !== region.id)
+              )}
+            />
+            {region.name}
+          </label>
+        ))}
+      </fieldset>
 
       <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1rem', margin: 0 }}>Streusalz Lager</h2>

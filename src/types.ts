@@ -7,6 +7,7 @@ export interface Liegenschaft {
   material: string;
   reihenfolge: number;
   raeumPlan?: string;
+  nurWochenendeFeiertag?: boolean;
 }
 
 export interface Kunde {

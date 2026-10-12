@@ -1,5 +1,8 @@
-import type { Dispatch, SetStateAction } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import type { Kunde, Liegenschaft } from '../types';
+import { istWochenendeOderFeiertag } from '../feiertage';
+import DwdWetterBanner from './DwdWetterBanner';
+import type { DwdRegionId } from '../services/dwdWetter';
 
 interface TourLiegenschaft {
   kunde: Kunde | undefined;
@@ -8,6 +11,7 @@ interface TourLiegenschaft {
 
 interface TourTabProps {
   startPunkt: string;
+  dwdRegionen: DwdRegionId[];
   alleLiegenschaftenSortiert: TourLiegenschaft[];
   darkMode: boolean;
   textApp: string;
@@ -23,6 +27,7 @@ interface TourTabProps {
 
 export default function TourTab({
   startPunkt,
+  dwdRegionen,
   alleLiegenschaftenSortiert,
   darkMode,
   textApp,
@@ -35,8 +40,21 @@ export default function TourTab({
   oeffneRaeumPlanAnsicht,
   startEinsatzMitWaze
 }: TourTabProps) {
+  const [jetzt, setJetzt] = useState(() => new Date());
+
+  useEffect(() => {
+    const naechsteMinute = 60_000 - (Date.now() % 60_000);
+    const timer = window.setTimeout(() => setJetzt(new Date()), naechsteMinute);
+    return () => window.clearTimeout(timer);
+  }, [jetzt]);
+
+  const angezeigteLiegenschaften = alleLiegenschaftenSortiert.filter(
+    ({ liege }) => !liege.nurWochenendeFeiertag || istWochenendeOderFeiertag(jetzt)
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <DwdWetterBanner regionen={dwdRegionen} />
       <div style={{ background: darkMode ? bgCard : 'linear-gradient(135deg, #ffffff, #f9fafb)', color: textApp, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <div>
           <h2 style={{ fontWeight: 'bold', fontSize: '1.05rem', margin: 0, color: darkMode ? '#f3f4f6' : '#111827' }}>Guten Tag, Micha! 👋</h2>
@@ -53,10 +71,14 @@ export default function TourTab({
         </div>
       </div>
 
-      {alleLiegenschaftenSortiert.length === 0 ? (
-        <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>Keine Liegenschaften vorhanden. Bitte im Tab "Objekte" anlegen.</p>
+      {angezeigteLiegenschaften.length === 0 ? (
+        <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>
+          {alleLiegenschaftenSortiert.length === 0
+            ? 'Keine Liegenschaften vorhanden. Bitte im Tab "Objekte" anlegen.'
+            : 'Aktuell gibt es keine Liegenschaften für die Tour.'}
+        </p>
       ) : (
-        alleLiegenschaftenSortiert.map(({ kunde, liege }) => {
+        angezeigteLiegenschaften.map(({ kunde, liege }) => {
           const istErledigt = isObjektErledigtVorKurzem(liege.name);
           return (
             <div key={liege.id} style={{ backgroundColor: bgCard, padding: '14px', borderRadius: '16px', border: istErledigt ? '2px solid #8cc63f' : '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', boxSizing: 'border-box' }}>
