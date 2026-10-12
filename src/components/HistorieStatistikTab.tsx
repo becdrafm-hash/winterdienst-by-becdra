@@ -1,8 +1,33 @@
-import type { Dispatch, SetStateAction } from 'react';
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import type { EinsatzLog, SaisonArchiv } from '../types';
 
 type AppTab = 'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison';
 type StatistikWerte = { anzahl: number; km: number; sprit: string; materialKg: number };
+
+function aktuellerMonatsschluessel(): string {
+  const heute = new Date();
+  return `${heute.getFullYear()}-${String(heute.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function materialverbrauch(einsatz: EinsatzLog): { menge: number; einheit: string } | null {
+  if (einsatz.materialUsed.includes('Sack') && einsatz.materialVerbrauchEinheit === undefined) {
+    const sackMatch = einsatz.materialUsed.match(/^([\d.,]+)/);
+    if (!sackMatch) return null;
+    const sackAnzahl = Number(sackMatch[1].replace(',', '.'));
+    return Number.isFinite(sackAnzahl) ? { menge: sackAnzahl * 25, einheit: 'kg' } : null;
+  }
+
+  const einheit = einsatz.materialVerbrauchEinheit
+    ?? (einsatz.materialUsed.match(/\b(Liter|kg)\b/i)?.[0] ?? 'kg');
+  if (typeof einsatz.materialVerbrauchKg === 'number' && Number.isFinite(einsatz.materialVerbrauchKg)) {
+    return { menge: einsatz.materialVerbrauchKg, einheit };
+  }
+
+  const match = einsatz.materialUsed.match(/^([\d.,]+)/);
+  if (!match) return null;
+  const menge = Number(match[1].replace(',', '.'));
+  return Number.isFinite(menge) ? { menge, einheit } : null;
+}
 
 interface HistorieStatistikTabProps {
   activeTab: 'statistik' | 'history_saison';
@@ -47,6 +72,28 @@ export default function HistorieStatistikTab({
   saisonArchivieren,
   setSaisonName
 }: HistorieStatistikTabProps) {
+  const [abrechnungMonat, setAbrechnungMonat] = useState(aktuellerMonatsschluessel);
+  const [abrechnungLiegenschaft, setAbrechnungLiegenschaft] = useState('');
+  const alleEinsaetze = useMemo(() => {
+    const nachId = new Map<number, EinsatzLog>();
+    [...history, ...archivListe.flatMap(archiv => archiv.einsätze)].forEach(einsatz => nachId.set(einsatz.id, einsatz));
+    return [...nachId.values()];
+  }, [history, archivListe]);
+  const liegenschaftNamen = [...new Set(alleEinsaetze.map(einsatz => einsatz.objName))].sort((a, b) => a.localeCompare(b, 'de'));
+  const abbrechnungsEinsaetze = alleEinsaetze
+    .filter(einsatz => {
+      const datum = new Date(einsatz.timestamp);
+      const monat = `${datum.getFullYear()}-${String(datum.getMonth() + 1).padStart(2, '0')}`;
+      return monat === abrechnungMonat
+        && (!abrechnungLiegenschaft || einsatz.objName === abrechnungLiegenschaft);
+    })
+    .sort((a, b) => a.timestamp - b.timestamp);
+  const verbrauchNachEinheit = abbrechnungsEinsaetze.reduce<Record<string, number>>((summen, einsatz) => {
+    const verbrauch = materialverbrauch(einsatz);
+    if (verbrauch) summen[verbrauch.einheit] = (summen[verbrauch.einheit] ?? 0) + verbrauch.menge;
+    return summen;
+  }, {});
+
   if (activeTab === 'statistik') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -74,6 +121,46 @@ export default function HistorieStatistikTab({
               <div>Sprit: <b>{gesamtStat.sprit} €</b></div>
               <div>Material: <b>{gesamtStat.materialKg.toLocaleString('de-DE')} kg</b></div>
             </div>
+
+            <section style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '12px', borderRadius: '10px', border: '1px solid ' + borderCard, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <h3 style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textApp, margin: 0 }}>🧾 Monatsnachweis je Liegenschaft</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <label htmlFor="abrechnung-monat" style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, marginBottom: '4px' }}>Monat</label>
+                  <input id="abrechnung-monat" type="month" value={abrechnungMonat} onChange={event => setAbrechnungMonat(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#22262a' : '#ffffff', color: textApp, fontSize: '0.8rem' }} />
+                </div>
+                <div>
+                  <label htmlFor="abrechnung-liegenschaft" style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, marginBottom: '4px' }}>Liegenschaft</label>
+                  <select id="abrechnung-liegenschaft" value={abrechnungLiegenschaft} onChange={event => setAbrechnungLiegenschaft(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#22262a' : '#ffffff', color: textApp, fontSize: '0.8rem' }}>
+                    <option value="">Alle Liegenschaften</option>
+                    {liegenschaftNamen.map(name => <option key={name} value={name}>{name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {abbrechnungsEinsaetze.length === 0 ? (
+                <p style={{ color: textSub, fontSize: '0.75rem', margin: 0 }}>Keine Einsätze für diese Auswahl gefunden.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {abbrechnungsEinsaetze.map(einsatz => (
+                    <div key={einsatz.id} style={{ backgroundColor: bgCard, border: '1px solid ' + borderCard, borderRadius: '8px', padding: '8px', display: 'grid', gridTemplateColumns: 'minmax(68px, auto) 1fr', gap: '3px 8px', fontSize: '0.72rem' }}>
+                      <strong style={{ color: textApp }}>{new Date(einsatz.timestamp).toLocaleDateString('de-DE')}</strong>
+                      <span style={{ color: textApp, fontWeight: 600 }}>{einsatz.objName}</span>
+                      <span style={{ color: textSub }}>Leistung</span>
+                      <span style={{ color: textApp }}>{einsatz.type}</span>
+                      <span style={{ color: textSub }}>Material</span>
+                      <span style={{ color: textApp }}>{einsatz.materialUsed}</span>
+                      <span style={{ color: textSub }}>Dauer</span>
+                      <span style={{ color: textApp }}>{einsatz.duration}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ borderTop: '1px solid ' + borderCard, paddingTop: '8px', display: 'flex', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', fontSize: '0.75rem', color: textApp }}>
+                <strong>Summe: {abbrechnungsEinsaetze.length} Einsätze</strong>
+                <strong>Material: {Object.entries(verbrauchNachEinheit).map(([einheit, menge]) => `${menge.toLocaleString('de-DE', { maximumFractionDigits: 1 })} ${einheit}`).join(' + ') || '0'}</strong>
+              </div>
+            </section>
           </div>
         </div>
       </div>
