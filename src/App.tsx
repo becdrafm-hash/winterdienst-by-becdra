@@ -3,6 +3,7 @@ import type { EinsatzLog, Kunde, Liegenschaft, SaisonArchiv } from './types';
 import DialogModal from './components/DialogModal';
 import Header from './components/Header';
 import LagerTab from './components/LagerTab';
+import EinstellungenTab from './components/EinstellungenTab';
 import KundenTab from './components/KundenTab';
 import ObjekteTab from './components/ObjekteTab';
 import TourTab from './components/TourTab';
@@ -1464,21 +1465,10 @@ export default function App() {
 
             {activeTab === 'lager' && (
               <LagerTab
-                editingStartPunkt={editingStartPunkt}
-                setEditingStartPunkt={setEditingStartPunkt}
-                editingSpritPreis={editingSpritPreis}
-                setEditingSpritPreis={setEditingSpritPreis}
-                editingVerbrauch={editingVerbrauch}
-                setEditingVerbrauch={setEditingVerbrauch}
                 lagerBestand={lagerBestand}
                 lagerAnzahlInput={lagerAnzahlInput}
                 setLagerAnzahlInput={setLagerAnzahlInput}
-                dwdRegionen={dwdRegionen}
-                setDwdRegionen={setDwdRegionen}
                 darkMode={darkMode}
-                onSaveStartpunkt={speichereStartpunkt}
-                onSaveSpritPreis={speichereSpritPreis}
-                onSaveVerbrauch={speichereVerbrauch}
                 onAdjustLager={anpasseLagerGenau}
               />
             )}
@@ -1486,6 +1476,24 @@ export default function App() {
             {/* MEHR TAB */}
             {activeTab === 'mehr' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <EinstellungenTab
+                  editingStartPunkt={editingStartPunkt}
+                  setEditingStartPunkt={setEditingStartPunkt}
+                  editingSpritPreis={editingSpritPreis}
+                  setEditingSpritPreis={setEditingSpritPreis}
+                  editingVerbrauch={editingVerbrauch}
+                  setEditingVerbrauch={setEditingVerbrauch}
+                  dwdRegionen={dwdRegionen}
+                  setDwdRegionen={setDwdRegionen}
+                  darkMode={darkMode}
+                  textApp={textApp}
+                  textSub={textSub}
+                  borderCard={borderCard}
+                  bgCard={bgCard}
+                  onSaveStartpunkt={speichereStartpunkt}
+                  onSaveSpritPreis={speichereSpritPreis}
+                  onSaveVerbrauch={speichereVerbrauch}
+                />
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: '0 0 4px 0', color: textApp }}>⚙️ Weitere Bereiche</h2>
                   
