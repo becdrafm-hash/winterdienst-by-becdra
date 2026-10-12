@@ -14,7 +14,8 @@ interface TourTabProps {
   startPunkt: string;
   dwdRegionen: DwdRegionId[];
   alleLiegenschaftenSortiert: TourLiegenschaft[];
-  onOptimizeRoute: (route: TourLiegenschaft[]) => void;
+  onOptimizeRoute: (route: TourLiegenschaft[]) => string;
+  zeigeMeldung: (text: string) => void;
   darkMode: boolean;
   textApp: string;
   textSub: string;
@@ -32,6 +33,7 @@ export default function TourTab({
   dwdRegionen,
   alleLiegenschaftenSortiert,
   onOptimizeRoute,
+  zeigeMeldung,
   darkMode,
   textApp,
   textSub,
@@ -55,8 +57,22 @@ export default function TourTab({
     ({ liege }) => !liege.nurWochenendeFeiertag || istWochenendeOderFeiertag(jetzt)
   );
   const anzahlMitKoordinaten = alleLiegenschaftenSortiert.filter(
-    ({ liege }) => typeof liege.lat === 'number' && typeof liege.lon === 'number'
+    ({ liege }) => typeof liege.lat === 'number'
+      && Number.isFinite(liege.lat)
+      && typeof liege.lon === 'number'
+      && Number.isFinite(liege.lon)
   ).length;
+  const optimiereRouteUndMelde = () => {
+    try {
+      const optimierteRoute = optimiereTour(
+        alleLiegenschaftenSortiert.map(item => ({ ...item.liege, tourItem: item }))
+      ).map(({ tourItem }) => tourItem);
+      zeigeMeldung(onOptimizeRoute(optimierteRoute));
+    } catch (error) {
+      console.error('GPS-Routenoptimierung fehlgeschlagen:', error);
+      zeigeMeldung('Die GPS-Route konnte nicht optimiert werden.');
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -76,12 +92,9 @@ export default function TourTab({
 
         <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
           <button
-            onClick={() => onOptimizeRoute(optimiereTour(
-              alleLiegenschaftenSortiert.map(item => ({ ...item.liege, tourItem: item }))
-            ).map(({ tourItem }) => tourItem))}
-            disabled={anzahlMitKoordinaten < 2}
+            onClick={optimiereRouteUndMelde}
             title={anzahlMitKoordinaten < 2 ? 'Mindestens zwei Liegenschaften mit GPS-Koordinaten erforderlich.' : undefined}
-            style={{ flex: 1, backgroundColor: anzahlMitKoordinaten < 2 ? '#9ca3af' : '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: anzahlMitKoordinaten < 2 ? 'not-allowed' : 'pointer' }}
+            style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}
           >
             🧭 Route optimieren (GPS)
           </button>

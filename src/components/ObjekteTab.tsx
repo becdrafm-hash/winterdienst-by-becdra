@@ -29,6 +29,7 @@ interface ObjekteTabProps {
   textSub: string;
   borderCard: string;
   bgCard: string;
+  koordinatenWirdErmittelt: boolean;
   addLiegenschaft: (event: FormEvent<HTMLFormElement>) => void;
   handleNeuRaeumPlanUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   startEditLiege: (liege: Liegenschaft) => void;
@@ -63,6 +64,7 @@ export default function ObjekteTab({
   textSub,
   borderCard,
   bgCard,
+  koordinatenWirdErmittelt,
   addLiegenschaft,
   handleNeuRaeumPlanUpload,
   startEditLiege,
@@ -159,7 +161,12 @@ export default function ObjekteTab({
             </div>
             {neuObjRaeumPlan && <span style={{ fontSize: '0.75rem', color: '#8cc63f', display: 'block', marginTop: '4px', fontWeight: 'bold' }}>✓ Räumplan hinterlegt!</span>}
           </div>
-          <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Liegenschaft speichern</button>
+          {koordinatenWirdErmittelt && (
+            <p role="status" style={{ color: textSub, fontSize: '0.75rem', margin: 0 }}>📍 Koordinaten werden ermittelt...</p>
+          )}
+          <button type="submit" disabled={koordinatenWirdErmittelt} style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: koordinatenWirdErmittelt ? 'wait' : 'pointer', opacity: koordinatenWirdErmittelt ? 0.7 : 1 }}>
+            {koordinatenWirdErmittelt ? 'Koordinaten werden ermittelt...' : 'Liegenschaft speichern'}
+          </button>
         </form>
       </div>
     </div>

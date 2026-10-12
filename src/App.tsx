@@ -12,6 +12,7 @@ import AktiverEinsatz from './components/AktiverEinsatz';
 import Navigation from './components/Navigation';
 import { istWochenendeOderFeiertag } from './feiertage';
 import { DWD_REGIONEN, DWD_STANDARD_REGIONEN, type DwdRegionId } from './services/dwdWetter';
+import { ermittleLiegenschaftKoordinaten } from './services/liegenschaftGeocoding';
 
 interface ArbeitszeitStatus {
   pauseBeginn: number | null;
@@ -28,6 +29,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison'>('tour');
   const [mehrEinstellungenGeoeffnet, setMehrEinstellungenGeoeffnet] = useState(false);
   const [statusMeldung, setStatusMeldung] = useState<string | null>(null);
+  const [koordinatenWirdErmittelt, setKoordinatenWirdErmittelt] = useState(false);
   const [darkMode, setDarkMode] = useState<boolean>(() =>
     window.matchMedia('(prefers-color-scheme: dark)').matches
   );
@@ -68,6 +70,7 @@ export default function App() {
 
   const watchIdRef = useRef<number | null>(null);
   const lastCoordsRef = useRef<{ lat: number; lon: number } | null>(null);
+  const koordinatenAbrufAktivRef = useRef(false);
 
   const [dialogConfig, setDialogConfig] = useState<{
     visible: boolean;
@@ -469,39 +472,53 @@ export default function App() {
     }
   };
 
-  const addLiegenschaft = (e: React.FormEvent) => {
+  const addLiegenschaft = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (koordinatenAbrufAktivRef.current) return;
     if (!neuObjName || !neuObjAddress || !neuObjSize) return;
     if (!istOptionaleKoordinateGueltig(neuObjLat, -90, 90)
       || !istOptionaleKoordinateGueltig(neuObjLon, -180, 180)) {
       zeigeMeldung('Bitte gib gültige GPS-Koordinaten ein.');
       return;
     }
-    
-    const neueLiege: Liegenschaft = {
-      id: Date.now(),
-      kundeId: Number(selectedKundeId),
-      name: neuObjName,
-      address: neuObjAddress,
-      size: neuObjSize,
-      material: neuObjMaterial,
-      reihenfolge: Number(neuObjReihenfolge) || 1,
-      nurWochenendeFeiertag: neuObjNurWochenendeFeiertag,
-      lat: neuObjLat.trim() === '' ? undefined : Number(neuObjLat),
-      lon: neuObjLon.trim() === '' ? undefined : Number(neuObjLon),
-      raeumPlan: neuObjRaeumPlan || undefined
-    };
 
-    setLiegenschaften([...liegenschaften, neueLiege]);
-    setNeuObjName('');
-    setNeuObjAddress('');
-    setNeuObjLat('');
-    setNeuObjLon('');
-    setNeuObjSize('');
-    setNeuObjReihenfolge('1');
-    setNeuObjNurWochenendeFeiertag(false);
-    setNeuObjRaeumPlan('');
-    zeigeMeldung('Liegenschaft erfolgreich hinzugefügt!');
+    koordinatenAbrufAktivRef.current = true;
+    setKoordinatenWirdErmittelt(true);
+    try {
+      const koordinaten = neuObjLat.trim() !== '' && neuObjLon.trim() !== ''
+        ? { lat: Number(neuObjLat), lon: Number(neuObjLon), quelle: 'manuell' as const }
+        : await ermittleLiegenschaftKoordinaten(neuObjAddress);
+
+      const neueLiege: Liegenschaft = {
+        id: Date.now(),
+        kundeId: Number(selectedKundeId),
+        name: neuObjName,
+        address: neuObjAddress,
+        size: neuObjSize,
+        material: neuObjMaterial,
+        reihenfolge: Number(neuObjReihenfolge) || 1,
+        nurWochenendeFeiertag: neuObjNurWochenendeFeiertag,
+        lat: koordinaten.lat,
+        lon: koordinaten.lon,
+        raeumPlan: neuObjRaeumPlan || undefined
+      };
+
+      setLiegenschaften([...liegenschaften, neueLiege]);
+      setNeuObjName('');
+      setNeuObjAddress('');
+      setNeuObjLat('');
+      setNeuObjLon('');
+      setNeuObjSize('');
+      setNeuObjReihenfolge('1');
+      setNeuObjNurWochenendeFeiertag(false);
+      setNeuObjRaeumPlan('');
+      zeigeMeldung(koordinaten.quelle === 'regionaler-fallback'
+        ? `Liegenschaft hinzugefügt; Geocoding fehlgeschlagen (${koordinaten.grund}). Näherungskoordinaten für ${koordinaten.region} verwendet.`
+        : 'Liegenschaft erfolgreich hinzugefügt!');
+    } finally {
+      koordinatenAbrufAktivRef.current = false;
+      setKoordinatenWirdErmittelt(false);
+    }
   };
 
   const startEditLiege = (liege: Liegenschaft) => {
@@ -517,27 +534,42 @@ export default function App() {
     setEditObjRaeumPlan(liege.raeumPlan || '');
   };
 
-  const saveEditLiege = () => {
+  const saveEditLiege = async () => {
     if (!editingLiege) return;
+    if (koordinatenAbrufAktivRef.current) return;
     if (!istOptionaleKoordinateGueltig(editObjLat, -90, 90)
       || !istOptionaleKoordinateGueltig(editObjLon, -180, 180)) {
       zeigeMeldung('Bitte gib gültige GPS-Koordinaten ein.');
       return;
     }
-    setLiegenschaften(liegenschaften.map(l => l.id === editingLiege.id ? { 
-      ...l, 
-      name: editObjName, 
-      address: editObjAddress, 
-      size: editObjSize, 
-      material: editObjMaterial,
-      reihenfolge: Number(editObjReihenfolge) || 1,
-      nurWochenendeFeiertag: editObjNurWochenendeFeiertag,
-      lat: editObjLat.trim() === '' ? undefined : Number(editObjLat),
-      lon: editObjLon.trim() === '' ? undefined : Number(editObjLon),
-      raeumPlan: editObjRaeumPlan || undefined
-    } : l));
-    setEditingLiege(null);
-    zeigeMeldung('Liegenschaft aktualisiert!');
+
+    koordinatenAbrufAktivRef.current = true;
+    setKoordinatenWirdErmittelt(true);
+    try {
+      const koordinaten = editObjLat.trim() !== '' && editObjLon.trim() !== ''
+        ? { lat: Number(editObjLat), lon: Number(editObjLon), quelle: 'manuell' as const }
+        : await ermittleLiegenschaftKoordinaten(editObjAddress);
+
+      setLiegenschaften(liegenschaften.map(l => l.id === editingLiege.id ? {
+        ...l,
+        name: editObjName,
+        address: editObjAddress,
+        size: editObjSize,
+        material: editObjMaterial,
+        reihenfolge: Number(editObjReihenfolge) || 1,
+        nurWochenendeFeiertag: editObjNurWochenendeFeiertag,
+        lat: koordinaten.lat,
+        lon: koordinaten.lon,
+        raeumPlan: editObjRaeumPlan || undefined
+      } : l));
+      setEditingLiege(null);
+      zeigeMeldung(koordinaten.quelle === 'regionaler-fallback'
+        ? `Liegenschaft aktualisiert; Geocoding fehlgeschlagen (${koordinaten.grund}). Näherungskoordinaten für ${koordinaten.region} verwendet.`
+        : 'Liegenschaft aktualisiert!');
+    } finally {
+      koordinatenAbrufAktivRef.current = false;
+      setKoordinatenWirdErmittelt(false);
+    }
   };
 
   const deleteHistoryItem = (id: number) => {
@@ -1082,7 +1114,17 @@ export default function App() {
     zeigeMeldung(`Route erfolgreich aktualisiert! (${anzahlAktualisiert} Objekte sortiert)`);
   };
 
-  const uebernehmeOptimierteRoute = (route: { kunde: Kunde | undefined; liege: Liegenschaft }[]) => {
+  const uebernehmeOptimierteRoute = (route: { kunde: Kunde | undefined; liege: Liegenschaft }[]): string => {
+    const gpsStopps = route.filter(({ liege }) =>
+      typeof liege.lat === 'number'
+      && Number.isFinite(liege.lat)
+      && typeof liege.lon === 'number'
+      && Number.isFinite(liege.lon)
+    ).length;
+    if (gpsStopps < 2) {
+      return 'Für die GPS-Optimierung werden mindestens zwei Stopps mit Koordinaten benötigt.';
+    }
+
     const bisherigeReihenfolge = [...liegenschaften]
       .sort((a, b) => (a.reihenfolge || 1) - (b.reihenfolge || 1))
       .map(liege => liege.id);
@@ -1091,10 +1133,8 @@ export default function App() {
       (anzahl, liegeId, index) => anzahl + (bisherigeReihenfolge[index] === liegeId ? 0 : 1),
       0
     );
-
     if (geaenderteStopps === 0) {
-      zeigeMeldung('Die Tour ist bereits optimal sortiert!');
-      return;
+      return 'Die Tour ist bereits optimal sortiert!';
     }
 
     const neueReihenfolge = new Map(route.map(({ liege }, index) => [liege.id, index + 1]));
@@ -1104,7 +1144,7 @@ export default function App() {
         return reihenfolge === undefined ? liege : { ...liege, reihenfolge };
       })
     );
-    zeigeMeldung(`GPS-Routenoptimierung erfolgreich durchgeführt (${geaenderteStopps} Stopps neu sortiert)`);
+    return `GPS-Routenoptimierung erfolgreich durchgeführt (${geaenderteStopps} Stopps neu sortiert)`;
   };
 
   const saisonArchivieren = () => {
@@ -1229,7 +1269,7 @@ export default function App() {
     <div style={{ minHeight: '100vh', backgroundColor: bgApp, color: textApp, fontFamily: 'sans-serif', paddingBottom: '90px', transition: 'background-color 0.3s ease' }}>
       
       {statusMeldung && (
-        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#111827', color: '#ffffff', padding: '12px 20px', borderRadius: '12px', zIndex: 1000, boxShadow: '0 8px 25px rgba(0,0,0,0.2)', fontWeight: 'bold', fontSize: '0.85rem', border: '2px solid #8cc63f' }}>
+        <div role="status" aria-live="polite" style={{ position: 'fixed', top: 'max(16px, env(safe-area-inset-top))', left: '50%', transform: 'translateX(-50%)', width: 'max-content', maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box', textAlign: 'center', backgroundColor: '#111827', color: '#ffffff', padding: '14px 20px', borderRadius: '12px', zIndex: 10000, boxShadow: '0 10px 30px rgba(0,0,0,0.35)', fontWeight: 'bold', fontSize: '0.9rem', lineHeight: 1.4, border: '2px solid #8cc63f' }}>
           ✨ {statusMeldung}
         </div>
       )}
@@ -1324,13 +1364,16 @@ export default function App() {
               {editObjRaeumPlan && <span style={{ fontSize: '0.7rem', color: '#8cc63f', display: 'block', marginTop: '2px', fontWeight: 'bold' }}>✓ Räumplan hinterlegt!</span>}
             </div>
             <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-              <button onClick={() => setEditingLiege(null)} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}>
+              <button onClick={() => setEditingLiege(null)} disabled={koordinatenWirdErmittelt} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: koordinatenWirdErmittelt ? 'wait' : 'pointer' }}>
                 Abbrechen
               </button>
-              <button onClick={saveEditLiege} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}>
-                Speichern
+              <button onClick={saveEditLiege} disabled={koordinatenWirdErmittelt} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: koordinatenWirdErmittelt ? 'wait' : 'pointer', opacity: koordinatenWirdErmittelt ? 0.7 : 1 }}>
+                {koordinatenWirdErmittelt ? 'Koordinaten werden ermittelt...' : 'Speichern'}
               </button>
             </div>
+            {koordinatenWirdErmittelt && (
+              <p role="status" style={{ color: textSub, fontSize: '0.75rem', margin: 0 }}>📍 Koordinaten werden ermittelt...</p>
+            )}
           </div>
         </div>
       )}
@@ -1396,6 +1439,7 @@ export default function App() {
                 dwdRegionen={dwdRegionen}
                 alleLiegenschaftenSortiert={alleLiegenschaftenSortiert}
                 onOptimizeRoute={uebernehmeOptimierteRoute}
+                zeigeMeldung={zeigeMeldung}
                 darkMode={darkMode}
                 textApp={textApp}
                 textSub={textSub}
@@ -1468,6 +1512,7 @@ export default function App() {
                 textSub={textSub}
                 borderCard={borderCard}
                 bgCard={bgCard}
+                koordinatenWirdErmittelt={koordinatenWirdErmittelt}
                 addLiegenschaft={addLiegenschaft}
                 handleNeuRaeumPlanUpload={handleNeuRaeumPlanUpload}
                 startEditLiege={startEditLiege}

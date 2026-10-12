@@ -21,6 +21,56 @@ interface EinstellungenTabProps {
   onSaveVerbrauch: (event: FormEvent<HTMLFormElement>) => void;
 }
 
+interface NominatimAddress {
+  road?: string;
+  pedestrian?: string;
+  residential?: string;
+  path?: string;
+  house_number?: string;
+  postcode?: string;
+  city?: string;
+  town?: string;
+  village?: string;
+  municipality?: string;
+}
+
+async function reverseGeocodiere(latitude: number, longitude: number): Promise<string> {
+  const query = new URLSearchParams({
+    format: 'json',
+    addressdetails: '1',
+    'accept-language': 'de',
+    lat: latitude.toString(),
+    lon: longitude.toString()
+  });
+  const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${query}`);
+  if (!response.ok) {
+    throw new Error(`OpenStreetMap antwortet mit HTTP ${response.status}.`);
+  }
+
+  const daten: unknown = await response.json();
+  if (typeof daten !== 'object' || daten === null || !('address' in daten)) {
+    throw new Error('OpenStreetMap hat keine strukturierte Adresse zurückgegeben.');
+  }
+
+  const address = daten.address;
+  if (typeof address !== 'object' || address === null) {
+    throw new Error('Die Adressdaten von OpenStreetMap sind ungültig.');
+  }
+
+  const details = address as NominatimAddress;
+  const strasse = details.road || details.pedestrian || details.residential || details.path;
+  const ort = details.city || details.town || details.village || details.municipality;
+  const strassenzeile = [strasse, details.house_number].filter(Boolean).join(' ');
+  const ortszeile = [details.postcode, ort].filter(Boolean).join(' ');
+  const adresse = [strassenzeile, ortszeile].filter(Boolean).join(', ');
+
+  if (!adresse) {
+    throw new Error('Für diesen Standort wurden keine passenden Adressbestandteile gefunden.');
+  }
+
+  return adresse;
+}
+
 export default function EinstellungenTab({
   editingStartPunkt,
   setEditingStartPunkt,
@@ -81,11 +131,21 @@ export default function EinstellungenTab({
     setStandortWirdErmittelt(true);
     setStandortMeldung(null);
     navigator.geolocation.getCurrentPosition(
-      position => {
+      async position => {
         const { latitude, longitude } = position.coords;
-        setEditingStartPunkt(`GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-        setStandortMeldung('Standort übernommen. Speichere den Startpunkt, um ihn zu verwenden.');
-        setStandortWirdErmittelt(false);
+        const gpsText = `GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+
+        try {
+          const adresse = await reverseGeocodiere(latitude, longitude);
+          setEditingStartPunkt(adresse);
+          setStandortMeldung('Adresse übernommen. Speichere den Startpunkt, um ihn zu verwenden.');
+        } catch (error) {
+          setEditingStartPunkt(gpsText);
+          const grund = error instanceof Error ? error.message : 'Unbekannter Fehler.';
+          setStandortMeldung(`Adresse konnte nicht ermittelt werden (${grund}). Koordinaten wurden eingetragen.`);
+        } finally {
+          setStandortWirdErmittelt(false);
+        }
       },
       error => {
         const meldung = error.code === error.PERMISSION_DENIED
@@ -134,10 +194,13 @@ export default function EinstellungenTab({
             </div>
           </label>
           {standortMeldung && (
-            <p role="status" style={{ color: standortMeldung.startsWith('Standort übernommen') ? '#4d7c0f' : (darkMode ? '#fca5a5' : '#b91c1c'), fontSize: '0.75rem', lineHeight: 1.4, margin: 0 }}>
+            <p role="status" style={{ color: standortMeldung.startsWith('Adresse übernommen') ? '#4d7c0f' : (darkMode ? '#fca5a5' : '#b91c1c'), fontSize: '0.75rem', lineHeight: 1.4, margin: 0 }}>
               {standortMeldung}
             </p>
           )}
+          <span style={{ color: textSub, fontSize: '0.65rem' }}>
+            Geocoding: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" style={{ color: textSub }}>© OpenStreetMap-Mitwirkende</a>
+          </span>
           <button type="submit" style={speichernStil}>Startpunkt speichern</button>
         </form>
       </section>
