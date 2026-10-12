@@ -74,6 +74,7 @@ export default function HistorieStatistikTab({
 }: HistorieStatistikTabProps) {
   const [abrechnungMonat, setAbrechnungMonat] = useState(aktuellerMonatsschluessel);
   const [abrechnungLiegenschaft, setAbrechnungLiegenschaft] = useState('');
+  const [ausgewaehltesArchivId, setAusgewaehltesArchivId] = useState<number | null>(null);
   const alleEinsaetze = useMemo(() => {
     const nachId = new Map<number, EinsatzLog>();
     [...history, ...archivListe.flatMap(archiv => archiv.einsätze)].forEach(einsatz => nachId.set(einsatz.id, einsatz));
@@ -93,6 +94,45 @@ export default function HistorieStatistikTab({
     if (verbrauch) summen[verbrauch.einheit] = (summen[verbrauch.einheit] ?? 0) + verbrauch.menge;
     return summen;
   }, {});
+  const ausgewaehltesArchiv = archivListe.find(archiv => archiv.id === ausgewaehltesArchivId) ?? null;
+  const archivVerbrauchNachEinheit = ausgewaehltesArchiv?.einsätze.reduce<Record<string, number>>((summen, einsatz) => {
+    const verbrauch = materialverbrauch(einsatz);
+    if (verbrauch) summen[verbrauch.einheit] = (summen[verbrauch.einheit] ?? 0) + verbrauch.menge;
+    return summen;
+  }, {}) ?? {};
+
+  const exportiereArchivAlsCsv = (archiv: SaisonArchiv) => {
+    const csvWert = (wert: string | number | undefined) => `"${String(wert ?? '').replaceAll('"', '""')}"`;
+    const zeilen = [
+      ['Kunde', 'Liegenschaft', 'Datum', 'Wetter', 'Wetter vor Ort', 'Leistungsart', 'Material', 'Verbrauch', 'Einheit', 'Dauer', 'Kilometer', 'Spritkosten', 'Besonderheiten/Hindernisse', 'Hindernisfoto'],
+      ...archiv.einsätze.map(einsatz => [
+        einsatz.kundeName,
+        einsatz.objName,
+        einsatz.date,
+        einsatz.wetter,
+        einsatz.wetterVorOrt,
+        einsatz.type,
+        einsatz.materialUsed,
+        materialverbrauch(einsatz)?.menge,
+        materialverbrauch(einsatz)?.einheit,
+        einsatz.duration,
+        einsatz.kmGefahren,
+        einsatz.spritKosten,
+        einsatz.hindernisInfo,
+        einsatz.hindernisFoto
+      ])
+    ];
+    const csv = `\uFEFF${zeilen.map(zeile => zeile.map(csvWert).join(';')).join('\r\n')}`;
+    const datei = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(datei);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${archiv.name.replace(/[<>:"/\\|?*]+/g, '_')}_Einsaetze.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   if (activeTab === 'statistik') {
     return (
@@ -229,14 +269,61 @@ export default function HistorieStatistikTab({
           <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Saisons archiviert.</p>
         ) : (
           archivListe.map(archiv => (
-            <div key={archiv.id} style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', border: '1px solid ' + borderCard, borderRadius: '10px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <button key={archiv.id} type="button" onClick={() => setAusgewaehltesArchivId(archiv.id)} style={{ width: '100%', textAlign: 'left', backgroundColor: darkMode ? '#14171a' : '#f9fafb', border: '1px solid ' + borderCard, borderRadius: '10px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '4px', cursor: 'pointer' }}>
               <strong style={{ color: textApp, fontSize: '0.9rem' }}>{archiv.name}</strong>
               <span style={{ color: textSub, fontSize: '0.7rem' }}>{archiv.vonDatum} – {archiv.bisDatum}</span>
               <span style={{ color: textSub, fontSize: '0.75rem' }}>{archiv.einsätze.length} Einsätze · {archiv.gesamtKm} km · {(archiv.gesamtMaterialKg ?? archiv.gesamtSaecke * 25).toLocaleString('de-DE')} kg · {archiv.gesamtSprit.toFixed(2)} € Sprit</span>
-            </div>
+              <span style={{ color: '#598f1e', fontSize: '0.7rem', fontWeight: 'bold', marginTop: '2px' }}>Protokolle ansehen →</span>
+            </button>
           ))
         )}
       </div>
+
+      {ausgewaehltesArchiv && (
+        <div role="presentation" onClick={() => setAusgewaehltesArchivId(null)} style={{ position: 'fixed', inset: 0, zIndex: 5000, backgroundColor: 'rgba(0,0,0,0.65)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 'max(16px, env(safe-area-inset-top)) 16px calc(90px + env(safe-area-inset-bottom))', boxSizing: 'border-box' }}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="archiv-detail-titel"
+            onClick={event => event.stopPropagation()}
+            style={{ backgroundColor: bgCard, color: textApp, border: '2px solid #8cc63f', borderRadius: '16px', width: '100%', maxWidth: '440px', maxHeight: '100%', padding: '16px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '12px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.35)' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+              <div>
+                <h2 id="archiv-detail-titel" style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0 }}>{ausgewaehltesArchiv.name}</h2>
+                <p style={{ color: textSub, fontSize: '0.72rem', margin: '4px 0 0' }}>{ausgewaehltesArchiv.vonDatum} – {ausgewaehltesArchiv.bisDatum}</p>
+              </div>
+              <button type="button" aria-label="Archivdetails schließen" onClick={() => setAusgewaehltesArchivId(null)} style={{ flexShrink: 0, background: 'none', border: '1px solid ' + borderCard, borderRadius: '7px', color: textApp, padding: '5px 9px', fontSize: '1rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.75rem', color: textSub }}>
+                {ausgewaehltesArchiv.einsätze.length} Einsätze · Material: {Object.entries(archivVerbrauchNachEinheit).map(([einheit, menge]) => `${menge.toLocaleString('de-DE', { maximumFractionDigits: 1 })} ${einheit}`).join(' + ') || '0'}
+              </span>
+              <button type="button" onClick={() => exportiereArchivAlsCsv(ausgewaehltesArchiv)} style={{ backgroundColor: '#8cc63f', color: '#111827', border: 'none', borderRadius: '8px', padding: '8px 10px', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                📥 Saison als CSV exportieren
+              </button>
+            </div>
+
+            <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '2px' }}>
+              {ausgewaehltesArchiv.einsätze.length === 0 ? (
+                <p style={{ color: textSub, textAlign: 'center', fontSize: '0.8rem', padding: '16px' }}>Diese Saison enthält keine Einsatzprotokolle.</p>
+              ) : ausgewaehltesArchiv.einsätze.slice().sort((a, b) => b.timestamp - a.timestamp).map(einsatz => (
+                <article key={einsatz.id} style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', border: '1px solid ' + borderCard, borderRadius: '10px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <strong style={{ color: textApp, fontSize: '0.8rem' }}>{einsatz.objName}</strong>
+                  <span style={{ color: textSub, fontSize: '0.68rem' }}>{einsatz.kundeName} · {einsatz.date}</span>
+                  <span style={{ color: textApp, fontSize: '0.73rem' }}>Leistung: <b>{einsatz.type}</b></span>
+                  <span style={{ color: textApp, fontSize: '0.73rem' }}>Materialverbrauch: <b>{einsatz.materialUsed}</b></span>
+                  <span style={{ color: textApp, fontSize: '0.73rem' }}>Dauer: <b>{einsatz.duration}</b></span>
+                  <span style={{ color: textSub, fontSize: '0.7rem' }}>Wetter: {einsatz.wetterVorOrt || einsatz.wetter}</span>
+                  {einsatz.hindernisInfo && <span style={{ color: '#dc2626', fontSize: '0.7rem' }}>⚠️ Besonderheiten: {einsatz.hindernisInfo}</span>}
+                  {einsatz.hindernisFoto && <span style={{ color: textSub, fontSize: '0.68rem' }}>Hindernisfoto: {einsatz.hindernisFoto}</span>}
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
