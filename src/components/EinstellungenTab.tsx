@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import { DWD_REGIONEN, type DwdRegionId } from '../services/dwdWetter';
 
@@ -38,6 +39,9 @@ export default function EinstellungenTab({
   onSaveSpritPreis,
   onSaveVerbrauch
 }: EinstellungenTabProps) {
+  const [standortWirdErmittelt, setStandortWirdErmittelt] = useState(false);
+  const [standortMeldung, setStandortMeldung] = useState<string | null>(null);
+
   const feldStil = {
     width: '100%',
     padding: '9px',
@@ -68,6 +72,36 @@ export default function EinstellungenTab({
     cursor: 'pointer'
   };
 
+  const ermittleStandort = () => {
+    if (!navigator.geolocation) {
+      setStandortMeldung('Die Standortermittlung wird von diesem Browser nicht unterstützt.');
+      return;
+    }
+
+    setStandortWirdErmittelt(true);
+    setStandortMeldung(null);
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const { latitude, longitude } = position.coords;
+        setEditingStartPunkt(`GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        setStandortMeldung('Standort übernommen. Speichere den Startpunkt, um ihn zu verwenden.');
+        setStandortWirdErmittelt(false);
+      },
+      error => {
+        const meldung = error.code === error.PERMISSION_DENIED
+          ? 'Der Standortzugriff wurde verweigert. Bitte erlaube den Zugriff in den Browsereinstellungen.'
+          : error.code === error.POSITION_UNAVAILABLE
+            ? 'Der aktuelle Standort ist momentan nicht verfügbar.'
+            : error.code === error.TIMEOUT
+              ? 'Die Standortermittlung hat zu lange gedauert. Bitte versuche es erneut.'
+              : 'Der Standort konnte nicht ermittelt werden.';
+        setStandortMeldung(meldung);
+        setStandortWirdErmittelt(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
+
   return (
     <>
       <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: textApp }}>⚙️ Globale Einstellungen</h2>
@@ -77,8 +111,33 @@ export default function EinstellungenTab({
         <form onSubmit={onSaveStartpunkt} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: textSub, fontSize: '0.75rem', fontWeight: 600 }}>
             Adresse für Start / Lager
-            <input type="text" value={editingStartPunkt} onChange={e => setEditingStartPunkt(e.target.value)} required style={feldStil} />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input type="text" value={editingStartPunkt} onChange={e => setEditingStartPunkt(e.target.value)} required style={{ ...feldStil, flex: 1, minWidth: 0 }} />
+              <button
+                type="button"
+                onClick={ermittleStandort}
+                disabled={standortWirdErmittelt}
+                style={{
+                  backgroundColor: darkMode ? '#14171a' : '#f3f4f6',
+                  border: '1px solid ' + borderCard,
+                  borderRadius: '8px',
+                  color: textApp,
+                  cursor: standortWirdErmittelt ? 'wait' : 'pointer',
+                  flexShrink: 0,
+                  fontSize: '0.75rem',
+                  fontWeight: 'bold',
+                  padding: '8px'
+                }}
+              >
+                {standortWirdErmittelt ? 'Standort wird ermittelt …' : '📍 Aktueller Standort'}
+              </button>
+            </div>
           </label>
+          {standortMeldung && (
+            <p role="status" style={{ color: standortMeldung.startsWith('Standort übernommen') ? '#4d7c0f' : (darkMode ? '#fca5a5' : '#b91c1c'), fontSize: '0.75rem', lineHeight: 1.4, margin: 0 }}>
+              {standortMeldung}
+            </p>
+          )}
           <button type="submit" style={speichernStil}>Startpunkt speichern</button>
         </form>
       </section>
