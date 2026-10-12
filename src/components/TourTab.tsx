@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useState } from 'react';
 import type { Kunde, Liegenschaft } from '../types';
 import { istWochenendeOderFeiertag } from '../feiertage';
 import DwdWetterBanner from './DwdWetterBanner';
@@ -21,8 +21,6 @@ interface TourTabProps {
   textSub: string;
   borderCard: string;
   bgCard: string;
-  kopiereAlleAdresen: () => void;
-  setShowImportModal: Dispatch<SetStateAction<boolean>>;
   isObjektErledigtVorKurzem: (objName: string) => boolean;
   oeffneRaeumPlanAnsicht: (planUrl?: string) => void;
   startEinsatzMitWaze: (kunde: Kunde, obj: Liegenschaft) => void;
@@ -39,8 +37,6 @@ export default function TourTab({
   textSub,
   borderCard,
   bgCard,
-  kopiereAlleAdresen,
-  setShowImportModal,
   isObjektErledigtVorKurzem,
   oeffneRaeumPlanAnsicht,
   startEinsatzMitWaze
@@ -104,14 +100,6 @@ export default function TourTab({
             Liegenschaften ohne GPS-Koordinaten bleiben am Ende der Tour.
           </p>
         )}
-        <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-          <button onClick={kopiereAlleAdresen} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#eef6e6', color: '#598f1e', border: '1px solid #8cc63f', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
-            📋 Adressen kopieren
-          </button>
-          <button onClick={() => setShowImportModal(true)} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
-            🔄 Route importieren
-          </button>
-        </div>
       </div>
 
       {angezeigteLiegenschaften.length === 0 ? (

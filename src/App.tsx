@@ -10,7 +10,6 @@ import TourTab from './components/TourTab';
 import HistorieStatistikTab from './components/HistorieStatistikTab';
 import AktiverEinsatz from './components/AktiverEinsatz';
 import Navigation from './components/Navigation';
-import { istWochenendeOderFeiertag } from './feiertage';
 import { DWD_REGIONEN, DWD_STANDARD_REGIONEN, type DwdRegionId } from './services/dwdWetter';
 import { ermittleLiegenschaftKoordinaten } from './services/liegenschaftGeocoding';
 
@@ -73,8 +72,6 @@ export default function App() {
   const [editingStartPunkt, setEditingStartPunkt] = useState<string>(startPunkt);
 
   const [lagerAnzahlInput, setLagerAnzahlInput] = useState<string>('1');
-  const [showImportModal, setShowImportModal] = useState<boolean>(false);
-  const [importText, setImportText] = useState<string>('');
   const [showActiveRaeumPlanPopup, setShowActiveRaeumPlanPopup] = useState<boolean>(false);
 
   const watchIdRef = useRef<number | null>(null);
@@ -1078,34 +1075,6 @@ export default function App() {
     }
   };
 
-  const handleTourImport = () => {
-    if (!importText.trim()) {
-      zeigeMeldung('Bitte füge eine Routenliste ein.');
-      return;
-    }
-
-    const lines = importText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    
-    let anzahlAktualisiert = 0;
-    const aktualisierteLiegen = liegenschaften.map(liege => {
-      const matchingLineIndex = lines.findIndex(line => 
-        line.toLowerCase().includes(liege.name.toLowerCase()) || 
-        line.toLowerCase().includes(liege.address.toLowerCase())
-      );
-
-      if (matchingLineIndex !== -1) {
-        anzahlAktualisiert++;
-        return { ...liege, reihenfolge: matchingLineIndex + 1 };
-      }
-      return liege;
-    });
-
-    setLiegenschaften(aktualisierteLiegen);
-    setShowImportModal(false);
-    setImportText('');
-    zeigeMeldung(`Route erfolgreich aktualisiert! (${anzahlAktualisiert} Objekte sortiert)`);
-  };
-
   const uebernehmeOptimierteRoute = (route: { kunde: Kunde | undefined; liege: Liegenschaft }[]): string => {
     const gpsStopps = route.filter(({ liege }) =>
       typeof liege.lat === 'number'
@@ -1204,22 +1173,6 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  const kopiereAlleAdresen = () => {
-    const liegenschaftenDerTour = alleLiegenschaftenSortiert.filter(
-      ({ liege }) => !liege.nurWochenendeFeiertag || istWochenendeOderFeiertag()
-    );
-    if (liegenschaftenDerTour.length === 0) {
-      zeigeMeldung('Aktuell gibt es keine Liegenschaften für die Tour.');
-      return;
-    }
-    const liegenschaftsZeilen = liegenschaftenDerTour.map((item, index) =>
-      `${index + 1}. ${item.kunde?.firma || 'Kunde'} - ${item.liege.name}: ${item.liege.address}`
-    );
-    const reinZuOptimierendeRoute = liegenschaftsZeilen.join('\n');
-    navigator.clipboard.writeText(reinZuOptimierendeRoute).catch(() => {});
-    zeigeMeldung('Nur die Liegenschaften wurden in die Zwischenablage kopiert!');
-  };
-
   const isObjektErledigtVorKurzem = (objName: string) => {
     const zwStundenMs = 12 * 60 * 60 * 1000;
     return history.some(item => item.objName === objName && (Date.now() - item.timestamp) < zwStundenMs);
@@ -1263,32 +1216,6 @@ export default function App() {
       {statusMeldung && (
         <div role="status" aria-live="polite" style={{ position: 'fixed', top: 'max(16px, env(safe-area-inset-top))', left: '50%', transform: 'translateX(-50%)', width: 'max-content', maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box', textAlign: 'center', backgroundColor: '#111827', color: '#ffffff', padding: '14px 20px', borderRadius: '12px', zIndex: 10000, boxShadow: '0 10px 30px rgba(0,0,0,0.35)', fontWeight: 'bold', fontSize: '0.9rem', lineHeight: 1.4, border: '2px solid #8cc63f' }}>
           ✨ {statusMeldung}
-        </div>
-      )}
-
-      {showImportModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '16px' }}>
-          <div style={{ backgroundColor: bgCard, border: '2px solid #8cc63f', color: textApp, padding: '24px', borderRadius: '16px', maxWidth: '400px', width: '100%', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: 0 }}>🔄 Route optimieren & importieren</h3>
-            <p style={{ fontSize: '0.8rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
-              Füge hier deine optimierte Reihenfolge ein. Die App sortiert deine Tour automatisch.
-            </p>
-            <textarea 
-              rows={6}
-              value={importText} 
-              onChange={e => setImportText(e.target.value)}
-              placeholder="1. Commerzbank AG - Filiale Innenstadt&#10;2. Seniorenresidenz Sonnenschein..."
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem', boxSizing: 'border-box' }}
-            />
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={() => setShowImportModal(false)} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}>
-                Abbrechen
-              </button>
-              <button onClick={handleTourImport} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 10px rgba(140, 198, 63, 0.3)' }}>
-                Tour übernehmen
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
@@ -1436,8 +1363,6 @@ export default function App() {
                 textSub={textSub}
                 borderCard={borderCard}
                 bgCard={bgCard}
-                kopiereAlleAdresen={kopiereAlleAdresen}
-                setShowImportModal={setShowImportModal}
                 isObjektErledigtVorKurzem={isObjektErledigtVorKurzem}
                 oeffneRaeumPlanAnsicht={oeffneRaeumPlanAnsicht}
                 startEinsatzMitWaze={startEinsatzMitWaze}
