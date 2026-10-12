@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
-import type { Kunde, Liegenschaft } from '../types';
+import { LEISTUNGSARTEN, type Kunde, type Leistungsart, type Liegenschaft } from '../types';
 
 interface AktiverEinsatzProps {
   activeKunde: Kunde;
@@ -17,8 +17,8 @@ interface AktiverEinsatzProps {
   pauseBeginn: number | null;
   pausendauerMs: number;
   onTogglePause: () => void;
-  einsatzType: string;
-  setEinsatzType: Dispatch<SetStateAction<string>>;
+  einsatzType: Leistungsart;
+  setEinsatzType: Dispatch<SetStateAction<Leistungsart>>;
   materialVerbrauchKg: string;
   setMaterialVerbrauchKg: Dispatch<SetStateAction<string>>;
   materialEinheit: string;
@@ -157,9 +157,17 @@ export default function AktiverEinsatz({
 
         <div>
           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: textApp, marginBottom: '4px' }}>Art des Einsatzes</label>
-          <select value={einsatzType} onChange={event => setEinsatzType(event.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }}>
-            <option value="Räumen & Streuen">Räumen & Streuen</option>
-            <option value="Nur Streuen">Nur Streuen</option>
+          <select
+            value={einsatzType}
+            onChange={event => {
+              const leistungsart = LEISTUNGSARTEN.find(option => option === event.target.value);
+              if (leistungsart) setEinsatzType(leistungsart);
+            }}
+            style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }}
+          >
+            {LEISTUNGSARTEN.map(leistungsart => (
+              <option key={leistungsart} value={leistungsart}>{leistungsart}</option>
+            ))}
           </select>
         </div>
 

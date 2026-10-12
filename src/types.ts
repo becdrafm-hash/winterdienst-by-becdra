@@ -1,3 +1,11 @@
+export const LEISTUNGSARTEN = [
+  'räumen + streuen',
+  'streuen',
+  'Streugut entfernen'
+] as const;
+
+export type Leistungsart = typeof LEISTUNGSARTEN[number];
+
 export interface Liegenschaft {
   id: number;
   kundeId: number;
@@ -27,7 +35,7 @@ export interface EinsatzLog {
   timestamp: number;
   wetter: string;
   wetterVorOrt?: string;
-  type: string;
+  type: Leistungsart;
   duration: string;
   materialUsed: string;
   materialVerbrauchKg?: number;

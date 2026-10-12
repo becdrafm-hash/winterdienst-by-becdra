@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { EinsatzLog, Kunde, Liegenschaft, SaisonArchiv } from './types';
+import { LEISTUNGSARTEN, type EinsatzLog, type Kunde, type Leistungsart, type Liegenschaft, type SaisonArchiv } from './types';
 import DialogModal from './components/DialogModal';
 import Header from './components/Header';
 import LagerTab from './components/LagerTab';
@@ -226,7 +226,7 @@ export default function App() {
       return { pauseBeginn: null, pausendauerMs: 0 };
     }
   });
-  const [einsatzType, setEinsatzType] = useState('Räumen & Streuen');
+  const [einsatzType, setEinsatzType] = useState<Leistungsart>(LEISTUNGSARTEN[0]);
   const [wetterLage, setWetterLage] = useState('Wird geladen...');
   const [wetterVorOrt, setWetterVorOrt] = useState('');
   const [materialVerbrauchKg, setMaterialVerbrauchKg] = useState('');
@@ -243,7 +243,7 @@ export default function App() {
   const [hindernisFoto, setHindernisFoto] = useState<string | null>(null);
   const [hindernisFotoUrl, setHindernisFotoUrl] = useState<string | null>(null);
 
-  const [heuteBetreuteProKunde, setHeuteBetreuteProKunde] = useState<{ [kundeId: number]: { name: string; address: string; type: string }[] }>({});
+  const [heuteBetreuteProKunde, setHeuteBetreuteProKunde] = useState<{ [kundeId: number]: { name: string; address: string; type: Leistungsart }[] }>({});
   
   const [history, setHistory] = useState<EinsatzLog[]>(() => {
     try {
