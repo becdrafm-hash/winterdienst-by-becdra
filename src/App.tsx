@@ -4,6 +4,11 @@ import DialogModal from './components/DialogModal';
 import Header from './components/Header';
 import LagerTab from './components/LagerTab';
 import KundenTab from './components/KundenTab';
+import ObjekteTab from './components/ObjekteTab';
+import TourTab from './components/TourTab';
+import HistorieStatistikTab from './components/HistorieStatistikTab';
+import AktiverEinsatz from './components/AktiverEinsatz';
+import Navigation from './components/Navigation';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison'>('tour');
@@ -1091,28 +1096,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Räumplan Pop-up im aktiven Einsatz */}
-      {showActiveRaeumPlanPopup && activeObjekt && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 4000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '16px' }}>
-          <div style={{ backgroundColor: bgCard, border: '2px solid #8cc63f', borderRadius: '16px', maxWidth: '400px', width: '100%', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>🗺️ Räumplan: {activeObjekt.name}</h3>
-              <button onClick={() => setShowActiveRaeumPlanPopup(false)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', fontWeight: 'bold', color: textApp, cursor: 'pointer' }}>✕</button>
-            </div>
-            <div style={{ width: '100%', height: '300px', backgroundColor: '#111', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
-              {activeObjekt.raeumPlan ? (
-                <img src={activeObjekt.raeumPlan} alt="Räumplan" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-              ) : (
-                <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>Kein Räumplan für dieses Objekt hinterlegt.</p>
-              )}
-            </div>
-            <button onClick={() => setShowActiveRaeumPlanPopup(false)} style={{ backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}>
-              Schließen
-            </button>
-          </div>
-        </div>
-      )}
-
       {showImportModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '16px' }}>
           <div style={{ backgroundColor: bgCard, border: '2px solid #8cc63f', color: textApp, padding: '24px', borderRadius: '16px', maxWidth: '400px', width: '100%', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -1218,140 +1201,50 @@ export default function App() {
       <main style={{ maxWidth: '440px', margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
         {activeObjekt && activeKunde ? (
-          <div style={{ backgroundColor: bgCard, padding: '20px', borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', border: '2px solid #8cc63f', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div>
-              <button onClick={cancelEinsatz} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '6px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
-                ← Zurück zur Übersicht
-              </button>
-            </div>
-
-            <div style={{ borderBottom: '1px solid ' + borderCard, paddingBottom: '10px' }}>
-              <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#8cc63f', textTransform: 'uppercase' }}>Aktiver Einsatz ({activeKunde.firma})</span>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '2px 0', color: textApp }}>{activeObjekt.name}</h2>
-              <p style={{ fontSize: '0.8rem', color: textSub, margin: 0 }}>📍 {activeObjekt.address} • {activeObjekt.size} m² (Pos: #{activeObjekt.reihenfolge})</p>
-            </div>
-
-            {activeObjekt.raeumPlan && (
-              <button onClick={() => setShowActiveRaeumPlanPopup(true)} style={{ backgroundColor: '#111827', color: '#ffffff', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.85rem' }}>
-                🗺️ Räumplan als Pop-up öffnen
-              </button>
-            )}
-
-            <div style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid ' + borderCard }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 500, color: textSub }}>🕒 Startpunkt:</span>
-              <span style={{ fontWeight: 'bold', fontSize: '0.75rem', color: '#8cc63f' }}>{startPunkt}</span>
-            </div>
-
-            <div style={{ backgroundColor: darkMode ? '#14171a' : '#eef6e6', padding: '10px', borderRadius: '10px', border: '1px solid #8cc63f' }}>
-              <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#598f1e', textTransform: 'uppercase', display: 'block' }}>📡 Automatisches Live-Wetter</span>
-              <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: textApp }}>{wetterLage}</span>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: textApp, marginBottom: '4px' }}>Art des Einsatzes</label>
-              <select value={einsatzType} onChange={(e) => setEinsatzType(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }}>
-                <option value="Räumen & Streuen">Räumen & Streuen</option>
-                <option value="Nur Streuen">Nur Streuen</option>
-              </select>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textApp, marginBottom: '4px' }}>Materialverbrauch</label>
-                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  <input type="number" min="0.5" step="0.5" value={materialSaecke} onChange={(e) => setMaterialSaecke(e.target.value)} style={{ width: '60px', padding: '10px', borderRadius: '10px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, textAlign: 'center', fontWeight: 'bold' }} />
-                  <span style={{ fontSize: '0.75rem', color: textSub }}>Säcke</span>
-                </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textApp, marginBottom: '4px' }}>Gefahrene km (Auto-GPS)</label>
-                <input type="number" value={gefahreneKm} onChange={(e) => setGefahreneKm(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, textAlign: 'center', fontWeight: 'bold' }} />
-              </div>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: textApp, marginBottom: '4px' }}>Fotodokumentation</label>
-              <label style={{ display: 'block', width: '100%', border: '2px dashed #8cc63f', backgroundColor: darkMode ? '#14171a' : '#f4fce3', color: '#8cc63f', padding: '10px', borderRadius: '10px', fontWeight: 600, textAlign: 'center', cursor: 'pointer', fontSize: '0.8rem', boxSizing: 'border-box' }}>
-                📷 {aufgenommenesFoto ? `✓ Foto komprimiert (${aufgenommenesFoto})` : 'Kamera öffnen & Fläche fotografieren'}
-                <input type="file" accept="image/*" capture="environment" onChange={handleFotoCapture} style={{ display: 'none' }} />
-              </label>
-            </div>
-
-            {/* HINDERNISDOKUMENTATION IM AKTIVEN EINSATZ */}
-            <div style={{ backgroundColor: darkMode ? '#14171a' : '#fff1f2', border: '1px solid #fecaca', padding: '12px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#dc2626' }}>⚠️ Hindernis / Vorfall dokumentieren (optional)</label>
-              <input 
-                type="text" 
-                value={hindernisNotiz} 
-                onChange={e => setHindernisNotiz(e.target.value)} 
-                placeholder="z.B. PKW blockierte Einfahrt, Mülltonne..." 
-                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #fca5a5', backgroundColor: bgCard, color: textApp, fontSize: '0.8rem', boxSizing: 'border-box' }} 
-              />
-              <label style={{ display: 'block', width: '100%', border: '2px dashed #dc2626', backgroundColor: darkMode ? '#14171a' : '#ffffff', color: '#dc2626', padding: '8px', borderRadius: '8px', fontWeight: 600, textAlign: 'center', cursor: 'pointer', fontSize: '0.75rem', boxSizing: 'border-box' }}>
-                📷 {hindernisFoto ? `✓ Hindernis-Foto (${hindernisFoto})` : 'Hindernis fotografieren'}
-                <input type="file" accept="image/*" capture="environment" onChange={handleHindernisFotoCapture} style={{ display: 'none' }} />
-              </label>
-            </div>
-
-            <button onClick={finishEinsatz} style={{ width: '100%', backgroundColor: '#8cc63f', color: '#111827', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', boxShadow: '0 4px 10px rgba(140, 198, 63, 0.3)' }}>
-              ✓ Einsatz abschließen & Speichern
-            </button>
-          </div>
+          <AktiverEinsatz
+            activeKunde={activeKunde}
+            activeObjekt={activeObjekt}
+            startPunkt={startPunkt}
+            darkMode={darkMode}
+            textApp={textApp}
+            textSub={textSub}
+            borderCard={borderCard}
+            bgCard={bgCard}
+            wetterLage={wetterLage}
+            einsatzType={einsatzType}
+            setEinsatzType={setEinsatzType}
+            materialSaecke={materialSaecke}
+            setMaterialSaecke={setMaterialSaecke}
+            gefahreneKm={gefahreneKm}
+            setGefahreneKm={setGefahreneKm}
+            aufgenommenesFoto={aufgenommenesFoto}
+            hindernisNotiz={hindernisNotiz}
+            setHindernisNotiz={setHindernisNotiz}
+            hindernisFoto={hindernisFoto}
+            showActiveRaeumPlanPopup={showActiveRaeumPlanPopup}
+            setShowActiveRaeumPlanPopup={setShowActiveRaeumPlanPopup}
+            handleFotoCapture={handleFotoCapture}
+            handleHindernisFotoCapture={handleHindernisFotoCapture}
+            cancelEinsatz={cancelEinsatz}
+            finishEinsatz={finishEinsatz}
+          />
         ) : (
           <>
-            {/* TOUR TAB */}
             {activeTab === 'tour' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ background: darkMode ? bgCard : 'linear-gradient(135deg, #ffffff, #f9fafb)', color: textApp, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div>
-                    {/* Helle Überschrift im Hellen Modus korrigiert */}
-                    <h2 style={{ fontWeight: 'bold', fontSize: '1.05rem', margin: 0, color: darkMode ? '#f3f4f6' : '#111827' }}>Guten Tag, Micha! 👋</h2>
-                    <p style={{ fontSize: '0.75rem', color: '#8cc63f', margin: '4px 0 0 0', fontWeight: 'bold' }}>Aktueller Startpunkt: {startPunkt}</p>
-                  </div>
-                  
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                    <button onClick={kopiereAlleAdresen} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#eef6e6', color: '#598f1e', border: '1px solid #8cc63f', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
-                      📋 Adressen kopieren
-                    </button>
-                    <button onClick={() => setShowImportModal(true)} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
-                      🔄 Route importieren
-                    </button>
-                  </div>
-                </div>
-
-                {alleLiegenschaftenSortiert.length === 0 ? (
-                  <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>Keine Liegenschaften vorhanden. Bitte im Tab "Objekte" anlegen.</p>
-                ) : (
-                  alleLiegenschaftenSortiert.map(({ kunde, liege }) => {
-                    const istErledigt = isObjektErledigtVorKurzem(liege.name);
-                    return (
-                      <div key={liege.id} style={{ backgroundColor: bgCard, padding: '14px', borderRadius: '16px', border: istErledigt ? '2px solid #8cc63f' : '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', boxSizing: 'border-box' }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', gap: '7px', alignItems: 'flex-start', minWidth: 0 }}>
-                            <span style={{ flexShrink: 0, fontSize: '0.7rem', backgroundColor: darkMode ? '#14171a' : '#111827', color: '#ffffff', padding: '3px 7px', borderRadius: '5px', fontWeight: 'bold' }}>#{liege.reihenfolge || 1}</span>
-                            <h3 style={{ minWidth: 0, overflowWrap: 'anywhere', fontWeight: 'bold', color: textApp, fontSize: '0.95rem', lineHeight: 1.3, margin: '1px 0 0' }}>{liege.name}</h3>
-                          </div>
-                          <div style={{ fontSize: '0.7rem', color: textSub, margin: '5px 0 3px', overflowWrap: 'anywhere' }}>{kunde?.firma || 'Unbekannter Kunde'}</div>
-                          <p style={{ fontSize: '0.75rem', lineHeight: 1.35, color: textSub, margin: 0, overflowWrap: 'anywhere' }}>{liege.address} • {liege.size} m²</p>
-                          {liege.raeumPlan && (
-                            <button onClick={() => oeffneRaeumPlanAnsicht(liege.raeumPlan)} style={{ background: 'none', border: 'none', color: '#60a5fa', fontSize: '0.7rem', fontWeight: 'bold', padding: 0, marginTop: '4px', cursor: 'pointer' }}>
-                              🗺️ Räumplan anzeigen
-                            </button>
-                          )}
-                        </div>
-                        {kunde && (
-                          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                            {istErledigt && <span style={{ whiteSpace: 'nowrap', fontSize: '0.65rem', backgroundColor: '#8cc63f', color: '#111827', padding: '4px 7px', borderRadius: '5px', fontWeight: 'bold' }}>✓ Erledigt</span>}
-                            <button onClick={() => startEinsatzMitWaze(kunde, liege)} style={{ minWidth: '92px', backgroundColor: '#8cc63f', color: '#111827', padding: '10px 9px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                              🚗 {istErledigt ? 'Nochmal' : 'Starten'}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+              <TourTab
+                startPunkt={startPunkt}
+                alleLiegenschaftenSortiert={alleLiegenschaftenSortiert}
+                darkMode={darkMode}
+                textApp={textApp}
+                textSub={textSub}
+                borderCard={borderCard}
+                bgCard={bgCard}
+                kopiereAlleAdresen={kopiereAlleAdresen}
+                setShowImportModal={setShowImportModal}
+                isObjektErledigtVorKurzem={isObjektErledigtVorKurzem}
+                oeffneRaeumPlanAnsicht={oeffneRaeumPlanAnsicht}
+                startEinsatzMitWaze={startEinsatzMitWaze}
+              />
             )}
 
             {activeTab === 'kunden' && (
@@ -1384,90 +1277,34 @@ export default function App() {
               />
             )}
 
-            {/* LIEGENSCHAFTEN TAB */}
             {activeTab === 'liegenschaften' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>📍 Alle Liegenschaften verwalten</h2>
-                  {liegenschaften.length === 0 ? (
-                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Liegenschaften angelegt.</p>
-                  ) : (
-                    liegenschaften.map(liege => {
-                      const zugehKunde = kunden.find(k => k.id === liege.kundeId);
-                      return (
-                        <div key={liege.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '12px', borderRadius: '8px', border: '1px solid ' + borderCard }}>
-                          <div>
-                            <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#8cc63f' }}>{zugehKunde?.firma || 'Kein Kunde'}</div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textApp }}>{liege.name} (#{liege.reihenfolge})</div>
-                            <div style={{ fontSize: '0.75rem', color: textSub }}>{liege.address} • {liege.size} m²</div>
-                          </div>
-                          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-                            <button onClick={() => startEditLiege(liege)} style={{ flex: 1, backgroundColor: darkMode ? '#20252a' : '#ffffff', border: '1px solid ' + borderCard, padding: '12px', borderRadius: '8px', cursor: 'pointer', color: textApp, fontSize: '0.9rem', fontWeight: 'bold' }}>✏️ Bearbeiten</button>
-                            <button onClick={() => deleteLiegenschaft(liege.id)} style={{ flex: 1, backgroundColor: darkMode ? '#3b1f23' : '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '12px', borderRadius: '8px', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️ Löschen</button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>➕ Neue Liegenschaft hinzufügen</h2>
-                  <form onSubmit={addLiegenschaft} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Kunde auswählen</label>
-                      <select value={selectedKundeId} onChange={e => setSelectedKundeId(Number(e.target.value))} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp }}>
-                        {kunden.map(k => (
-                          <option key={k.id} value={k.id}>{k.firma}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Objektbezeichnung</label>
-                      <input type="text" value={neuObjName} onChange={e => setNeuObjName(e.target.value)} required placeholder="z.B. Filiale Nord" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Adresse (für Waze)</label>
-                      <input type="text" value={neuObjAddress} onChange={e => setNeuObjAddress(e.target.value)} required placeholder="Musterstr. 5, Rees" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Fläche (m²)</label>
-                        <input type="number" value={neuObjSize} onChange={e => setNeuObjSize(e.target.value)} required placeholder="200" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Tour-Nr.</label>
-                        <input type="number" value={neuObjReihenfolge} onChange={e => setNeuObjReihenfolge(e.target.value)} required placeholder="1" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Streumittel</label>
-                        <select value={neuObjMaterial} onChange={e => setNeuObjMaterial(e.target.value)} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp }}>
-                          {streuMittelListe.map(streuMittel => (
-                            <option key={streuMittel} value={streuMittel}>{streuMittel}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Räumplan (Kamera oder Datei)</label>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <label style={{ flex: 1, border: '2px dashed #8cc63f', backgroundColor: darkMode ? '#14171a' : '#f4fce3', color: '#8cc63f', padding: '10px', borderRadius: '8px', fontWeight: 600, textAlign: 'center', cursor: 'pointer', fontSize: '0.8rem' }}>
-                          📸 Foto
-                          <input type="file" accept="image/*" capture="environment" onChange={handleNeuRaeumPlanUpload} style={{ display: 'none' }} />
-                        </label>
-                        <label style={{ flex: 1, border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, padding: '10px', borderRadius: '8px', fontWeight: 'bold', textAlign: 'center', cursor: 'pointer', fontSize: '0.8rem' }}>
-                          📁 Datei
-                          <input type="file" accept="image/*,application/pdf" onChange={handleNeuRaeumPlanUpload} style={{ display: 'none' }} />
-                        </label>
-                      </div>
-                      {neuObjRaeumPlan && <span style={{ fontSize: '0.75rem', color: '#8cc63f', display: 'block', marginTop: '4px', fontWeight: 'bold' }}>✓ Räumplan hinterlegt!</span>}
-                    </div>
-                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Liegenschaft speichern</button>
-                  </form>
-                </div>
-
-              </div>
+              <ObjekteTab
+                liegenschaften={liegenschaften}
+                kunden={kunden}
+                selectedKundeId={selectedKundeId}
+                setSelectedKundeId={setSelectedKundeId}
+                neuObjName={neuObjName}
+                setNeuObjName={setNeuObjName}
+                neuObjAddress={neuObjAddress}
+                setNeuObjAddress={setNeuObjAddress}
+                neuObjSize={neuObjSize}
+                setNeuObjSize={setNeuObjSize}
+                neuObjMaterial={neuObjMaterial}
+                setNeuObjMaterial={setNeuObjMaterial}
+                neuObjReihenfolge={neuObjReihenfolge}
+                setNeuObjReihenfolge={setNeuObjReihenfolge}
+                neuObjRaeumPlan={neuObjRaeumPlan}
+                streuMittelListe={streuMittelListe}
+                darkMode={darkMode}
+                textApp={textApp}
+                textSub={textSub}
+                borderCard={borderCard}
+                bgCard={bgCard}
+                addLiegenschaft={addLiegenschaft}
+                handleNeuRaeumPlanUpload={handleNeuRaeumPlanUpload}
+                startEditLiege={startEditLiege}
+                deleteLiegenschaft={deleteLiegenschaft}
+              />
             )}
 
             {activeTab === 'lager' && (
@@ -1526,119 +1363,43 @@ export default function App() {
               </div>
             )}
 
-            {/* STATISTIK TAB */}
-            {activeTab === 'statistik' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <button onClick={() => setActiveTab('mehr')} style={{ background: 'none', border: 'none', color: '#8cc63f', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}>
-                  ← Zurück zu Mehr
-                </button>
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <h2 style={{ fontSize: '1.05rem', fontWeight: 'bold', margin: 0, color: textApp }}>📊 Einsatz-Statistik</h2>
-                  
-                  <div style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '12px', borderRadius: '10px', border: '1px solid ' + borderCard }}>
-                    <h3 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#8cc63f', margin: '0 0 6px 0', textTransform: 'uppercase' }}>📅 Heute ({heuteDatumString})</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '0.8rem' }}>
-                      <div>Einsätze: <b>{heuStat.anzahl}</b></div>
-                      <div>Km: <b>{heuStat.km} km</b></div>
-                      <div>Sprit: <b>{heuStat.sprit} €</b></div>
-                      <div>Material: <b>{heuStat.saecke} Säcke</b></div>
-                    </div>
-                  </div>
-
-                  <div style={{ backgroundColor: darkMode ? '#14171a' : '#f4fce3', padding: '12px', borderRadius: '10px', border: '1px solid #8cc63f' }}>
-                    <h3 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#598f1e', margin: '0 0 6px 0', textTransform: 'uppercase' }}>📦 Gesamte Saison ({saisonName})</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '0.8rem' }}>
-                      <div>Einsätze: <b>{gesamtStat.anzahl}</b></div>
-                      <div>Km: <b>{gesamtStat.km} km</b></div>
-                      <div>Sprit: <b>{gesamtStat.sprit} €</b></div>
-                      <div>Material: <b>{gesamtStat.saecke} Säcke</b></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* HISTORIE TAB */}
-            {activeTab === 'history_saison' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <button onClick={() => setActiveTab('mehr')} style={{ background: 'none', border: 'none', color: '#8cc63f', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}>
-                  ← Zurück zu Mehr
-                </button>
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1.05rem', margin: 0 }}>Einsatz-Historie</h2>
-                      <p style={{ fontSize: '0.75rem', color: textSub, margin: '2px 0 0 0' }}>Laufende Saison</p>
-                    </div>
-                    <button onClick={exportToCSV} style={{ backgroundColor: '#111827', color: '#ffffff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
-                      📥 CSV Export
-                    </button>
-                  </div>
-
-                  {history.length === 0 ? (
-                    <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>Noch keine Einsätze dokumentiert.</p>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {history.map(item => (
-                        <div key={item.id} style={{ border: '1px solid ' + borderCard, padding: '10px', borderRadius: '10px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h4 style={{ fontWeight: 'bold', color: textApp, margin: 0, fontSize: '0.9rem' }}>{item.kundeName} - {item.objName}</h4>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              <button onClick={() => sendeHistorienBericht(item)} style={{ background: darkMode ? '#22262a' : '#eef6e6', border: '1px solid #8cc63f', color: '#598f1e', padding: '3px 6px', borderRadius: '6px', fontSize: '0.65rem', cursor: 'pointer', fontWeight: 'bold' }}>📤 Senden</button>
-                              <button onClick={() => druckeEinsatzBericht(item)} style={{ background: darkMode ? '#22262a' : '#f3f4f6', border: '1px solid ' + borderCard, color: textApp, padding: '3px 6px', borderRadius: '6px', fontSize: '0.65rem', cursor: 'pointer', fontWeight: 'bold' }}>🖨️ PDF</button>
-                              <button onClick={() => deleteHistoryItem(item.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.7rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️</button>
-                            </div>
-                          </div>
-                          <span style={{ fontSize: '0.65rem', fontFamily: 'monospace', color: textSub }}>{item.date}</span>
-                          <p style={{ fontSize: '0.75rem', color: textApp, margin: 0 }}>Wetter: <b>{item.wetter}</b> | Typ: <b>{item.type}</b></p>
-                          {item.hindernisInfo && <p style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 'bold', margin: 0 }}>⚠️ Hindernis: {item.hindernisInfo}</p>}
-                          <p style={{ fontSize: '0.75rem', color: '#8cc63f', fontWeight: 500, margin: 0 }}>
-                            Verbrauch: {item.materialUsed} | Fahrstrecke: <b>{item.kmGefahren}</b> (~{item.spritKosten} Sprit)
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1.05rem', margin: 0 }}>Saison & Archiv</h2>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div>
-                      <label style={{ fontSize: '0.7rem', fontWeight: 600, color: textSub }}>Bezeichnung</label>
-                      <input type="text" value={saisonName} onChange={e => setSaisonName(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <button onClick={saisonArchivieren} style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', border: 'none', cursor: 'pointer', marginTop: '4px', fontSize: '0.85rem' }}>
-                      📦 Aktuelle Saison archivieren
-                    </button>
-                  </div>
-                </div>
-              </div>
+            {(activeTab === 'statistik' || activeTab === 'history_saison') && (
+              <HistorieStatistikTab
+                activeTab={activeTab}
+                history={history}
+                saisonName={saisonName}
+                heuteDatumString={heuteDatumString}
+                heuStat={heuStat}
+                gesamtStat={gesamtStat}
+                archivListe={archivListe}
+                darkMode={darkMode}
+                textApp={textApp}
+                textSub={textSub}
+                borderCard={borderCard}
+                bgCard={bgCard}
+                setActiveTab={setActiveTab}
+                exportToCSV={exportToCSV}
+                sendeHistorienBericht={sendeHistorienBericht}
+                druckeEinsatzBericht={druckeEinsatzBericht}
+                deleteHistoryItem={deleteHistoryItem}
+                saisonArchivieren={saisonArchivieren}
+                setSaisonName={setSaisonName}
+              />
             )}
           </>
         )}
 
       </main>
 
-      {/* UNTERE NAVIGATION */}
-      {!activeObjekt && (
-        <nav style={{ position: 'fixed', bottom: 0, left: 0, width: '100%', backgroundColor: bgCard, borderTop: '2px solid #8cc63f', boxShadow: '0 -4px 15px rgba(0,0,0,0.08)', zIndex: 100, transition: 'background-color 0.3s ease' }}>
-          <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', padding: '8px', gap: '6px' }}>
-            <button onClick={() => setActiveTab('mehr')} style={{ minHeight: '48px', padding: '12px 4px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 'bold', borderRadius: '9px', border: 'none', cursor: 'pointer', backgroundColor: ['mehr', 'kunden', 'statistik', 'history_saison'].includes(activeTab) ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: ['mehr', 'kunden', 'statistik', 'history_saison'].includes(activeTab) ? '#111827' : textSub }}>
-              ⚙️ Mehr
-            </button>
-            <button onClick={() => setActiveTab('tour')} style={{ minHeight: '48px', padding: '12px 4px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 'bold', borderRadius: '9px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'tour' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'tour' ? '#111827' : textSub }}>
-              🚗 Tour
-            </button>
-            <button onClick={() => setActiveTab('liegenschaften')} style={{ minHeight: '48px', padding: '12px 4px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 'bold', borderRadius: '9px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'liegenschaften' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'liegenschaften' ? '#111827' : textSub }}>
-              📍 Objekte
-            </button>
-            <button onClick={() => setActiveTab('lager')} style={{ minHeight: '48px', padding: '12px 4px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 'bold', borderRadius: '9px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'lager' ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'), color: activeTab === 'lager' ? '#111827' : textSub }}>
-              📦 Lager
-            </button>
-          </div>
-        </nav>
-      )}
+      <Navigation
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        activeObjekt={activeObjekt}
+        darkMode={darkMode}
+        textSub={textSub}
+        bgCard={bgCard}
+        borderCard={borderCard}
+      />
 
     </div>
   );
