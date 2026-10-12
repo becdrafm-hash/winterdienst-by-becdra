@@ -1,52 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-
-interface Liegenschaft {
-  id: number;
-  kundeId: number;
-  name: string;
-  address: string;
-  size: string;
-  material: string;
-  reihenfolge: number;
-  raeumPlan?: string;
-}
-
-interface Kunde {
-  id: number;
-  firma: string;
-  email: string;
-  whatsapp: string;
-}
-
-interface EinsatzLog {
-  id: number;
-  kundeName: string;
-  objName: string;
-  date: string;
-  timestamp: number;
-  wetter: string;
-  type: string;
-  duration: string;
-  materialUsed: string;
-  kmGefahren: string;
-  spritKosten: string;
-  fotoName?: string;
-  fotoUrl?: string;
-  hindernisInfo?: string;
-  hindernisFoto?: string;
-  hindernisFotoUrl?: string;
-}
-
-interface SaisonArchiv {
-  id: number;
-  name: string;
-  vonDatum: string;
-  bisDatum: string;
-  einsätze: EinsatzLog[];
-  gesamtSaecke: number;
-  gesamtKm: number;
-  gesamtSprit: number;
-}
+import type { EinsatzLog, Kunde, Liegenschaft, SaisonArchiv } from './types';
+import DialogModal from './components/DialogModal';
+import Header from './components/Header';
+import LagerTab from './components/LagerTab';
+import KundenTab from './components/KundenTab';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison'>('tour');
@@ -1239,51 +1196,24 @@ export default function App() {
         </div>
       )}
 
-      {dialogConfig.visible && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '16px' }}>
-          <div style={{ backgroundColor: bgCard, border: '2px solid #8cc63f', color: textApp, padding: '24px', borderRadius: '16px', maxWidth: '380px', width: '100%', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: 0 }}>{dialogConfig.titel}</h3>
-            <p style={{ fontSize: '0.85rem', color: textSub, margin: 0, lineHeight: '1.4' }}>{dialogConfig.text}</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
-              {dialogConfig.onConfirm && (
-                <button onClick={dialogConfig.onConfirm} style={{ backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 10px rgba(140, 198, 63, 0.3)' }}>
-                  {dialogConfig.confirmText || 'OK'}
-                </button>
-              )}
-              {dialogConfig.onSecondary && (
-                <button onClick={dialogConfig.onSecondary} style={{ backgroundColor: darkMode ? '#14171a' : '#eef6e6', color: '#598f1e', border: '1px solid #8cc63f', padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}>
-                  {dialogConfig.secondaryText}
-                </button>
-              )}
-              {dialogConfig.onCancel && (
-                <button onClick={dialogConfig.onCancel} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '10px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}>
-                  {dialogConfig.cancelText || 'Abbrechen'}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <DialogModal
+        visible={dialogConfig.visible}
+        titel={dialogConfig.titel}
+        text={dialogConfig.text}
+        darkMode={darkMode}
+        bgCard={bgCard}
+        textApp={textApp}
+        textSub={textSub}
+        borderCard={borderCard}
+        onConfirm={dialogConfig.onConfirm}
+        onSecondary={dialogConfig.onSecondary}
+        onCancel={dialogConfig.onCancel}
+        confirmText={dialogConfig.confirmText}
+        secondaryText={dialogConfig.secondaryText}
+        cancelText={dialogConfig.cancelText}
+      />
 
-      <header style={{ backgroundColor: bgCard, color: textApp, padding: '12px 16px', position: 'sticky', top: 0, zIndex: 50, borderBottom: '3px solid #8cc63f', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'background-color 0.3s ease' }}>
-        <div style={{ maxWidth: '440px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', background: darkMode ? '#14171a' : '#ffffff', padding: '4px 8px', borderRadius: '8px', border: '1px solid ' + borderCard }}>
-              <span style={{ fontWeight: '900', fontSize: '1.1rem', color: darkMode ? '#ffffff' : '#111827', letterSpacing: '-1px' }}>BF</span>
-              <span style={{ fontWeight: 'bold', fontSize: '0.9rem', fontStyle: 'italic', marginLeft: '4px', color: darkMode ? '#ffffff' : '#111827' }}>Becdra FM</span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '0.7rem', backgroundColor: lagerBestand < 3 ? (darkMode ? '#3b1f23' : '#fef2f2') : (darkMode ? '#14171a' : '#eef6e6'), color: lagerBestand < 3 ? '#dc2626' : '#8cc63f', border: '1px solid ' + (lagerBestand < 3 ? '#dc2626' : '#8cc63f'), padding: '5px 8px', borderRadius: '6px', fontWeight: 'bold' }}>
-              Lager: {Math.floor(lagerBestand)}
-            </span>
-            <button onClick={() => setDarkMode(!darkMode)} style={{ backgroundColor: darkMode ? '#8cc63f' : '#111827', color: darkMode ? '#111827' : '#ffffff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
-              {darkMode ? '☀️ Hell' : '🌙 Dunkel'}
-            </button>
-          </div>
-        </div>
-      </header>
+      <Header lagerBestand={lagerBestand} darkMode={darkMode} setDarkMode={setDarkMode} />
 
       <main style={{ maxWidth: '440px', margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
@@ -1424,71 +1354,34 @@ export default function App() {
               </div>
             )}
 
-            {/* KUNDEN TAB */}
             {activeTab === 'kunden' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <button onClick={() => setActiveTab('mehr')} style={{ background: 'none', border: 'none', color: '#8cc63f', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}>
-                  ← Zurück zu Mehr
-                </button>
-
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>👥 Kunden verwalten</h2>
-                  {kunden.length === 0 ? (
-                    <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Kunden angelegt.</p>
-                  ) : (
-                    kunden.map(kunde => (
-                      <div key={kunde.id} style={{ border: '1px solid ' + borderCard, borderRadius: '10px', padding: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {editingKundeId === kunde.id ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <input type="text" value={editFirma} onChange={e => setEditFirma(e.target.value)} placeholder="Firmenname" style={{ padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: bgCard, color: textApp }} />
-                            <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="E-Mail" style={{ padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: bgCard, color: textApp }} />
-                            <input type="text" value={editWhatsapp} onChange={e => setEditWhatsapp(e.target.value)} placeholder="WhatsApp" style={{ padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: bgCard, color: textApp }} />
-                            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                              <button onClick={() => saveEditKunde(kunde.id)} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}>Speichern</button>
-                              <button onClick={() => setEditingKundeId(null)} style={{ flex: 1, backgroundColor: darkMode ? '#374151' : '#e5e7eb', color: textApp, border: 'none', padding: '10px', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer' }}>Abbrechen</button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <div>
-                              <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', margin: 0, color: textApp }}>{kunde.firma}</h3>
-                              <p style={{ fontSize: '0.75rem', color: textSub, margin: '2px 0 0 0' }}>✉ {kunde.email || 'Keine E-Mail'} | 📞 {kunde.whatsapp || 'Keine Nummer'}</p>
-                            </div>
-                            {/* GROSSE BUTTONS UNTER DEM TEXT (Übersichtlich und einfach zu bedienen) */}
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button onClick={() => startEditKunde(kunde)} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
-                                ✏️ Bearbeiten
-                              </button>
-                              <button onClick={() => deleteKunde(kunde.id)} style={{ flex: 1, backgroundColor: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
-                                🗑️ Löschen
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>➕ Neuen Kunden anlegen</h2>
-                  <form onSubmit={addKunde} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Firmenname / Auftraggeber</label>
-                      <input type="text" value={neuFirma} onChange={e => setNeuFirma(e.target.value)} required placeholder="z.B. Neuer Kunde GmbH" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>E-Mail für Berichte</label>
-                      <input type="email" value={neuEmail} onChange={e => setNeuEmail(e.target.value)} required placeholder="kontakt@neuerkunde.de" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>WhatsApp-Nummer</label>
-                      <input type="text" value={neuWhatsapp} onChange={e => setNeuWhatsapp(e.target.value)} placeholder="+49151..." style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Kunden speichern</button>
-                  </form>
-                </div>
-              </div>
+              <KundenTab
+                kunden={kunden}
+                editingKundeId={editingKundeId}
+                editFirma={editFirma}
+                setEditFirma={setEditFirma}
+                editEmail={editEmail}
+                setEditEmail={setEditEmail}
+                editWhatsapp={editWhatsapp}
+                setEditWhatsapp={setEditWhatsapp}
+                neuFirma={neuFirma}
+                setNeuFirma={setNeuFirma}
+                neuEmail={neuEmail}
+                setNeuEmail={setNeuEmail}
+                neuWhatsapp={neuWhatsapp}
+                setNeuWhatsapp={setNeuWhatsapp}
+                setEditingKundeId={setEditingKundeId}
+                darkMode={darkMode}
+                textApp={textApp}
+                textSub={textSub}
+                borderCard={borderCard}
+                bgCard={bgCard}
+                addKunde={addKunde}
+                startEditKunde={startEditKunde}
+                saveEditKunde={saveEditKunde}
+                deleteKunde={deleteKunde}
+                setActiveTab={setActiveTab}
+              />
             )}
 
             {/* LIEGENSCHAFTEN TAB */}
@@ -1577,68 +1470,23 @@ export default function App() {
               </div>
             )}
 
-            {/* LAGER TAB */}
             {activeTab === 'lager' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>🏠 Startpunkt / Basis festlegen</h2>
-                  <form onSubmit={speichereStartpunkt} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Adresse für Start / Lager</label>
-                      <input type="text" value={editingStartPunkt} onChange={e => setEditingStartPunkt(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Startpunkt speichern</button>
-                  </form>
-                </div>
-
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>⛽ Spritpreis anpassen</h2>
-                  <form onSubmit={speichereSpritPreis} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Preis pro Liter (€)</label>
-                      <input type="number" step="0.01" value={editingSpritPreis} onChange={e => setEditingSpritPreis(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Spritpreis speichern</button>
-                  </form>
-                </div>
-
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>🚗 Fahrzeugverbrauch anpassen</h2>
-                  <form onSubmit={speichereVerbrauch} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Verbrauch (Liter auf 100 km)</label>
-                      <input type="number" min="0.1" step="0.1" value={editingVerbrauch} onChange={e => setEditingVerbrauch(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-                    </div>
-                    <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Verbrauch speichern</button>
-                  </form>
-                </div>
-
-                <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1rem', margin: 0 }}>Streusalz Lager</h2>
-                  <div style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', border: '2px solid #8cc63f', padding: '12px', borderRadius: '12px', textAlign: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#8cc63f', textTransform: 'uppercase' }}>Streusalz Vorrat</span>
-                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: textApp, margin: '2px 0' }}>{Math.floor(lagerBestand)} <span style={{ fontSize: '0.9rem' }}>Säcke</span></div>
-                  </div>
-                  
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input 
-                      type="number" 
-                      min="1" 
-                      value={lagerAnzahlInput} 
-                      onChange={e => setLagerAnzahlInput(e.target.value)}
-                      style={{ width: '80px', padding: '10px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem' }}
-                    />
-                    <button onClick={() => anpasseLagerGenau('add')} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', border: 'none', cursor: 'pointer' }}>
-                      + Hinzufügen
-                    </button>
-                    <button onClick={() => anpasseLagerGenau('sub')} style={{ flex: 1, backgroundColor: '#fee2e2', color: '#b91c1c', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', border: 'none', cursor: 'pointer' }}>
-                      - Abziehen
-                    </button>
-                  </div>
-                </div>
-
-              </div>
+              <LagerTab
+                editingStartPunkt={editingStartPunkt}
+                setEditingStartPunkt={setEditingStartPunkt}
+                editingSpritPreis={editingSpritPreis}
+                setEditingSpritPreis={setEditingSpritPreis}
+                editingVerbrauch={editingVerbrauch}
+                setEditingVerbrauch={setEditingVerbrauch}
+                lagerBestand={lagerBestand}
+                lagerAnzahlInput={lagerAnzahlInput}
+                setLagerAnzahlInput={setLagerAnzahlInput}
+                darkMode={darkMode}
+                onSaveStartpunkt={speichereStartpunkt}
+                onSaveSpritPreis={speichereSpritPreis}
+                onSaveVerbrauch={speichereVerbrauch}
+                onAdjustLager={anpasseLagerGenau}
+              />
             )}
 
             {/* MEHR TAB */}
