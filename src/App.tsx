@@ -1083,6 +1083,20 @@ export default function App() {
   };
 
   const uebernehmeOptimierteRoute = (route: { kunde: Kunde | undefined; liege: Liegenschaft }[]) => {
+    const bisherigeReihenfolge = [...liegenschaften]
+      .sort((a, b) => (a.reihenfolge || 1) - (b.reihenfolge || 1))
+      .map(liege => liege.id);
+    const optimierteReihenfolge = route.map(({ liege }) => liege.id);
+    const geaenderteStopps = optimierteReihenfolge.reduce(
+      (anzahl, liegeId, index) => anzahl + (bisherigeReihenfolge[index] === liegeId ? 0 : 1),
+      0
+    );
+
+    if (geaenderteStopps === 0) {
+      zeigeMeldung('Die Tour ist bereits optimal sortiert!');
+      return;
+    }
+
     const neueReihenfolge = new Map(route.map(({ liege }, index) => [liege.id, index + 1]));
     setLiegenschaften(vorherige =>
       vorherige.map(liege => {
@@ -1090,10 +1104,7 @@ export default function App() {
         return reihenfolge === undefined ? liege : { ...liege, reihenfolge };
       })
     );
-    const gpsStopps = route.filter(({ liege }) =>
-      typeof liege.lat === 'number' && typeof liege.lon === 'number'
-    ).length;
-    zeigeMeldung(`Tour lokal optimiert: ${gpsStopps} GPS-Stopps.`);
+    zeigeMeldung(`GPS-Routenoptimierung erfolgreich durchgeführt (${geaenderteStopps} Stopps neu sortiert)`);
   };
 
   const saisonArchivieren = () => {
