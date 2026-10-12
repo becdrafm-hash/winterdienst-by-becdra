@@ -26,9 +26,11 @@ export interface EinsatzLog {
   date: string;
   timestamp: number;
   wetter: string;
+  wetterVorOrt?: string;
   type: string;
   duration: string;
   materialUsed: string;
+  materialVerbrauchKg?: number;
   kmGefahren: string;
   spritKosten: string;
   fotoName?: string;
@@ -45,6 +47,7 @@ export interface SaisonArchiv {
   bisDatum: string;
   einsätze: EinsatzLog[];
   gesamtSaecke: number;
+  gesamtMaterialKg?: number;
   gesamtKm: number;
   gesamtSprit: number;
 }

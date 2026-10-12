@@ -2,7 +2,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { EinsatzLog, SaisonArchiv } from '../types';
 
 type AppTab = 'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison';
-type StatistikWerte = { anzahl: number; km: number; sprit: string; saecke: number };
+type StatistikWerte = { anzahl: number; km: number; sprit: string; materialKg: number };
 
 interface HistorieStatistikTabProps {
   activeTab: 'statistik' | 'history_saison';
@@ -62,7 +62,7 @@ export default function HistorieStatistikTab({
               <div>Einsätze: <b>{heuStat.anzahl}</b></div>
               <div>Km: <b>{heuStat.km} km</b></div>
               <div>Sprit: <b>{heuStat.sprit} €</b></div>
-              <div>Material: <b>{heuStat.saecke} Säcke</b></div>
+              <div>Material: <b>{heuStat.materialKg.toLocaleString('de-DE')} kg</b></div>
             </div>
           </div>
 
@@ -72,7 +72,7 @@ export default function HistorieStatistikTab({
               <div>Einsätze: <b>{gesamtStat.anzahl}</b></div>
               <div>Km: <b>{gesamtStat.km} km</b></div>
               <div>Sprit: <b>{gesamtStat.sprit} €</b></div>
-              <div>Material: <b>{gesamtStat.saecke} Säcke</b></div>
+              <div>Material: <b>{gesamtStat.materialKg.toLocaleString('de-DE')} kg</b></div>
             </div>
           </div>
         </div>
@@ -112,9 +112,10 @@ export default function HistorieStatistikTab({
                 </div>
                 <span style={{ fontSize: '0.65rem', fontFamily: 'monospace', color: textSub }}>{item.date}</span>
                 <p style={{ fontSize: '0.75rem', color: textApp, margin: 0 }}>Wetter: <b>{item.wetter}</b> | Typ: <b>{item.type}</b></p>
+                {item.wetterVorOrt && <p style={{ fontSize: '0.75rem', color: textApp, margin: 0 }}>Wetter vor Ort: <b>{item.wetterVorOrt}</b></p>}
                 {item.hindernisInfo && <p style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 'bold', margin: 0 }}>⚠️ Hindernis: {item.hindernisInfo}</p>}
                 <p style={{ fontSize: '0.75rem', color: '#8cc63f', fontWeight: 500, margin: 0 }}>
-                  Verbrauch: {item.materialUsed} | Fahrstrecke: <b>{item.kmGefahren}</b> (~{item.spritKosten} Sprit)
+                  Verbrauch: {item.materialVerbrauchKg !== undefined ? `${item.materialVerbrauchKg.toLocaleString('de-DE')} kg (${item.materialUsed})` : item.materialUsed} | Fahrstrecke: <b>{item.kmGefahren}</b> (~{item.spritKosten} Sprit)
                 </p>
               </div>
             ))}
@@ -144,7 +145,7 @@ export default function HistorieStatistikTab({
             <div key={archiv.id} style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', border: '1px solid ' + borderCard, borderRadius: '10px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <strong style={{ color: textApp, fontSize: '0.9rem' }}>{archiv.name}</strong>
               <span style={{ color: textSub, fontSize: '0.7rem' }}>{archiv.vonDatum} – {archiv.bisDatum}</span>
-              <span style={{ color: textSub, fontSize: '0.75rem' }}>{archiv.einsätze.length} Einsätze · {archiv.gesamtKm} km · {archiv.gesamtSaecke} Säcke · {archiv.gesamtSprit.toFixed(2)} € Sprit</span>
+              <span style={{ color: textSub, fontSize: '0.75rem' }}>{archiv.einsätze.length} Einsätze · {archiv.gesamtKm} km · {(archiv.gesamtMaterialKg ?? archiv.gesamtSaecke * 25).toLocaleString('de-DE')} kg · {archiv.gesamtSprit.toFixed(2)} € Sprit</span>
             </div>
           ))
         )}

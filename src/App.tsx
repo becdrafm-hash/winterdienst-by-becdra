@@ -13,6 +13,8 @@ import Navigation from './components/Navigation';
 import { DWD_REGIONEN, DWD_STANDARD_REGIONEN, type DwdRegionId } from './services/dwdWetter';
 import { ermittleLiegenschaftKoordinaten } from './services/liegenschaftGeocoding';
 
+const LAGER_KG_MIGRATION_KEY = 'becdra_lager_kg_migration_v1';
+
 function leseGueltigeKoordinaten(liegenschaft: Pick<Liegenschaft, 'lat' | 'lon'>): { lat: number; lon: number } | null {
   if (typeof liegenschaft.lat !== 'number'
     || !Number.isFinite(liegenschaft.lat)
@@ -26,6 +28,15 @@ function leseGueltigeKoordinaten(liegenschaft: Pick<Liegenschaft, 'lat' | 'lon'>
   }
 
   return { lat: liegenschaft.lat, lon: liegenschaft.lon };
+}
+
+function leseMaterialverbrauchKg(einsatz: Pick<EinsatzLog, 'materialUsed' | 'materialVerbrauchKg'>): number {
+  if (typeof einsatz.materialVerbrauchKg === 'number' && Number.isFinite(einsatz.materialVerbrauchKg)) {
+    return einsatz.materialVerbrauchKg;
+  }
+
+  const wert = Number.parseFloat(einsatz.materialUsed.replace(',', '.')) || 0;
+  return einsatz.materialUsed.includes('Sack') ? wert * 25 : wert;
 }
 
 interface ArbeitszeitStatus {
@@ -109,7 +120,15 @@ export default function App() {
 
   const [lagerBestand, setLagerBestand] = useState<number>(() => {
     const saved = localStorage.getItem('becdra_lager');
-    return saved ? JSON.parse(saved) : 0;
+    const bestand = saved ? Number(JSON.parse(saved)) : 0;
+    if (localStorage.getItem(LAGER_KG_MIGRATION_KEY) === 'true') {
+      return Number.isFinite(bestand) ? bestand : 0;
+    }
+
+    const bestandInKg = Number.isFinite(bestand) ? bestand * 25 : 0;
+    localStorage.setItem('becdra_lager', JSON.stringify(bestandInKg));
+    localStorage.setItem(LAGER_KG_MIGRATION_KEY, 'true');
+    return bestandInKg;
   });
 
   const [spritPreisProLiter, setSpritPreisProLiter] = useState<string>(() => {
@@ -185,7 +204,8 @@ export default function App() {
   });
   const [einsatzType, setEinsatzType] = useState('Räumen & Streuen');
   const [wetterLage, setWetterLage] = useState('Wird geladen...');
-  const [materialSaecke, setMaterialSaecke] = useState('1');
+  const [wetterVorOrt, setWetterVorOrt] = useState('');
+  const [materialVerbrauchKg, setMaterialVerbrauchKg] = useState('');
   const [gefahreneKm, setGefahreneKm] = useState(() =>
     localStorage.getItem('becdra_gefahrene_km') || '0'
   );
@@ -296,6 +316,7 @@ export default function App() {
       liegenschaften,
       history,
       lagerBestand,
+      lagerEinheit: 'kg',
       startPunkt,
       spritPreisProLiter,
       verbrauchAuf100Km,
@@ -323,7 +344,15 @@ export default function App() {
             if (parsed.kunden) setKunden(parsed.kunden);
             if (parsed.liegenschaften) setLiegenschaften(parsed.liegenschaften);
             if (parsed.history) setHistory(parsed.history);
-            if (parsed.lagerBestand !== undefined) setLagerBestand(parsed.lagerBestand);
+            if (parsed.lagerBestand !== undefined) {
+              const backupBestand = Number(parsed.lagerBestand);
+              const backupLagerKg = parsed.lagerEinheit === 'kg' ? backupBestand : backupBestand * 25;
+              if (!Number.isFinite(backupLagerKg) || backupLagerKg < 0) {
+                throw new Error('Der Lagerbestand im Backup ist ungültig.');
+              }
+              setLagerBestand(backupLagerKg);
+              localStorage.setItem(LAGER_KG_MIGRATION_KEY, 'true');
+            }
             if (parsed.startPunkt) setStartPunkt(parsed.startPunkt);
             if (parsed.spritPreisProLiter) setSpritPreisProLiter(parsed.spritPreisProLiter);
             if (parsed.verbrauchAuf100Km) {
@@ -371,18 +400,18 @@ export default function App() {
   };
 
   const anpasseLagerGenau = (modus: 'add' | 'sub') => {
-    const wert = parseInt(lagerAnzahlInput, 10);
-    if (isNaN(wert) || wert <= 0) {
-      zeigeMeldung('Bitte eine gültige Anzahl eingeben.');
+    const wert = Number(lagerAnzahlInput);
+    if (!Number.isFinite(wert) || wert <= 0) {
+      zeigeMeldung('Bitte eine gültige Menge in kg eingeben.');
       return;
     }
 
     if (modus === 'add') {
       setLagerBestand(prev => prev + wert);
-      zeigeMeldung(`+${wert} Sack zum Lager hinzugefügt.`);
+      zeigeMeldung(`+${wert.toLocaleString('de-DE')} kg zum Lager hinzugefügt.`);
     } else {
       setLagerBestand(prev => Math.max(0, prev - wert));
-      zeigeMeldung(`-${wert} Sack aus dem Lager entfernt.`);
+      zeigeMeldung(`-${wert.toLocaleString('de-DE')} kg aus dem Lager entfernt.`);
     }
     setLagerAnzahlInput('1');
   };
@@ -631,7 +660,9 @@ export default function App() {
       `Objekt: ${item.objName}\n` +
       `Datum und Uhrzeit: ${item.date}\n` +
       `Wetter: ${item.wetter}\n` +
+      (item.wetterVorOrt ? `Wetterverhältnisse vor Ort: ${item.wetterVorOrt}\n` : '') +
       `Maßnahme: ${item.type}\n` +
+      (item.materialVerbrauchKg !== undefined ? `Streumittelverbrauch: ${item.materialVerbrauchKg.toLocaleString('de-DE')} kg\n` : '') +
       hindernisZeile +
       `────────────────────────\n` +
       `Status: Ordnungsgemäß betreut\n\n` +
@@ -761,6 +792,7 @@ export default function App() {
             <h3>Einsatz-Details (Intern):</h3>
             <ul>
               <li><b>Wetterlage:</b> ${item.wetter}</li>
+              ${item.wetterVorOrt ? `<li><b>Wetterverhältnisse vor Ort:</b> ${item.wetterVorOrt}</li>` : ''}
               <li><b>Art des Einsatzes:</b> ${item.type}</li>
               <li><b>Einsatzdauer:</b> ${item.duration}</li>
               <li><b>Materialverbrauch:</b> ${item.materialUsed}</li>
@@ -825,6 +857,8 @@ export default function App() {
     setActiveObjekt(obj);
     setStartTime(new Date());
     setArbeitszeitStatus({ pauseBeginn: null, pausendauerMs: 0 });
+    setWetterVorOrt('');
+    setMaterialVerbrauchKg('');
     setAufgenommenesFoto(null);
     setAufgenommenesFotoUrl(null);
     setHindernisNotiz('');
@@ -921,6 +955,8 @@ export default function App() {
         clearActiveEinsatz();
         setAufgenommenesFoto(null);
         setAufgenommenesFotoUrl(null);
+        setWetterVorOrt('');
+        setMaterialVerbrauchKg('');
         setHindernisNotiz('');
         setHindernisFoto(null);
         setHindernisFotoUrl(null);
@@ -954,6 +990,15 @@ export default function App() {
 
   const finishEinsatz = () => {
     if (!activeKunde || !activeObjekt || !startTime) return;
+    const verbrauchKg = Number(materialVerbrauchKg);
+    if (materialVerbrauchKg.trim() === '' || !Number.isFinite(verbrauchKg) || verbrauchKg < 0) {
+      zeigeMeldung('Bitte einen gültigen Streumittelverbrauch in kg eingeben.');
+      return;
+    }
+    if (!wetterVorOrt) {
+      zeigeMeldung('Bitte die Wetterverhältnisse vor Ort auswählen.');
+      return;
+    }
     stopGpsTracking();
 
     const endTime = new Date();
@@ -965,12 +1010,11 @@ export default function App() {
       endTime.getTime() - startTime.getTime() - arbeitszeitStatus.pausendauerMs - aktuellePauseMs
     );
     const diffMinutes = Math.round(arbeitsdauerMs / 60000);
-    const saeckeNum = Number(materialSaecke) || 0;
     const kmNum = Number(gefahreneKm) || 0;
 
     const berechneteSpritKosten = (kmNum * Number(verbrauchAuf100Km) / 100) * (Number(spritPreisProLiter) || 1.80);
 
-    setLagerBestand(prev => Math.max(0, prev - saeckeNum));
+    setLagerBestand(prev => prev - verbrauchKg);
 
     const newLog: EinsatzLog = {
       id: Date.now(),
@@ -979,9 +1023,11 @@ export default function App() {
       date: new Date().toLocaleDateString('de-DE') + ' ' + new Date().toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}),
       timestamp: Date.now(),
       wetter: wetterLage,
+      wetterVorOrt,
       type: einsatzType,
       duration: `${Math.max(1, diffMinutes)} Min.`,
-      materialUsed: `${saeckeNum} Sack (${activeObjekt.material})`,
+      materialUsed: `${verbrauchKg.toLocaleString('de-DE')} kg (${activeObjekt.material})`,
+      materialVerbrauchKg: verbrauchKg,
       kmGefahren: `${kmNum} km`,
       spritKosten: `${berechneteSpritKosten.toFixed(2)} €`,
       fotoName: aufgenommenesFoto || undefined,
@@ -1011,6 +1057,8 @@ export default function App() {
     clearActiveEinsatz();
     setAufgenommenesFoto(null);
     setAufgenommenesFotoUrl(null);
+    setWetterVorOrt('');
+    setMaterialVerbrauchKg('');
     setHindernisNotiz('');
     setHindernisFoto(null);
     setHindernisFotoUrl(null);
@@ -1031,6 +1079,8 @@ export default function App() {
         `Auftraggeber: ${geforderterKunde.firma}\n` +
         `Datum: ${new Date().toLocaleDateString('de-DE')}\n` +
         `Wetter: ${wetterLage}\n\n` +
+        `Wetterverhältnisse vor Ort: ${wetterVorOrt}\n` +
+        `Streumittelverbrauch: ${verbrauchKg.toLocaleString('de-DE')} kg (${activeObjekt.material})\n\n` +
         `Betreute Objekte:\n${liegenschaftsListeText}\n\n` +
         `${hindernisHinweis}\n` +
         `────────────────────────\n` +
@@ -1121,16 +1171,15 @@ export default function App() {
       confirmText: 'Ja, archivieren',
       cancelText: 'Abbrechen',
       onConfirm: () => {
-        let totalSaecke = 0;
+        let totalMaterialKg = 0;
         let totalKm = 0;
         let totalSprit = 0;
 
         history.forEach(item => {
-          const saeckeNum = parseFloat(item.materialUsed) || 0;
+          totalMaterialKg += leseMaterialverbrauchKg(item);
           const kmNum = parseFloat(item.kmGefahren) || 0;
           const spritNum = parseFloat(item.spritKosten.replace(' €', '').replace(',', '.')) || 0;
 
-          totalSaecke += saeckeNum;
           totalKm += kmNum;
           totalSprit += spritNum;
         });
@@ -1141,7 +1190,8 @@ export default function App() {
           vonDatum: saisonVon,
           bisDatum: saisonBis,
           einsätze: [...history],
-          gesamtSaecke: Math.floor(totalSaecke),
+          gesamtSaecke: Math.floor(totalMaterialKg / 25),
+          gesamtMaterialKg: totalMaterialKg,
           gesamtKm: totalKm,
           gesamtSprit: totalSprit
         };
@@ -1160,9 +1210,22 @@ export default function App() {
       zeigeMeldung('Keine Daten für den Export vorhanden.');
       return;
     }
-    let csvContent = "data:text/csv;charset=utf-8,Kunde;Liegenschaft;Datum;Wetter;Art;Material;Km;Sprit\n";
+    let csvContent = "data:text/csv;charset=utf-8,Kunde;Liegenschaft;Datum;Wetter;Wetter vor Ort;Art;Material;Verbrauch kg;Km;Sprit;Besonderheiten/Hindernisse\n";
     history.forEach(item => {
-      csvContent += `"${item.kundeName}";"${item.objName}";"${item.date}";"${item.wetter}";"${item.type}";"${item.materialUsed}";"${item.kmGefahren}";"${item.spritKosten}"\n`;
+      const csvWert = (wert: string | number | undefined) => `"${String(wert ?? '').replaceAll('"', '""')}"`;
+      csvContent += [
+        item.kundeName,
+        item.objName,
+        item.date,
+        item.wetter,
+        item.wetterVorOrt,
+        item.type,
+        item.materialUsed,
+        item.materialVerbrauchKg,
+        item.kmGefahren,
+        item.spritKosten,
+        item.hindernisInfo
+      ].map(csvWert).join(';') + '\n';
     });
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -1189,16 +1252,15 @@ export default function App() {
     const anzahl = einsätzeListe.length;
     let km = 0;
     let sprit = 0;
-    let saecke = 0;
+    let materialKg = 0;
 
     einsätzeListe.forEach(item => {
       km += parseFloat(item.kmGefahren) || 0;
       sprit += parseFloat(item.spritKosten.replace(' €', '').replace(',', '.')) || 0;
-      const matchSaecke = item.materialUsed.match(/^([\d.]+)/);
-      if (matchSaecke) saecke += parseFloat(matchSaecke[1]) || 0;
+      materialKg += leseMaterialverbrauchKg(item);
     });
 
-    return { anzahl, km: Math.round(km), sprit: sprit.toFixed(2), saecke: Math.floor(saecke) };
+    return { anzahl, km: Math.round(km), sprit: sprit.toFixed(2), materialKg: Math.round(materialKg * 10) / 10 };
   };
 
   const heuStat = berechneStatistikWerte(history.filter(h => h.date.startsWith(heuteDatumString)));
@@ -1328,14 +1390,16 @@ export default function App() {
             borderCard={borderCard}
             bgCard={bgCard}
             wetterLage={wetterLage}
+            wetterVorOrt={wetterVorOrt}
+            setWetterVorOrt={setWetterVorOrt}
             startTime={startTime}
             pauseBeginn={arbeitszeitStatus.pauseBeginn}
             pausendauerMs={arbeitszeitStatus.pausendauerMs}
             onTogglePause={toggleEinsatzPause}
             einsatzType={einsatzType}
             setEinsatzType={setEinsatzType}
-            materialSaecke={materialSaecke}
-            setMaterialSaecke={setMaterialSaecke}
+            materialVerbrauchKg={materialVerbrauchKg}
+            setMaterialVerbrauchKg={setMaterialVerbrauchKg}
             gefahreneKm={gefahreneKm}
             setGefahreneKm={setGefahreneKm}
             aufgenommenesFoto={aufgenommenesFoto}

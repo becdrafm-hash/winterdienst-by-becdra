@@ -11,14 +11,16 @@ interface AktiverEinsatzProps {
   borderCard: string;
   bgCard: string;
   wetterLage: string;
+  wetterVorOrt: string;
+  setWetterVorOrt: Dispatch<SetStateAction<string>>;
   startTime: Date | null;
   pauseBeginn: number | null;
   pausendauerMs: number;
   onTogglePause: () => void;
   einsatzType: string;
   setEinsatzType: Dispatch<SetStateAction<string>>;
-  materialSaecke: string;
-  setMaterialSaecke: Dispatch<SetStateAction<string>>;
+  materialVerbrauchKg: string;
+  setMaterialVerbrauchKg: Dispatch<SetStateAction<string>>;
   gefahreneKm: string;
   setGefahreneKm: Dispatch<SetStateAction<string>>;
   aufgenommenesFoto: string | null;
@@ -43,14 +45,16 @@ export default function AktiverEinsatz({
   borderCard,
   bgCard,
   wetterLage,
+  wetterVorOrt,
+  setWetterVorOrt,
   startTime,
   pauseBeginn,
   pausendauerMs,
   onTogglePause,
   einsatzType,
   setEinsatzType,
-  materialSaecke,
-  setMaterialSaecke,
+  materialVerbrauchKg,
+  setMaterialVerbrauchKg,
   gefahreneKm,
   setGefahreneKm,
   aufgenommenesFoto,
@@ -157,12 +161,26 @@ export default function AktiverEinsatz({
           </select>
         </div>
 
+        <div>
+          <label htmlFor="wetter-vor-ort" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: textApp, marginBottom: '4px' }}>Wetterverhältnisse vor Ort <span style={{ color: '#dc2626' }}>*</span></label>
+          <select id="wetter-vor-ort" required value={wetterVorOrt} onChange={event => setWetterVorOrt(event.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }}>
+            <option value="">Bitte Wetterlage auswählen</option>
+            <option value="Glatteis">Glatteis</option>
+            <option value="Schneefall">Schneefall</option>
+            <option value="Reifglätte">Reifglätte</option>
+            <option value="Schneeglätte">Schneeglätte</option>
+            <option value="Überfrierende Nässe">Überfrierende Nässe</option>
+            <option value="Kein Glätte-/Schneefall">Kein Glätte-/Schneefall</option>
+            <option value="Sonstige">Sonstige</option>
+          </select>
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textApp, marginBottom: '4px' }}>Materialverbrauch</label>
+            <label htmlFor="materialverbrauch-kg" style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textApp, marginBottom: '4px' }}>Streumittelverbrauch</label>
             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-              <input type="number" min="0.5" step="0.5" value={materialSaecke} onChange={event => setMaterialSaecke(event.target.value)} style={{ width: '60px', padding: '10px', borderRadius: '10px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, textAlign: 'center', fontWeight: 'bold' }} />
-              <span style={{ fontSize: '0.75rem', color: textSub }}>Säcke</span>
+              <input id="materialverbrauch-kg" type="number" min="0" step="0.1" required value={materialVerbrauchKg} onChange={event => setMaterialVerbrauchKg(event.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, textAlign: 'center', fontWeight: 'bold', boxSizing: 'border-box' }} />
+              <span style={{ fontSize: '0.75rem', color: textSub }}>kg</span>
             </div>
           </div>
           <div>
@@ -180,13 +198,14 @@ export default function AktiverEinsatz({
         </div>
 
         <div style={{ backgroundColor: darkMode ? '#14171a' : '#fff1f2', border: '1px solid #fecaca', padding: '12px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#dc2626' }}>⚠️ Hindernis / Vorfall dokumentieren (optional)</label>
-          <input
-            type="text"
+          <label htmlFor="einsatz-notiz" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#dc2626' }}>⚠️ Besonderheiten / Hindernisse (optional)</label>
+          <textarea
+            id="einsatz-notiz"
+            rows={3}
             value={hindernisNotiz}
             onChange={event => setHindernisNotiz(event.target.value)}
-            placeholder="z.B. PKW blockierte Einfahrt, Mülltonne..."
-            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #fca5a5', backgroundColor: bgCard, color: textApp, fontSize: '0.8rem', boxSizing: 'border-box' }}
+            placeholder="z. B. PKW blockierte Einfahrt, besondere Glättestelle..."
+            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #fca5a5', backgroundColor: bgCard, color: textApp, fontSize: '0.8rem', boxSizing: 'border-box', resize: 'vertical' }}
           />
           <label style={{ display: 'block', width: '100%', border: '2px dashed #dc2626', backgroundColor: darkMode ? '#14171a' : '#ffffff', color: '#dc2626', padding: '8px', borderRadius: '8px', fontWeight: 600, textAlign: 'center', cursor: 'pointer', fontSize: '0.75rem', boxSizing: 'border-box' }}>
             📷 {hindernisFoto ? `✓ Hindernis-Foto (${hindernisFoto})` : 'Hindernis fotografieren'}
