@@ -1,4 +1,4 @@
-import type { ChangeEvent, Dispatch, SetStateAction } from 'react';
+import { useEffect, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
 import type { Kunde, Liegenschaft } from '../types';
 
 interface AktiverEinsatzProps {
@@ -11,6 +11,10 @@ interface AktiverEinsatzProps {
   borderCard: string;
   bgCard: string;
   wetterLage: string;
+  startTime: Date | null;
+  pauseBeginn: number | null;
+  pausendauerMs: number;
+  onTogglePause: () => void;
   einsatzType: string;
   setEinsatzType: Dispatch<SetStateAction<string>>;
   materialSaecke: string;
@@ -39,6 +43,10 @@ export default function AktiverEinsatz({
   borderCard,
   bgCard,
   wetterLage,
+  startTime,
+  pauseBeginn,
+  pausendauerMs,
+  onTogglePause,
   einsatzType,
   setEinsatzType,
   materialSaecke,
@@ -56,6 +64,27 @@ export default function AktiverEinsatz({
   cancelEinsatz,
   finishEinsatz
 }: AktiverEinsatzProps) {
+  const [jetzt, setJetzt] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setJetzt(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const aktuellePauseMs = pauseBeginn === null ? 0 : Math.max(0, jetzt - pauseBeginn);
+  const arbeitszeitMs = startTime
+    ? Math.max(0, jetzt - startTime.getTime() - pausendauerMs - aktuellePauseMs)
+    : 0;
+  const gesamtePausenMs = pausendauerMs + aktuellePauseMs;
+
+  const formatiereDauer = (dauerMs: number) => {
+    const sekunden = Math.floor(dauerMs / 1000);
+    const stunden = Math.floor(sekunden / 3600);
+    const minuten = Math.floor((sekunden % 3600) / 60);
+    const restSekunden = sekunden % 60;
+    return [stunden, minuten, restSekunden].map(wert => wert.toString().padStart(2, '0')).join(':');
+  };
+
   return (
     <>
       <div style={{ backgroundColor: bgCard, padding: '20px', borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.08)', border: '2px solid #8cc63f', display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -76,6 +105,39 @@ export default function AktiverEinsatz({
             🗺️ Räumplan als Pop-up öffnen
           </button>
         )}
+
+        <section style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', border: '1px solid ' + borderCard, borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px' }} aria-live="off">
+          <strong style={{ color: textApp, fontSize: '0.8rem' }}>⏱️ Arbeitszeit erfassen</strong>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', textAlign: 'center' }}>
+            <div>
+              <span style={{ color: textSub, display: 'block', fontSize: '0.7rem' }}>Arbeitszeit</span>
+              <strong style={{ color: textApp, fontSize: '1.1rem', fontVariantNumeric: 'tabular-nums' }}>{formatiereDauer(arbeitszeitMs)}</strong>
+            </div>
+            <div>
+              <span style={{ color: textSub, display: 'block', fontSize: '0.7rem' }}>Pausenzeit</span>
+              <strong style={{ color: textApp, fontSize: '1.1rem', fontVariantNumeric: 'tabular-nums' }}>{formatiereDauer(gesamtePausenMs)}</strong>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onTogglePause}
+            style={{
+              backgroundColor: pauseBeginn === null ? '#fef3c7' : '#dcfce7',
+              border: '1px solid ' + (pauseBeginn === null ? '#f59e0b' : '#8cc63f'),
+              borderRadius: '8px',
+              color: '#111827',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              fontWeight: 'bold',
+              padding: '10px'
+            }}
+          >
+            {pauseBeginn === null ? '⏸️ Pause starten' : '▶️ Arbeit fortsetzen'}
+          </button>
+          {pauseBeginn !== null && (
+            <span style={{ color: '#92400e', fontSize: '0.75rem', textAlign: 'center' }}>Pause läuft – die Arbeitszeit ist angehalten.</span>
+          )}
+        </section>
 
         <div style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid ' + borderCard }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 500, color: textSub }}>🕒 Startpunkt:</span>

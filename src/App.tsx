@@ -12,6 +12,17 @@ import Navigation from './components/Navigation';
 import { istWochenendeOderFeiertag } from './feiertage';
 import { DWD_REGIONEN, DWD_STANDARD_REGIONEN, type DwdRegionId } from './services/dwdWetter';
 
+interface ArbeitszeitStatus {
+  pauseBeginn: number | null;
+  pausendauerMs: number;
+}
+
+function istOptionaleKoordinateGueltig(wert: string, minimum: number, maximum: number): boolean {
+  if (wert.trim() === '') return true;
+  const zahl = Number(wert);
+  return Number.isFinite(zahl) && zahl >= minimum && zahl <= maximum;
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison'>('tour');
   const [statusMeldung, setStatusMeldung] = useState<string | null>(null);
@@ -108,6 +119,8 @@ export default function App() {
   const [selectedKundeId, setSelectedKundeId] = useState<number>(() => kunden[0]?.id || 1);
   const [neuObjName, setNeuObjName] = useState('');
   const [neuObjAddress, setNeuObjAddress] = useState('');
+  const [neuObjLat, setNeuObjLat] = useState('');
+  const [neuObjLon, setNeuObjLon] = useState('');
   const [neuObjSize, setNeuObjSize] = useState('');
   const [neuObjMaterial, setNeuObjMaterial] = useState('Salz');
   const [neuObjReihenfolge, setNeuObjReihenfolge] = useState('1');
@@ -122,6 +135,8 @@ export default function App() {
   const [editingLiege, setEditingLiege] = useState<Liegenschaft | null>(null);
   const [editObjName, setEditObjName] = useState('');
   const [editObjAddress, setEditObjAddress] = useState('');
+  const [editObjLat, setEditObjLat] = useState('');
+  const [editObjLon, setEditObjLon] = useState('');
   const [editObjSize, setEditObjSize] = useState('');
   const [editObjMaterial, setEditObjMaterial] = useState('Salz');
   const [editObjReihenfolge, setEditObjReihenfolge] = useState('1');
@@ -141,6 +156,25 @@ export default function App() {
     if (!saved) return null;
     const date = new Date(saved);
     return Number.isNaN(date.getTime()) ? null : date;
+  });
+  const [arbeitszeitStatus, setArbeitszeitStatus] = useState<ArbeitszeitStatus>(() => {
+    try {
+      const gespeichert = localStorage.getItem('becdra_arbeitszeit');
+      if (!gespeichert) return { pauseBeginn: null, pausendauerMs: 0 };
+      const parsed: unknown = JSON.parse(gespeichert);
+      if (typeof parsed !== 'object' || parsed === null) {
+        return { pauseBeginn: null, pausendauerMs: 0 };
+      }
+      const daten = parsed as Record<string, unknown>;
+      return {
+        pauseBeginn: typeof daten.pauseBeginn === 'number' ? daten.pauseBeginn : null,
+        pausendauerMs: typeof daten.pausendauerMs === 'number' && daten.pausendauerMs >= 0
+          ? daten.pausendauerMs
+          : 0
+      };
+    } catch {
+      return { pauseBeginn: null, pausendauerMs: 0 };
+    }
   });
   const [einsatzType, setEinsatzType] = useState('Räumen & Streuen');
   const [wetterLage, setWetterLage] = useState('Wird geladen...');
@@ -232,6 +266,14 @@ export default function App() {
       localStorage.removeItem('becdra_starttime');
     }
   }, [startTime]);
+
+  useEffect(() => {
+    if (activeKunde && activeObjekt && startTime) {
+      localStorage.setItem('becdra_arbeitszeit', JSON.stringify(arbeitszeitStatus));
+    } else {
+      localStorage.removeItem('becdra_arbeitszeit');
+    }
+  }, [activeKunde, activeObjekt, startTime, arbeitszeitStatus]);
 
   useEffect(() => {
     if (activeKunde && activeObjekt && startTime) {
@@ -428,6 +470,11 @@ export default function App() {
   const addLiegenschaft = (e: React.FormEvent) => {
     e.preventDefault();
     if (!neuObjName || !neuObjAddress || !neuObjSize) return;
+    if (!istOptionaleKoordinateGueltig(neuObjLat, -90, 90)
+      || !istOptionaleKoordinateGueltig(neuObjLon, -180, 180)) {
+      zeigeMeldung('Bitte gib gültige GPS-Koordinaten ein.');
+      return;
+    }
     
     const neueLiege: Liegenschaft = {
       id: Date.now(),
@@ -438,12 +485,16 @@ export default function App() {
       material: neuObjMaterial,
       reihenfolge: Number(neuObjReihenfolge) || 1,
       nurWochenendeFeiertag: neuObjNurWochenendeFeiertag,
+      lat: neuObjLat.trim() === '' ? undefined : Number(neuObjLat),
+      lon: neuObjLon.trim() === '' ? undefined : Number(neuObjLon),
       raeumPlan: neuObjRaeumPlan || undefined
     };
 
     setLiegenschaften([...liegenschaften, neueLiege]);
     setNeuObjName('');
     setNeuObjAddress('');
+    setNeuObjLat('');
+    setNeuObjLon('');
     setNeuObjSize('');
     setNeuObjReihenfolge('1');
     setNeuObjNurWochenendeFeiertag(false);
@@ -455,6 +506,8 @@ export default function App() {
     setEditingLiege(liege);
     setEditObjName(liege.name);
     setEditObjAddress(liege.address);
+    setEditObjLat(liege.lat?.toString() || '');
+    setEditObjLon(liege.lon?.toString() || '');
     setEditObjSize(liege.size);
     setEditObjMaterial(streuMittelListe.includes(liege.material) ? liege.material : streuMittelListe[0]);
     setEditObjReihenfolge(liege.reihenfolge ? liege.reihenfolge.toString() : '1');
@@ -464,6 +517,11 @@ export default function App() {
 
   const saveEditLiege = () => {
     if (!editingLiege) return;
+    if (!istOptionaleKoordinateGueltig(editObjLat, -90, 90)
+      || !istOptionaleKoordinateGueltig(editObjLon, -180, 180)) {
+      zeigeMeldung('Bitte gib gültige GPS-Koordinaten ein.');
+      return;
+    }
     setLiegenschaften(liegenschaften.map(l => l.id === editingLiege.id ? { 
       ...l, 
       name: editObjName, 
@@ -472,6 +530,8 @@ export default function App() {
       material: editObjMaterial,
       reihenfolge: Number(editObjReihenfolge) || 1,
       nurWochenendeFeiertag: editObjNurWochenendeFeiertag,
+      lat: editObjLat.trim() === '' ? undefined : Number(editObjLat),
+      lon: editObjLon.trim() === '' ? undefined : Number(editObjLon),
       raeumPlan: editObjRaeumPlan || undefined
     } : l));
     setEditingLiege(null);
@@ -741,6 +801,7 @@ export default function App() {
     setActiveKunde(kunde);
     setActiveObjekt(obj);
     setStartTime(new Date());
+    setArbeitszeitStatus({ pauseBeginn: null, pausendauerMs: 0 });
     setAufgenommenesFoto(null);
     setAufgenommenesFotoUrl(null);
     setHindernisNotiz('');
@@ -805,10 +866,24 @@ export default function App() {
     localStorage.removeItem('becdra_active_objekt');
     localStorage.removeItem('becdra_starttime');
     localStorage.removeItem('becdra_gefahrene_km');
+    localStorage.removeItem('becdra_arbeitszeit');
     setActiveKunde(null);
     setActiveObjekt(null);
     setStartTime(null);
+    setArbeitszeitStatus({ pauseBeginn: null, pausendauerMs: 0 });
     setGefahreneKm('0');
+  };
+
+  const toggleEinsatzPause = () => {
+    setArbeitszeitStatus(status => {
+      if (status.pauseBeginn !== null) {
+        return {
+          pauseBeginn: null,
+          pausendauerMs: status.pausendauerMs + Math.max(0, Date.now() - status.pauseBeginn)
+        };
+      }
+      return { ...status, pauseBeginn: Date.now() };
+    });
   };
 
   const cancelEinsatz = () => {
@@ -859,7 +934,14 @@ export default function App() {
     stopGpsTracking();
 
     const endTime = new Date();
-    const diffMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+    const aktuellePauseMs = arbeitszeitStatus.pauseBeginn === null
+      ? 0
+      : Math.max(0, endTime.getTime() - arbeitszeitStatus.pauseBeginn);
+    const arbeitsdauerMs = Math.max(
+      0,
+      endTime.getTime() - startTime.getTime() - arbeitszeitStatus.pausendauerMs - aktuellePauseMs
+    );
+    const diffMinutes = Math.round(arbeitsdauerMs / 60000);
     const saeckeNum = Number(materialSaecke) || 0;
     const kmNum = Number(gefahreneKm) || 0;
 
@@ -875,7 +957,7 @@ export default function App() {
       timestamp: Date.now(),
       wetter: wetterLage,
       type: einsatzType,
-      duration: `${diffMinutes > 0 ? diffMinutes : 1} Min.`,
+      duration: `${Math.max(1, diffMinutes)} Min.`,
       materialUsed: `${saeckeNum} Sack (${activeObjekt.material})`,
       kmGefahren: `${kmNum} km`,
       spritKosten: `${berechneteSpritKosten.toFixed(2)} €`,
@@ -996,6 +1078,20 @@ export default function App() {
     setShowImportModal(false);
     setImportText('');
     zeigeMeldung(`Route erfolgreich aktualisiert! (${anzahlAktualisiert} Objekte sortiert)`);
+  };
+
+  const uebernehmeOptimierteRoute = (route: { kunde: Kunde | undefined; liege: Liegenschaft }[]) => {
+    const neueReihenfolge = new Map(route.map(({ liege }, index) => [liege.id, index + 1]));
+    setLiegenschaften(vorherige =>
+      vorherige.map(liege => {
+        const reihenfolge = neueReihenfolge.get(liege.id);
+        return reihenfolge === undefined ? liege : { ...liege, reihenfolge };
+      })
+    );
+    const gpsStopps = route.filter(({ liege }) =>
+      typeof liege.lat === 'number' && typeof liege.lon === 'number'
+    ).length;
+    zeigeMeldung(`Tour lokal optimiert: ${gpsStopps} GPS-Stopps.`);
   };
 
   const saisonArchivieren = () => {
@@ -1166,6 +1262,16 @@ export default function App() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Breitengrad (Lat, optional)</label>
+              <input type="number" min="-90" max="90" step="any" value={editObjLat} onChange={e => setEditObjLat(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Längengrad (Lon, optional)</label>
+              <input type="number" min="-180" max="180" step="any" value={editObjLon} onChange={e => setEditObjLon(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Fläche (m²)</label>
                 <input type="text" value={editObjSize} onChange={e => setEditObjSize(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
               </div>
@@ -1248,6 +1354,10 @@ export default function App() {
             borderCard={borderCard}
             bgCard={bgCard}
             wetterLage={wetterLage}
+            startTime={startTime}
+            pauseBeginn={arbeitszeitStatus.pauseBeginn}
+            pausendauerMs={arbeitszeitStatus.pausendauerMs}
+            onTogglePause={toggleEinsatzPause}
             einsatzType={einsatzType}
             setEinsatzType={setEinsatzType}
             materialSaecke={materialSaecke}
@@ -1272,6 +1382,7 @@ export default function App() {
                 startPunkt={startPunkt}
                 dwdRegionen={dwdRegionen}
                 alleLiegenschaftenSortiert={alleLiegenschaftenSortiert}
+                onOptimizeRoute={uebernehmeOptimierteRoute}
                 darkMode={darkMode}
                 textApp={textApp}
                 textSub={textSub}
@@ -1325,6 +1436,10 @@ export default function App() {
                 setNeuObjName={setNeuObjName}
                 neuObjAddress={neuObjAddress}
                 setNeuObjAddress={setNeuObjAddress}
+                neuObjLat={neuObjLat}
+                setNeuObjLat={setNeuObjLat}
+                neuObjLon={neuObjLon}
+                setNeuObjLon={setNeuObjLon}
                 neuObjSize={neuObjSize}
                 setNeuObjSize={setNeuObjSize}
                 neuObjMaterial={neuObjMaterial}

@@ -8,6 +8,8 @@ export interface Liegenschaft {
   reihenfolge: number;
   raeumPlan?: string;
   nurWochenendeFeiertag?: boolean;
+  lat?: number;
+  lon?: number;
 }
 
 export interface Kunde {

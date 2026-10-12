@@ -3,6 +3,7 @@ import type { Kunde, Liegenschaft } from '../types';
 import { istWochenendeOderFeiertag } from '../feiertage';
 import DwdWetterBanner from './DwdWetterBanner';
 import type { DwdRegionId } from '../services/dwdWetter';
+import { optimiereTour } from '../utils/routeOptimizer';
 
 interface TourLiegenschaft {
   kunde: Kunde | undefined;
@@ -13,6 +14,7 @@ interface TourTabProps {
   startPunkt: string;
   dwdRegionen: DwdRegionId[];
   alleLiegenschaftenSortiert: TourLiegenschaft[];
+  onOptimizeRoute: (route: TourLiegenschaft[]) => void;
   darkMode: boolean;
   textApp: string;
   textSub: string;
@@ -29,6 +31,7 @@ export default function TourTab({
   startPunkt,
   dwdRegionen,
   alleLiegenschaftenSortiert,
+  onOptimizeRoute,
   darkMode,
   textApp,
   textSub,
@@ -51,6 +54,9 @@ export default function TourTab({
   const angezeigteLiegenschaften = alleLiegenschaftenSortiert.filter(
     ({ liege }) => !liege.nurWochenendeFeiertag || istWochenendeOderFeiertag(jetzt)
   );
+  const anzahlMitKoordinaten = alleLiegenschaftenSortiert.filter(
+    ({ liege }) => typeof liege.lat === 'number' && typeof liege.lon === 'number'
+  ).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -61,6 +67,23 @@ export default function TourTab({
           <p style={{ fontSize: '0.75rem', color: '#8cc63f', margin: '4px 0 0 0', fontWeight: 'bold' }}>Aktueller Startpunkt: {startPunkt}</p>
         </div>
 
+        <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+          <button
+            onClick={() => onOptimizeRoute(optimiereTour(
+              alleLiegenschaftenSortiert.map(item => ({ ...item.liege, tourItem: item }))
+            ).map(({ tourItem }) => tourItem))}
+            disabled={anzahlMitKoordinaten < 2}
+            title={anzahlMitKoordinaten < 2 ? 'Mindestens zwei Liegenschaften mit GPS-Koordinaten erforderlich.' : undefined}
+            style={{ flex: 1, backgroundColor: anzahlMitKoordinaten < 2 ? '#9ca3af' : '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: anzahlMitKoordinaten < 2 ? 'not-allowed' : 'pointer' }}
+          >
+            🧭 Route optimieren (GPS)
+          </button>
+        </div>
+        {anzahlMitKoordinaten < alleLiegenschaftenSortiert.length && anzahlMitKoordinaten > 0 && (
+          <p style={{ color: textSub, fontSize: '0.7rem', margin: 0 }}>
+            Liegenschaften ohne GPS-Koordinaten bleiben am Ende der Tour.
+          </p>
+        )}
         <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
           <button onClick={kopiereAlleAdresen} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#eef6e6', color: '#598f1e', border: '1px solid #8cc63f', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}>
             📋 Adressen kopieren
