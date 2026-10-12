@@ -140,8 +140,6 @@ export default function App() {
   const [editingLiege, setEditingLiege] = useState<Liegenschaft | null>(null);
   const [editObjName, setEditObjName] = useState('');
   const [editObjAddress, setEditObjAddress] = useState('');
-  const [editObjLat, setEditObjLat] = useState('');
-  const [editObjLon, setEditObjLon] = useState('');
   const [editObjSize, setEditObjSize] = useState('');
   const [editObjMaterial, setEditObjMaterial] = useState('Salz');
   const [editObjReihenfolge, setEditObjReihenfolge] = useState('1');
@@ -525,8 +523,6 @@ export default function App() {
     setEditingLiege(liege);
     setEditObjName(liege.name);
     setEditObjAddress(liege.address);
-    setEditObjLat(liege.lat?.toString() || '');
-    setEditObjLon(liege.lon?.toString() || '');
     setEditObjSize(liege.size);
     setEditObjMaterial(streuMittelListe.includes(liege.material) ? liege.material : streuMittelListe[0]);
     setEditObjReihenfolge(liege.reihenfolge ? liege.reihenfolge.toString() : '1');
@@ -537,17 +533,19 @@ export default function App() {
   const saveEditLiege = async () => {
     if (!editingLiege) return;
     if (koordinatenAbrufAktivRef.current) return;
-    if (!istOptionaleKoordinateGueltig(editObjLat, -90, 90)
-      || !istOptionaleKoordinateGueltig(editObjLon, -180, 180)) {
-      zeigeMeldung('Bitte gib gültige GPS-Koordinaten ein.');
-      return;
-    }
 
     koordinatenAbrufAktivRef.current = true;
     setKoordinatenWirdErmittelt(true);
     try {
-      const koordinaten = editObjLat.trim() !== '' && editObjLon.trim() !== ''
-        ? { lat: Number(editObjLat), lon: Number(editObjLon), quelle: 'manuell' as const }
+      const adresseUnveraendert = editObjAddress.trim() === editingLiege.address.trim();
+      const vorhandeneLat = editingLiege.lat;
+      const vorhandeneLon = editingLiege.lon;
+      const koordinaten = adresseUnveraendert
+        && typeof vorhandeneLat === 'number'
+        && Number.isFinite(vorhandeneLat)
+        && typeof vorhandeneLon === 'number'
+        && Number.isFinite(vorhandeneLon)
+        ? { lat: vorhandeneLat, lon: vorhandeneLon, quelle: 'vorhanden' as const }
         : await ermittleLiegenschaftKoordinaten(editObjAddress);
 
       setLiegenschaften(liegenschaften.map(l => l.id === editingLiege.id ? {
@@ -1302,8 +1300,8 @@ export default function App() {
 
       {/* Liegenschaft bearbeiten (inkl. Räumplan) */}
       {editingLiege && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '16px' }}>
-          <div style={{ backgroundColor: bgCard, border: '2px solid #8cc63f', color: textApp, padding: '24px', borderRadius: '16px', maxWidth: '380px', width: '100%', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', inset: 0, width: '100%', height: '100dvh', boxSizing: 'border-box', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 3000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 'max(16px, env(safe-area-inset-top)) 16px calc(90px + env(safe-area-inset-bottom))', overflowY: 'auto' }}>
+          <div style={{ backgroundColor: bgCard, border: '2px solid #8cc63f', color: textApp, padding: '24px', borderRadius: '16px', maxWidth: '400px', width: '92%', boxSizing: 'border-box', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: 'calc(100dvh - 122px)', overflowY: 'auto' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: 0 }}>📍 Liegenschaft bearbeiten</h3>
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Objektname</label>
@@ -1312,16 +1310,6 @@ export default function App() {
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Adresse</label>
               <input type="text" value={editObjAddress} onChange={e => setEditObjAddress(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Breitengrad (Lat, optional)</label>
-              <input type="number" min="-90" max="90" step="any" value={editObjLat} onChange={e => setEditObjLat(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Längengrad (Lon, optional)</label>
-              <input type="number" min="-180" max="180" step="any" value={editObjLon} onChange={e => setEditObjLon(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem', boxSizing: 'border-box' }} />
-              </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <div>
