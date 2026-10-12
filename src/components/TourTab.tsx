@@ -42,6 +42,7 @@ export default function TourTab({
   startEinsatzMitWaze
 }: TourTabProps) {
   const [jetzt, setJetzt] = useState(() => new Date());
+  const [ausgeklappteWochenendObjekte, setAusgeklappteWochenendObjekte] = useState<Set<number>>(() => new Set());
 
   useEffect(() => {
     const naechsteMinute = 60_000 - (Date.now() % 60_000);
@@ -49,9 +50,7 @@ export default function TourTab({
     return () => window.clearTimeout(timer);
   }, [jetzt]);
 
-  const angezeigteLiegenschaften = alleLiegenschaftenSortiert.filter(
-    ({ liege }) => !liege.nurWochenendeFeiertag || istWochenendeOderFeiertag(jetzt)
-  );
+  const wochenendModusAktiv = istWochenendeOderFeiertag(jetzt);
   const anzahlMitKoordinaten = alleLiegenschaftenSortiert.filter(
     ({ liege }) => typeof liege.lat === 'number'
       && Number.isFinite(liege.lat)
@@ -102,15 +101,52 @@ export default function TourTab({
         )}
       </div>
 
-      {angezeigteLiegenschaften.length === 0 ? (
+      {alleLiegenschaftenSortiert.length === 0 ? (
         <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>
-          {alleLiegenschaftenSortiert.length === 0
-            ? 'Keine Liegenschaften vorhanden. Bitte im Tab "Objekte" anlegen.'
-            : 'Aktuell gibt es keine Liegenschaften für die Tour.'}
+          Keine Liegenschaften vorhanden. Bitte im Tab "Objekte" anlegen.
         </p>
       ) : (
-        angezeigteLiegenschaften.map(({ kunde, liege }) => {
+        alleLiegenschaftenSortiert.map(({ kunde, liege }) => {
           const istErledigt = isObjektErledigtVorKurzem(liege.name);
+          const nurWochenende = liege.nurWochenendeFeiertag === true;
+          const kompaktAnzeigen = nurWochenende && !wochenendModusAktiv;
+          const ausgeklappt = ausgeklappteWochenendObjekte.has(liege.id);
+
+          if (kompaktAnzeigen) {
+            return (
+              <div key={liege.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <button
+                  type="button"
+                  aria-expanded={ausgeklappt}
+                  onClick={() => setAusgeklappteWochenendObjekte(vorherige => {
+                    const naechste = new Set(vorherige);
+                    if (naechste.has(liege.id)) naechste.delete(liege.id);
+                    else naechste.add(liege.id);
+                    return naechste;
+                  })}
+                  style={{ width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', boxSizing: 'border-box', backgroundColor: darkMode ? '#1b1e21' : '#f1f3f5', color: textSub, border: '1px solid ' + borderCard, borderRadius: ausgeklappt ? '10px 10px 0 0' : '10px', textAlign: 'left', cursor: 'pointer' }}
+                >
+                  <span aria-hidden="true" style={{ flexShrink: 0, fontSize: '0.85rem' }}>📅</span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.8rem', fontWeight: 600 }}>{liege.name}</span>
+                  <span style={{ flexShrink: 0, fontSize: '0.65rem', backgroundColor: darkMode ? '#292d31' : '#e5e7eb', padding: '3px 6px', borderRadius: '5px', fontWeight: 600 }}>Nur Sa/So/Feiertag</span>
+                  <span aria-hidden="true" style={{ flexShrink: 0, fontSize: '0.75rem' }}>{ausgeklappt ? '▲' : '▼'}</span>
+                </button>
+                {ausgeklappt && (
+                  <div style={{ backgroundColor: darkMode ? '#1b1e21' : '#f1f3f5', color: textSub, padding: '12px', border: '1px solid ' + borderCard, borderTop: 'none', borderRadius: '0 0 10px 10px', opacity: 0.88 }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 'bold', marginBottom: '4px' }}>{kunde?.firma || 'Unbekannter Kunde'}</div>
+                    <p style={{ fontSize: '0.75rem', lineHeight: 1.4, margin: 0, overflowWrap: 'anywhere' }}>{liege.address} • {liege.size} m²</p>
+                    <p style={{ fontSize: '0.7rem', margin: '8px 0 0', fontStyle: 'italic' }}>Dieses Objekt wird an Wochenenden und Feiertagen in der Tour angezeigt.</p>
+                    {liege.raeumPlan && (
+                      <button onClick={() => oeffneRaeumPlanAnsicht(liege.raeumPlan)} style={{ background: 'none', border: 'none', color: '#60a5fa', fontSize: '0.7rem', fontWeight: 'bold', padding: 0, marginTop: '6px', cursor: 'pointer' }}>
+                        🗺️ Räumplan anzeigen
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           return (
             <div key={liege.id} style={{ backgroundColor: bgCard, padding: '14px', borderRadius: '16px', border: istErledigt ? '2px solid #8cc63f' : '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', boxSizing: 'border-box' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
