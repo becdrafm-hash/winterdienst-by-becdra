@@ -14,15 +14,24 @@ import { istWochenendeOderFeiertag } from './feiertage';
 import { DWD_REGIONEN, DWD_STANDARD_REGIONEN, type DwdRegionId } from './services/dwdWetter';
 import { ermittleLiegenschaftKoordinaten } from './services/liegenschaftGeocoding';
 
+function leseGueltigeKoordinaten(liegenschaft: Pick<Liegenschaft, 'lat' | 'lon'>): { lat: number; lon: number } | null {
+  if (typeof liegenschaft.lat !== 'number'
+    || !Number.isFinite(liegenschaft.lat)
+    || liegenschaft.lat < -90
+    || liegenschaft.lat > 90
+    || typeof liegenschaft.lon !== 'number'
+    || !Number.isFinite(liegenschaft.lon)
+    || liegenschaft.lon < -180
+    || liegenschaft.lon > 180) {
+    return null;
+  }
+
+  return { lat: liegenschaft.lat, lon: liegenschaft.lon };
+}
+
 interface ArbeitszeitStatus {
   pauseBeginn: number | null;
   pausendauerMs: number;
-}
-
-function istOptionaleKoordinateGueltig(wert: string, minimum: number, maximum: number): boolean {
-  if (wert.trim() === '') return true;
-  const zahl = Number(wert);
-  return Number.isFinite(zahl) && zahl >= minimum && zahl <= maximum;
 }
 
 export default function App() {
@@ -124,8 +133,6 @@ export default function App() {
   const [selectedKundeId, setSelectedKundeId] = useState<number>(() => kunden[0]?.id || 1);
   const [neuObjName, setNeuObjName] = useState('');
   const [neuObjAddress, setNeuObjAddress] = useState('');
-  const [neuObjLat, setNeuObjLat] = useState('');
-  const [neuObjLon, setNeuObjLon] = useState('');
   const [neuObjSize, setNeuObjSize] = useState('');
   const [neuObjMaterial, setNeuObjMaterial] = useState('Salz');
   const [neuObjReihenfolge, setNeuObjReihenfolge] = useState('1');
@@ -474,18 +481,11 @@ export default function App() {
     e.preventDefault();
     if (koordinatenAbrufAktivRef.current) return;
     if (!neuObjName || !neuObjAddress || !neuObjSize) return;
-    if (!istOptionaleKoordinateGueltig(neuObjLat, -90, 90)
-      || !istOptionaleKoordinateGueltig(neuObjLon, -180, 180)) {
-      zeigeMeldung('Bitte gib gültige GPS-Koordinaten ein.');
-      return;
-    }
 
     koordinatenAbrufAktivRef.current = true;
     setKoordinatenWirdErmittelt(true);
     try {
-      const koordinaten = neuObjLat.trim() !== '' && neuObjLon.trim() !== ''
-        ? { lat: Number(neuObjLat), lon: Number(neuObjLon), quelle: 'manuell' as const }
-        : await ermittleLiegenschaftKoordinaten(neuObjAddress);
+      const koordinaten = await ermittleLiegenschaftKoordinaten(neuObjAddress);
 
       const neueLiege: Liegenschaft = {
         id: Date.now(),
@@ -504,8 +504,6 @@ export default function App() {
       setLiegenschaften([...liegenschaften, neueLiege]);
       setNeuObjName('');
       setNeuObjAddress('');
-      setNeuObjLat('');
-      setNeuObjLon('');
       setNeuObjSize('');
       setNeuObjReihenfolge('1');
       setNeuObjNurWochenendeFeiertag(false);
@@ -538,14 +536,10 @@ export default function App() {
     setKoordinatenWirdErmittelt(true);
     try {
       const adresseUnveraendert = editObjAddress.trim() === editingLiege.address.trim();
-      const vorhandeneLat = editingLiege.lat;
-      const vorhandeneLon = editingLiege.lon;
+      const vorhandeneKoordinaten = leseGueltigeKoordinaten(editingLiege);
       const koordinaten = adresseUnveraendert
-        && typeof vorhandeneLat === 'number'
-        && Number.isFinite(vorhandeneLat)
-        && typeof vorhandeneLon === 'number'
-        && Number.isFinite(vorhandeneLon)
-        ? { lat: vorhandeneLat, lon: vorhandeneLon, quelle: 'vorhanden' as const }
+        && vorhandeneKoordinaten
+        ? { ...vorhandeneKoordinaten, quelle: 'vorhanden' as const }
         : await ermittleLiegenschaftKoordinaten(editObjAddress);
 
       setLiegenschaften(liegenschaften.map(l => l.id === editingLiege.id ? {
@@ -1310,6 +1304,15 @@ export default function App() {
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Adresse</label>
               <input type="text" value={editObjAddress} onChange={e => setEditObjAddress(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+              <p role="status" style={{ fontSize: '0.7rem', color: leseGueltigeKoordinaten(editingLiege) && editObjAddress.trim() === editingLiege.address.trim() ? '#5b9b20' : textSub, margin: '4px 0 0' }}>
+                {koordinatenWirdErmittelt
+                  ? '📍 GPS-Koordinaten werden ermittelt...'
+                  : leseGueltigeKoordinaten(editingLiege) && editObjAddress.trim() === editingLiege.address.trim()
+                    ? '✓ GPS aktiv'
+                    : editObjAddress.trim() !== editingLiege.address.trim()
+                      ? '📍 GPS wird nach Adressänderung beim Speichern aktualisiert'
+                      : '📍 GPS-Koordinaten werden beim Speichern ermittelt'}
+              </p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <div>
@@ -1481,10 +1484,6 @@ export default function App() {
                 setNeuObjName={setNeuObjName}
                 neuObjAddress={neuObjAddress}
                 setNeuObjAddress={setNeuObjAddress}
-                neuObjLat={neuObjLat}
-                setNeuObjLat={setNeuObjLat}
-                neuObjLon={neuObjLon}
-                setNeuObjLon={setNeuObjLon}
                 neuObjSize={neuObjSize}
                 setNeuObjSize={setNeuObjSize}
                 neuObjMaterial={neuObjMaterial}

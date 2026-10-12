@@ -10,10 +10,6 @@ interface ObjekteTabProps {
   setNeuObjName: Dispatch<SetStateAction<string>>;
   neuObjAddress: string;
   setNeuObjAddress: Dispatch<SetStateAction<string>>;
-  neuObjLat: string;
-  setNeuObjLat: Dispatch<SetStateAction<string>>;
-  neuObjLon: string;
-  setNeuObjLon: Dispatch<SetStateAction<string>>;
   neuObjSize: string;
   setNeuObjSize: Dispatch<SetStateAction<string>>;
   neuObjMaterial: string;
@@ -45,10 +41,6 @@ export default function ObjekteTab({
   setNeuObjName,
   neuObjAddress,
   setNeuObjAddress,
-  neuObjLat,
-  setNeuObjLat,
-  neuObjLon,
-  setNeuObjLon,
   neuObjSize,
   setNeuObjSize,
   neuObjMaterial,
@@ -79,12 +71,21 @@ export default function ObjekteTab({
         ) : (
           liegenschaften.map(liege => {
             const zugehKunde = kunden.find(k => k.id === liege.kundeId);
+            const gpsAktiv = typeof liege.lat === 'number'
+              && Number.isFinite(liege.lat)
+              && liege.lat >= -90
+              && liege.lat <= 90
+              && typeof liege.lon === 'number'
+              && Number.isFinite(liege.lon)
+              && liege.lon >= -180
+              && liege.lon <= 180;
             return (
               <div key={liege.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '12px', borderRadius: '8px', border: '1px solid ' + borderCard }}>
                 <div>
                   <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#8cc63f' }}>{zugehKunde?.firma || 'Kein Kunde'}</div>
                   <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textApp }}>{liege.name} (#{liege.reihenfolge})</div>
                   <div style={{ fontSize: '0.75rem', color: textSub }}>{liege.address} • {liege.size} m²</div>
+                  {gpsAktiv && <div style={{ fontSize: '0.7rem', color: '#5b9b20', marginTop: '3px' }}>✓ GPS aktiv</div>}
                 </div>
                 <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                   <button onClick={() => startEditLiege(liege)} style={{ flex: 1, backgroundColor: darkMode ? '#20252a' : '#ffffff', border: '1px solid ' + borderCard, padding: '12px', borderRadius: '8px', cursor: 'pointer', color: textApp, fontSize: '0.9rem', fontWeight: 'bold' }}>✏️ Bearbeiten</button>
@@ -112,16 +113,6 @@ export default function ObjekteTab({
           <div>
             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Adresse (für Waze)</label>
             <input type="text" value={neuObjAddress} onChange={e => setNeuObjAddress(e.target.value)} required placeholder="Musterstr. 5, Rees" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Breitengrad (Lat, optional)</label>
-              <input type="number" min="-90" max="90" step="any" value={neuObjLat} onChange={e => setNeuObjLat(e.target.value)} placeholder="51.7580" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem', boxSizing: 'border-box' }} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Längengrad (Lon, optional)</label>
-              <input type="number" min="-180" max="180" step="any" value={neuObjLon} onChange={e => setNeuObjLon(e.target.value)} placeholder="6.4010" style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem', boxSizing: 'border-box' }} />
-            </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
             <div>
