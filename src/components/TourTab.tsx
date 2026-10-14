@@ -4,6 +4,7 @@ import { istWochenendeOderFeiertag } from '../feiertage';
 import DwdWetterBanner from './DwdWetterBanner';
 import type { DwdRegionId } from '../services/dwdWetter';
 import { optimiereTour } from '../utils/routeOptimizer';
+import { datumAlsIso, formatiereSaisonDatum, liegtImBetreuungszeitraum } from '../utils/saisonZeitraum';
 
 interface TourLiegenschaft {
   kunde: Kunde | undefined;
@@ -42,7 +43,7 @@ export default function TourTab({
   startEinsatzMitWaze
 }: TourTabProps) {
   const [jetzt, setJetzt] = useState(() => new Date());
-  const [ausgeklappteWochenendObjekte, setAusgeklappteWochenendObjekte] = useState<Set<number>>(() => new Set());
+  const [ausgeklappteInaktiveObjekte, setAusgeklappteInaktiveObjekte] = useState<Set<number>>(() => new Set());
 
   useEffect(() => {
     const naechsteMinute = 60_000 - (Date.now() % 60_000);
@@ -51,16 +52,27 @@ export default function TourTab({
   }, [jetzt]);
 
   const wochenendModusAktiv = istWochenendeOderFeiertag(jetzt);
-  const anzahlMitKoordinaten = alleLiegenschaftenSortiert.filter(
+  const heuteIso = datumAlsIso(jetzt);
+  const heutigeAktiveObjekte = alleLiegenschaftenSortiert.filter(({ liege }) =>
+    liegtImBetreuungszeitraum(liege, heuteIso)
+    && (!liege.nurWochenendeFeiertag || wochenendModusAktiv)
+  );
+  const anzahlHeuteAktiveObjekte = heutigeAktiveObjekte.length;
+  const anzahlMitKoordinaten = heutigeAktiveObjekte.filter(
     ({ liege }) => typeof liege.lat === 'number'
       && Number.isFinite(liege.lat)
       && typeof liege.lon === 'number'
       && Number.isFinite(liege.lon)
   ).length;
   const optimiereRouteUndMelde = () => {
+    if (anzahlMitKoordinaten < 2) {
+      zeigeMeldung('Für die GPS-Optimierung werden mindestens zwei heute aktive Liegenschaften mit Koordinaten benötigt.');
+      return;
+    }
+
     try {
       const optimierteRoute = optimiereTour(
-        alleLiegenschaftenSortiert.map(item => ({ ...item.liege, tourItem: item }))
+        heutigeAktiveObjekte.map(item => ({ ...item.liege, tourItem: item }))
       ).map(({ tourItem }) => tourItem);
       zeigeMeldung(onOptimizeRoute(optimierteRoute));
     } catch (error) {
@@ -88,15 +100,15 @@ export default function TourTab({
         <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
           <button
             onClick={optimiereRouteUndMelde}
-            title={anzahlMitKoordinaten < 2 ? 'Mindestens zwei Liegenschaften mit GPS-Koordinaten erforderlich.' : undefined}
+            title={anzahlMitKoordinaten < 2 ? 'Mindestens zwei heute aktive Liegenschaften mit GPS-Koordinaten erforderlich.' : undefined}
             style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}
           >
             🧭 Route optimieren (GPS)
           </button>
         </div>
-        {anzahlMitKoordinaten < alleLiegenschaftenSortiert.length && anzahlMitKoordinaten > 0 && (
+        {anzahlMitKoordinaten < anzahlHeuteAktiveObjekte && anzahlMitKoordinaten > 0 && (
           <p style={{ color: textSub, fontSize: '0.7rem', margin: 0 }}>
-            Liegenschaften ohne GPS-Koordinaten bleiben am Ende der Tour.
+            Heute aktive Liegenschaften ohne GPS-Koordinaten bleiben am Ende der Tour.
           </p>
         )}
       </div>
@@ -109,8 +121,11 @@ export default function TourTab({
         alleLiegenschaftenSortiert.map(({ kunde, liege }) => {
           const istErledigt = isObjektErledigtVorKurzem(liege.name);
           const nurWochenende = liege.nurWochenendeFeiertag === true;
-          const kompaktAnzeigen = nurWochenende && !wochenendModusAktiv;
-          const ausgeklappt = ausgeklappteWochenendObjekte.has(liege.id);
+          const vorSaison = Boolean(liege.saisonStart && heuteIso < liege.saisonStart);
+          const saisonInaktiv = !liegtImBetreuungszeitraum(liege, heuteIso);
+          const nurWochenendeInaktiv = nurWochenende && !wochenendModusAktiv;
+          const kompaktAnzeigen = saisonInaktiv || nurWochenendeInaktiv;
+          const ausgeklappt = ausgeklappteInaktiveObjekte.has(liege.id);
 
           if (kompaktAnzeigen) {
             return (
@@ -118,7 +133,7 @@ export default function TourTab({
                 <button
                   type="button"
                   aria-expanded={ausgeklappt}
-                  onClick={() => setAusgeklappteWochenendObjekte(vorherige => {
+                  onClick={() => setAusgeklappteInaktiveObjekte(vorherige => {
                     const naechste = new Set(vorherige);
                     if (naechste.has(liege.id)) naechste.delete(liege.id);
                     else naechste.add(liege.id);
@@ -128,17 +143,30 @@ export default function TourTab({
                 >
                   <span aria-hidden="true" style={{ flexShrink: 0, fontSize: '0.85rem' }}>📅</span>
                   <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.8rem', fontWeight: 600 }}>{liege.name}</span>
-                  <span style={{ flexShrink: 0, fontSize: '0.65rem', backgroundColor: darkMode ? '#292d31' : '#e5e7eb', padding: '3px 6px', borderRadius: '5px', fontWeight: 600 }}>Nur Sa/So/Feiertag</span>
+                  {saisonInaktiv && (
+                    <span style={{ flexShrink: 0, fontSize: '0.62rem', backgroundColor: darkMode ? '#292d31' : '#e5e7eb', padding: '3px 6px', borderRadius: '5px', fontWeight: 600 }}>
+                      {vorSaison
+                        ? `📅 Aktiv ab ${formatiereSaisonDatum(liege.saisonStart)}`
+                        : `📅 Zeitraum: ${formatiereSaisonDatum(liege.saisonStart)} – ${formatiereSaisonDatum(liege.saisonEnde)}`}
+                    </span>
+                  )}
+                  {nurWochenendeInaktiv && <span style={{ flexShrink: 0, fontSize: '0.62rem', backgroundColor: darkMode ? '#292d31' : '#e5e7eb', padding: '3px 6px', borderRadius: '5px', fontWeight: 600 }}>Nur Sa/So/Feiertag</span>}
                   <span aria-hidden="true" style={{ flexShrink: 0, fontSize: '0.75rem' }}>{ausgeklappt ? '▲' : '▼'}</span>
                 </button>
                 {ausgeklappt && (
                   <div style={{ backgroundColor: darkMode ? '#1b1e21' : '#f1f3f5', color: textSub, padding: '12px', border: '1px solid ' + borderCard, borderTop: 'none', borderRadius: '0 0 10px 10px', opacity: 0.88 }}>
                     <div style={{ fontSize: '0.7rem', fontWeight: 'bold', marginBottom: '4px' }}>{kunde?.firma || 'Unbekannter Kunde'}</div>
                     <p style={{ fontSize: '0.75rem', lineHeight: 1.4, margin: 0, overflowWrap: 'anywhere' }}>{liege.address} • {liege.size} m²</p>
-                    <p style={{ fontSize: '0.7rem', margin: '8px 0 0', fontStyle: 'italic' }}>Dieses Objekt wird an Wochenenden und Feiertagen in der Tour angezeigt.</p>
+                    {saisonInaktiv && <p style={{ fontSize: '0.7rem', margin: '8px 0 0', fontStyle: 'italic' }}>Betreuungszeitraum: {formatiereSaisonDatum(liege.saisonStart)} – {formatiereSaisonDatum(liege.saisonEnde)}.</p>}
+                    {nurWochenendeInaktiv && <p style={{ fontSize: '0.7rem', margin: '8px 0 0', fontStyle: 'italic' }}>Dieses Objekt wird an Wochenenden und Feiertagen in der Tour angezeigt.</p>}
                     {liege.raeumPlan && (
                       <button onClick={() => oeffneRaeumPlanAnsicht(liege.raeumPlan)} style={{ background: 'none', border: 'none', color: '#60a5fa', fontSize: '0.7rem', fontWeight: 'bold', padding: 0, marginTop: '6px', cursor: 'pointer' }}>
                         🗺️ Räumplan anzeigen
+                      </button>
+                    )}
+                    {kunde && (
+                      <button onClick={() => startEinsatzMitWaze(kunde, liege)} style={{ display: 'block', width: '100%', backgroundColor: '#8cc63f', color: '#111827', padding: '9px', borderRadius: '7px', fontWeight: 'bold', fontSize: '0.78rem', border: 'none', cursor: 'pointer', marginTop: '10px' }}>
+                        🚗 Trotzdem Einsatz starten
                       </button>
                     )}
                   </div>

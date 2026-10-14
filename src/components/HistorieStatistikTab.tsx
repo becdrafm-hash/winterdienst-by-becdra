@@ -45,6 +45,10 @@ interface HistorieStatistikTabProps {
   deleteHistoryItem: (id: number) => void;
   saisonArchivieren: () => void;
   setSaisonName: Dispatch<SetStateAction<string>>;
+  saisonVon: string;
+  setSaisonVon: Dispatch<SetStateAction<string>>;
+  saisonBis: string;
+  setSaisonBis: Dispatch<SetStateAction<string>>;
 }
 
 export default function HistorieStatistikTab({
@@ -65,7 +69,11 @@ export default function HistorieStatistikTab({
   druckeEinsatzBericht,
   deleteHistoryItem,
   saisonArchivieren,
-  setSaisonName
+  setSaisonName,
+  saisonVon,
+  setSaisonVon,
+  saisonBis,
+  setSaisonBis
 }: HistorieStatistikTabProps) {
   const [unterTab, setUnterTab] = useState<UnterTab>('heute');
   const [alleVerlaufseintraegeAnzeigen, setAlleVerlaufseintraegeAnzeigen] = useState(false);
@@ -270,6 +278,16 @@ export default function HistorieStatistikTab({
               Saisonbezeichnung
               <input type="text" value={saisonName} onChange={event => setSaisonName(event.target.value)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: '4px', padding: '9px', borderRadius: '7px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
             </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: textSub }}>
+                Saison von
+                <input type="date" value={saisonVon} onChange={event => setSaisonVon(event.target.value)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: '4px', padding: '9px', borderRadius: '7px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.78rem' }} />
+              </label>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: textSub }}>
+                Saison bis
+                <input type="date" value={saisonBis} onChange={event => setSaisonBis(event.target.value)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: '4px', padding: '9px', borderRadius: '7px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.78rem' }} />
+              </label>
+            </div>
             <button onClick={saisonArchivieren} style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
               📦 Aktuelle Saison archivieren
             </button>

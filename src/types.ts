@@ -17,6 +17,8 @@ export interface Liegenschaft {
   reihenfolge: number;
   raeumPlan?: string;
   nurWochenendeFeiertag?: boolean;
+  saisonStart?: string;
+  saisonEnde?: string;
   lat?: number;
   lon?: number;
 }

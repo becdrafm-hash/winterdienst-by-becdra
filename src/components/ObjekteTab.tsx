@@ -21,6 +21,10 @@ interface ObjekteTabProps {
   setNeuObjReihenfolge: Dispatch<SetStateAction<string>>;
   neuObjNurWochenendeFeiertag: boolean;
   setNeuObjNurWochenendeFeiertag: Dispatch<SetStateAction<boolean>>;
+  neuObjSaisonStart: string;
+  setNeuObjSaisonStart: Dispatch<SetStateAction<string>>;
+  neuObjSaisonEnde: string;
+  setNeuObjSaisonEnde: Dispatch<SetStateAction<string>>;
   neuObjRaeumPlan: string;
   streuMittelListe: readonly StreuMittelOption[];
   darkMode: boolean;
@@ -52,6 +56,10 @@ export default function ObjekteTab({
   setNeuObjReihenfolge,
   neuObjNurWochenendeFeiertag,
   setNeuObjNurWochenendeFeiertag,
+  neuObjSaisonStart,
+  setNeuObjSaisonStart,
+  neuObjSaisonEnde,
+  setNeuObjSaisonEnde,
   neuObjRaeumPlan,
   streuMittelListe,
   darkMode,
@@ -141,6 +149,35 @@ export default function ObjekteTab({
             />
             Nur am Wochenende und an Feiertagen anzeigen
           </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#f9fafb' }}>
+            <strong style={{ color: textApp, fontSize: '0.78rem' }}>📅 Betreuungszeitraum</strong>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+              <button type="button" onClick={() => {
+                const startJahr = Number(neuObjSaisonStart.slice(0, 4)) || new Date().getFullYear();
+                setNeuObjSaisonStart(`${startJahr}-11-01`);
+                setNeuObjSaisonEnde(`${startJahr + 1}-03-31`);
+              }} style={{ border: '1px solid ' + borderCard, borderRadius: '7px', padding: '8px 5px', backgroundColor: darkMode ? '#22262a' : '#ffffff', color: textApp, fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer' }}>
+                Volle Saison (01.11. – 31.03.)
+              </button>
+              <button type="button" onClick={() => {
+                const startJahr = Number(neuObjSaisonStart.slice(0, 4)) || new Date().getFullYear();
+                setNeuObjSaisonStart(`${startJahr + 1}-01-01`);
+                setNeuObjSaisonEnde(`${startJahr + 1}-03-31`);
+              }} style={{ border: '1px solid ' + borderCard, borderRadius: '7px', padding: '8px 5px', backgroundColor: darkMode ? '#22262a' : '#ffffff', color: textApp, fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer' }}>
+                Ab Januar (01.01. – 31.03.)
+              </button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <label style={{ color: textSub, fontSize: '0.7rem', fontWeight: 600 }}>
+                Aktiv von
+                <input type="date" value={neuObjSaisonStart} onChange={event => setNeuObjSaisonStart(event.target.value)} required style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: '4px', padding: '8px', borderRadius: '7px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.78rem' }} />
+              </label>
+              <label style={{ color: textSub, fontSize: '0.7rem', fontWeight: 600 }}>
+                Aktiv bis
+                <input type="date" value={neuObjSaisonEnde} onChange={event => setNeuObjSaisonEnde(event.target.value)} required style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: '4px', padding: '8px', borderRadius: '7px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.78rem' }} />
+              </label>
+            </div>
+          </div>
           <div>
             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Räumplan (Kamera oder Datei)</label>
             <div style={{ display: 'flex', gap: '6px' }}>

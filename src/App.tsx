@@ -13,9 +13,16 @@ import Navigation from './components/Navigation';
 import { DWD_REGIONEN, DWD_STANDARD_REGIONEN, type DwdRegionId } from './services/dwdWetter';
 import { ermittleLiegenschaftKoordinaten } from './services/liegenschaftGeocoding';
 import { normalisiereStreuMittelId, STREUMITTEL, type LagerBestaende, type StreuMittelId } from './constants/streuMittel';
+import { istWochenendeOderFeiertag } from './feiertage';
+import { datumAlsIso, liegtImBetreuungszeitraum } from './utils/saisonZeitraum';
 
 const LAGER_KG_MIGRATION_KEY = 'becdra_lager_kg_migration_v1';
 const LAGER_BESTAENDE_KEY = 'becdra_lager_bestaende';
+
+function ermittleStandardSaisonZeitraum(heute = new Date()): { von: string; bis: string } {
+  const startJahr = heute.getMonth() >= 9 ? heute.getFullYear() : heute.getFullYear() - 1;
+  return { von: `${startJahr}-11-01`, bis: `${startJahr + 1}-03-31` };
+}
 
 function speichereLocalStorage(schluessel: string, wert: string): boolean {
   try {
@@ -95,6 +102,7 @@ interface ArbeitszeitStatus {
 }
 
 export default function App() {
+  const standardSaison = ermittleStandardSaisonZeitraum();
   const [activeTab, setActiveTab] = useState<'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison'>('tour');
   const [mehrEinstellungenGeoeffnet, setMehrEinstellungenGeoeffnet] = useState(false);
   const [statusMeldung, setStatusMeldung] = useState<string | null>(null);
@@ -192,6 +200,12 @@ export default function App() {
   const [neuObjMaterial, setNeuObjMaterial] = useState('Salz');
   const [neuObjReihenfolge, setNeuObjReihenfolge] = useState('1');
   const [neuObjNurWochenendeFeiertag, setNeuObjNurWochenendeFeiertag] = useState(false);
+  const [neuObjSaisonStart, setNeuObjSaisonStart] = useState(() =>
+    localStorage.getItem('becdra_saison_von') || standardSaison.von
+  );
+  const [neuObjSaisonEnde, setNeuObjSaisonEnde] = useState(() =>
+    localStorage.getItem('becdra_saison_bis') || standardSaison.bis
+  );
   const [neuObjRaeumPlan, setNeuObjRaeumPlan] = useState<string>('');
 
   const [editingKundeId, setEditingKundeId] = useState<number | null>(null);
@@ -207,6 +221,8 @@ export default function App() {
   const [editObjMaterial, setEditObjMaterial] = useState('Salz');
   const [editObjReihenfolge, setEditObjReihenfolge] = useState('1');
   const [editObjNurWochenendeFeiertag, setEditObjNurWochenendeFeiertag] = useState(false);
+  const [editObjSaisonStart, setEditObjSaisonStart] = useState(standardSaison.von);
+  const [editObjSaisonEnde, setEditObjSaisonEnde] = useState(standardSaison.bis);
   const [editObjRaeumPlan, setEditObjRaeumPlan] = useState<string>('');
 
   const [activeKunde, setActiveKunde] = useState<Kunde | null>(() => {
@@ -268,8 +284,8 @@ export default function App() {
   });
 
   const [saisonName, setSaisonName] = useState('Wintersaison 2026/2027');
-  const [saisonVon] = useState('01.11.2026');
-  const [saisonBis] = useState('31.03.2027');
+  const [saisonVon, setSaisonVon] = useState(() => localStorage.getItem('becdra_saison_von') || standardSaison.von);
+  const [saisonBis, setSaisonBis] = useState(() => localStorage.getItem('becdra_saison_bis') || standardSaison.bis);
   const [archivListe, setArchivListe] = useState<SaisonArchiv[]>(() => {
     try {
       const saved = localStorage.getItem('becdra_saison_archiv');
@@ -300,6 +316,14 @@ export default function App() {
   useEffect(() => {
     speichereLocalStorage('becdra_streumittel', JSON.stringify(streuMittelListe));
   }, [streuMittelListe]);
+
+  useEffect(() => {
+    speichereLocalStorage('becdra_saison_von', saisonVon);
+  }, [saisonVon]);
+
+  useEffect(() => {
+    speichereLocalStorage('becdra_saison_bis', saisonBis);
+  }, [saisonBis]);
 
   useEffect(() => {
     const gespeicherteHistorie = [...history];
@@ -647,6 +671,10 @@ export default function App() {
     e.preventDefault();
     if (koordinatenAbrufAktivRef.current) return;
     if (!neuObjName || !neuObjAddress || !neuObjSize) return;
+    if (!neuObjSaisonStart || !neuObjSaisonEnde || neuObjSaisonStart > neuObjSaisonEnde) {
+      zeigeMeldung('Das Saisonende muss am oder nach dem Saisonstart liegen.');
+      return;
+    }
 
     koordinatenAbrufAktivRef.current = true;
     setKoordinatenWirdErmittelt(true);
@@ -662,6 +690,8 @@ export default function App() {
         material: neuObjMaterial,
         reihenfolge: Number(neuObjReihenfolge) || 1,
         nurWochenendeFeiertag: neuObjNurWochenendeFeiertag,
+        saisonStart: neuObjSaisonStart,
+        saisonEnde: neuObjSaisonEnde,
         lat: koordinaten.lat,
         lon: koordinaten.lon,
         raeumPlan: neuObjRaeumPlan || undefined
@@ -673,6 +703,8 @@ export default function App() {
       setNeuObjSize('');
       setNeuObjReihenfolge('1');
       setNeuObjNurWochenendeFeiertag(false);
+      setNeuObjSaisonStart(saisonVon);
+      setNeuObjSaisonEnde(saisonBis);
       setNeuObjRaeumPlan('');
       zeigeMeldung(koordinaten.quelle === 'regionaler-fallback'
         ? `Liegenschaft hinzugefügt; Geocoding fehlgeschlagen (${koordinaten.grund}). Näherungskoordinaten für ${koordinaten.region} verwendet.`
@@ -691,12 +723,18 @@ export default function App() {
     setEditObjMaterial(normalisiereStreuMittelId(liege.material));
     setEditObjReihenfolge(liege.reihenfolge ? liege.reihenfolge.toString() : '1');
     setEditObjNurWochenendeFeiertag(liege.nurWochenendeFeiertag === true);
+    setEditObjSaisonStart(liege.saisonStart || saisonVon);
+    setEditObjSaisonEnde(liege.saisonEnde || saisonBis);
     setEditObjRaeumPlan(liege.raeumPlan || '');
   };
 
   const saveEditLiege = async () => {
     if (!editingLiege) return;
     if (koordinatenAbrufAktivRef.current) return;
+    if (!editObjSaisonStart || !editObjSaisonEnde || editObjSaisonStart > editObjSaisonEnde) {
+      zeigeMeldung('Das Saisonende muss am oder nach dem Saisonstart liegen.');
+      return;
+    }
 
     koordinatenAbrufAktivRef.current = true;
     setKoordinatenWirdErmittelt(true);
@@ -716,6 +754,8 @@ export default function App() {
         material: editObjMaterial,
         reihenfolge: Number(editObjReihenfolge) || 1,
         nurWochenendeFeiertag: editObjNurWochenendeFeiertag,
+        saisonStart: editObjSaisonStart,
+        saisonEnde: editObjSaisonEnde,
         lat: koordinaten.lat,
         lon: koordinaten.lon,
         raeumPlan: editObjRaeumPlan || undefined
@@ -1202,9 +1242,21 @@ export default function App() {
     setHistory(prev => [newLog, ...prev]);
 
     const kundeId = activeKunde.id;
-    const heuteDatum = new Date().toLocaleDateString('de-DE');
+    const jetzt = new Date();
+    const heuteDatum = jetzt.toLocaleDateString('de-DE');
+    const heuteIso = datumAlsIso(jetzt);
+    const kundenLiegenAktiv = liegenschaften.filter(liege =>
+      liege.kundeId === kundeId
+      && liegtImBetreuungszeitraum(liege, heuteIso)
+      && (!liege.nurWochenendeFeiertag || istWochenendeOderFeiertag(jetzt))
+    );
+    const aktiveObjektnamen = new Set(kundenLiegenAktiv.map(liege => liege.name));
     const heutigeEinsaetzeDesKunden = [...history, newLog]
-      .filter(einsatz => einsatz.kundeName === activeKunde.firma && einsatz.date.startsWith(heuteDatum))
+      .filter(einsatz =>
+        einsatz.kundeName === activeKunde.firma
+        && einsatz.date.startsWith(heuteDatum)
+        && aktiveObjektnamen.has(einsatz.objName)
+      )
       .map(einsatz => {
         const liegenschaft = liegenschaften.find(
           liege => liege.kundeId === kundeId && liege.name === einsatz.objName
@@ -1217,8 +1269,7 @@ export default function App() {
         };
       });
 
-    const kundenLiegen = liegenschaften.filter(l => l.kundeId === kundeId);
-    const alleObjekteDesKundenNamen = kundenLiegen.map(l => l.name);
+    const alleObjekteDesKundenNamen = kundenLiegenAktiv.map(l => l.name);
     const erledigteObjekteNamen = heutigeEinsaetzeDesKunden.map(einsatz => einsatz.name);
     const alleErledigt = alleObjekteDesKundenNamen.every(name => erledigteObjekteNamen.includes(name));
 
@@ -1330,9 +1381,11 @@ export default function App() {
       return 'Für die GPS-Optimierung werden mindestens zwei Stopps mit Koordinaten benötigt.';
     }
 
-    const bisherigeReihenfolge = [...liegenschaften]
-      .sort((a, b) => (a.reihenfolge || 1) - (b.reihenfolge || 1))
-      .map(liege => liege.id);
+    const aktiveIds = new Set(route.map(({ liege }) => liege.id));
+    const bisherigeAktiveLiegenschaften = [...liegenschaften]
+      .filter(liege => aktiveIds.has(liege.id))
+      .sort((a, b) => (a.reihenfolge || 1) - (b.reihenfolge || 1));
+    const bisherigeReihenfolge = bisherigeAktiveLiegenschaften.map(liege => liege.id);
     const optimierteReihenfolge = route.map(({ liege }) => liege.id);
     const geaenderteStopps = optimierteReihenfolge.reduce(
       (anzahl, liegeId, index) => anzahl + (bisherigeReihenfolge[index] === liegeId ? 0 : 1),
@@ -1342,7 +1395,10 @@ export default function App() {
       return 'Die Tour ist bereits optimal sortiert!';
     }
 
-    const neueReihenfolge = new Map(route.map(({ liege }, index) => [liege.id, index + 1]));
+    const reihenfolgePlaetze = bisherigeAktiveLiegenschaften.map(liege => liege.reihenfolge || 1);
+    const neueReihenfolge = new Map(
+      optimierteReihenfolge.map((liegeId, index) => [liegeId, reihenfolgePlaetze[index]])
+    );
     setLiegenschaften(vorherige =>
       vorherige.map(liege => {
         const reihenfolge = neueReihenfolge.get(liege.id);
@@ -1355,6 +1411,10 @@ export default function App() {
   const saisonArchivieren = () => {
     if (history.length === 0) {
       zeigeMeldung('Keine Einsätze in der Historie vorhanden.');
+      return;
+    }
+    if (!saisonVon || !saisonBis || saisonVon > saisonBis) {
+      zeigeMeldung('Bitte einen gültigen allgemeinen Saison-Zeitraum festlegen.');
       return;
     }
 
@@ -1523,6 +1583,35 @@ export default function App() {
               />
               Nur am Wochenende und an Feiertagen anzeigen
             </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#f9fafb' }}>
+              <strong style={{ color: textApp, fontSize: '0.78rem' }}>📅 Betreuungszeitraum</strong>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                <button type="button" onClick={() => {
+                  const startJahr = Number(editObjSaisonStart.slice(0, 4)) || new Date().getFullYear();
+                  setEditObjSaisonStart(`${startJahr}-11-01`);
+                  setEditObjSaisonEnde(`${startJahr + 1}-03-31`);
+                }} style={{ border: '1px solid ' + borderCard, borderRadius: '7px', padding: '8px 5px', backgroundColor: darkMode ? '#22262a' : '#ffffff', color: textApp, fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer' }}>
+                  Volle Saison (01.11. – 31.03.)
+                </button>
+                <button type="button" onClick={() => {
+                  const startJahr = Number(editObjSaisonStart.slice(0, 4)) || new Date().getFullYear();
+                  setEditObjSaisonStart(`${startJahr + 1}-01-01`);
+                  setEditObjSaisonEnde(`${startJahr + 1}-03-31`);
+                }} style={{ border: '1px solid ' + borderCard, borderRadius: '7px', padding: '8px 5px', backgroundColor: darkMode ? '#22262a' : '#ffffff', color: textApp, fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer' }}>
+                  Ab Januar (01.01. – 31.03.)
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <label style={{ color: textSub, fontSize: '0.7rem', fontWeight: 600 }}>
+                  Aktiv von
+                  <input type="date" value={editObjSaisonStart} onChange={event => setEditObjSaisonStart(event.target.value)} required style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: '4px', padding: '8px', borderRadius: '7px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.78rem' }} />
+                </label>
+                <label style={{ color: textSub, fontSize: '0.7rem', fontWeight: 600 }}>
+                  Aktiv bis
+                  <input type="date" value={editObjSaisonEnde} onChange={event => setEditObjSaisonEnde(event.target.value)} required style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: '4px', padding: '8px', borderRadius: '7px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.78rem' }} />
+                </label>
+              </div>
+            </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, marginBottom: '2px' }}>Räumplan (Nachträglich hinzufügen / ändern)</label>
               <div style={{ display: 'flex', gap: '6px' }}>
@@ -1678,6 +1767,10 @@ export default function App() {
                 setNeuObjReihenfolge={setNeuObjReihenfolge}
                 neuObjNurWochenendeFeiertag={neuObjNurWochenendeFeiertag}
                 setNeuObjNurWochenendeFeiertag={setNeuObjNurWochenendeFeiertag}
+                neuObjSaisonStart={neuObjSaisonStart}
+                setNeuObjSaisonStart={setNeuObjSaisonStart}
+                neuObjSaisonEnde={neuObjSaisonEnde}
+                setNeuObjSaisonEnde={setNeuObjSaisonEnde}
                 neuObjRaeumPlan={neuObjRaeumPlan}
                 streuMittelListe={streuMittelListe}
                 darkMode={darkMode}
@@ -1790,6 +1883,10 @@ export default function App() {
                 deleteHistoryItem={deleteHistoryItem}
                 saisonArchivieren={saisonArchivieren}
                 setSaisonName={setSaisonName}
+                saisonVon={saisonVon}
+                setSaisonVon={setSaisonVon}
+                saisonBis={saisonBis}
+                setSaisonBis={setSaisonBis}
               />
             )}
           </>
