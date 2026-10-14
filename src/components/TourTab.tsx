@@ -25,6 +25,7 @@ interface TourTabProps {
   isObjektErledigtVorKurzem: (objName: string) => boolean;
   oeffneRaeumPlanAnsicht: (planUrl?: string) => void;
   startEinsatzMitWaze: (kunde: Kunde, obj: Liegenschaft) => void;
+  onNotfallSammelInfo: () => void;
 }
 
 export default function TourTab({
@@ -40,7 +41,8 @@ export default function TourTab({
   bgCard,
   isObjektErledigtVorKurzem,
   oeffneRaeumPlanAnsicht,
-  startEinsatzMitWaze
+  startEinsatzMitWaze,
+  onNotfallSammelInfo
 }: TourTabProps) {
   const [jetzt, setJetzt] = useState(() => new Date());
   const [ausgeklappteInaktiveObjekte, setAusgeklappteInaktiveObjekte] = useState<Set<number>>(() => new Set());
@@ -106,6 +108,13 @@ export default function TourTab({
             🧭 Route optimieren (GPS)
           </button>
         </div>
+        <button
+          type="button"
+          onClick={onNotfallSammelInfo}
+          style={{ alignSelf: 'flex-start', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#22262a' : '#ffffff', color: textSub, padding: '7px 9px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+        >
+          🚨 Sammel-Info an alle heutigen Kunden
+        </button>
         {anzahlMitKoordinaten < anzahlHeuteAktiveObjekte && anzahlMitKoordinaten > 0 && (
           <p style={{ color: textSub, fontSize: '0.7rem', margin: 0 }}>
             Heute aktive Liegenschaften ohne GPS-Koordinaten bleiben am Ende der Tour.

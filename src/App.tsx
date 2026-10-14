@@ -1279,6 +1279,8 @@ export default function App() {
       materialVerbrauchEinheit: materialInfo.einheit,
       kmGefahren: `${kmNum} km`,
       spritKosten: `${berechneteSpritKosten.toFixed(2)} €`,
+      verbrauchAuf100Km: Number(verbrauchAuf100Km) || 0,
+      spritPreisProLiter: Number(spritPreisProLiter) || 1.80,
       fotoName: aufgenommenesFoto || undefined,
       fotoUrl: aufgenommenesFotoUrl || undefined,
       hindernisInfo: hindernisNotiz ? hindernisNotiz : undefined,
@@ -1404,6 +1406,65 @@ export default function App() {
     } else {
       zeigeMeldung('Einsatz erfolgreich gespeichert!');
     }
+  };
+
+  const oeffneNotfallSammelInfo = () => {
+    const jetzt = new Date();
+    const heuteIso = datumAlsIso(jetzt);
+    const kundenIdsHeute = new Set(
+      liegenschaften
+        .filter(liege =>
+          liegtImBetreuungszeitraum(liege, heuteIso)
+          && (!liege.nurWochenendeFeiertag || istWochenendeOderFeiertag(jetzt))
+        )
+        .map(liege => liege.kundeId)
+    );
+    const anzahlKundenHeute = kunden.filter(kunde => kundenIdsHeute.has(kunde.id)).length;
+    if (anzahlKundenHeute === 0) {
+      zeigeMeldung('Für heute sind keine aktiven Kunden-Liegenschaften hinterlegt.');
+      return;
+    }
+
+    const vorlagen = [
+      'Witterungsbedingt im Noteinsatz – Verzögerung auf der Tour',
+      'Schwerer Wetterumsturz – Zweiter Durchgang startet'
+    ];
+    const bereiteVorlageVor = (vorlage: string) => {
+      const text = `🚨 Wichtige Information zum Winterdienst\n\n${vorlage}\n\nWir informieren Sie, sobald es Neuigkeiten gibt.\n\nBecdra FM`;
+      const clipboardPromise = navigator.clipboard
+        ? navigator.clipboard.writeText(text)
+        : Promise.reject(new Error('Die Zwischenablage ist in diesem Browser nicht verfügbar.'));
+
+      if (typeof navigator.share === 'function') {
+        void navigator.share({ title: 'Winterdienst – Sammel-Info', text }).catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === 'AbortError') return;
+          console.error('Notfall-Sammelinfo konnte nicht über die Teilen-Auswahl geöffnet werden:', error);
+          window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+        });
+      } else {
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+      }
+
+      void clipboardPromise.then(() => {
+        zeigeMeldung(`Notfalltext kopiert. WhatsApp-Teilen für ${anzahlKundenHeute} heutige Kunden ist vorbereitet – Empfänger bitte auswählen.`);
+      }).catch((error: unknown) => {
+        console.error('Notfalltext konnte nicht in die Zwischenablage kopiert werden:', error);
+        zeigeMeldung('WhatsApp-Teilen ist vorbereitet, aber der Text konnte nicht kopiert werden.');
+      });
+      setDialogConfig(prev => ({ ...prev, visible: false }));
+    };
+
+    setDialogConfig({
+      visible: true,
+      titel: '🚨 Sammel-Info an heutige Kunden',
+      text: `${anzahlKundenHeute} Kunden haben heute aktive Liegenschaften. Wähle eine Vorlage; der Text wird kopiert und die WhatsApp-Teilen-Auswahl geöffnet. Empfänger musst du dort bestätigen.`,
+      confirmText: vorlagen[0],
+      secondaryText: vorlagen[1],
+      cancelText: 'Abbrechen',
+      onConfirm: () => bereiteVorlageVor(vorlagen[0]),
+      onSecondary: () => bereiteVorlageVor(vorlagen[1]),
+      onCancel: () => setDialogConfig(prev => ({ ...prev, visible: false }))
+    });
   };
 
   const uebernehmeOptimierteRoute = (route: { kunde: Kunde | undefined; liege: Liegenschaft }[]): string => {
@@ -1748,6 +1809,7 @@ export default function App() {
                 isObjektErledigtVorKurzem={isObjektErledigtVorKurzem}
                 oeffneRaeumPlanAnsicht={oeffneRaeumPlanAnsicht}
                 startEinsatzMitWaze={startEinsatzMitWaze}
+                onNotfallSammelInfo={oeffneNotfallSammelInfo}
               />
             )}
 
@@ -1923,6 +1985,8 @@ export default function App() {
                 setSaisonVon={setSaisonVon}
                 saisonBis={saisonBis}
                 setSaisonBis={setSaisonBis}
+                verbrauchAuf100Km={Number(verbrauchAuf100Km) || 0}
+                spritPreisProLiter={Number(spritPreisProLiter) || 1.80}
               />
             )}
           </>

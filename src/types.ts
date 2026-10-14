@@ -47,6 +47,8 @@ export interface EinsatzLog {
   materialVerbrauchEinheit?: string;
   kmGefahren: string;
   spritKosten: string;
+  verbrauchAuf100Km?: number;
+  spritPreisProLiter?: number;
   fotoName?: string;
   fotoUrl?: string;
   hindernisInfo?: string;
@@ -66,4 +68,15 @@ export interface SaisonArchiv {
   gesamtMaterialKg?: number;
   gesamtKm: number;
   gesamtSprit: number;
+}
+
+export interface EinsatzKostenAnalyse {
+  kundeName: string;
+  objName: string;
+  anzahlEinsaetze: number;
+  kilometer: number;
+  spritKosten: number;
+  materialKg: number;
+  materialLiter: number;
+  saecke: number;
 }

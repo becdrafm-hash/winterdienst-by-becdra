@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
-import type { EinsatzLog, SaisonArchiv } from '../types';
+import type { EinsatzKostenAnalyse, EinsatzLog, SaisonArchiv } from '../types';
 
 type AppTab = 'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison';
 type StatistikWerte = { anzahl: number; km: number; sprit: string; materialKg: number };
@@ -49,6 +49,8 @@ interface HistorieStatistikTabProps {
   setSaisonVon: Dispatch<SetStateAction<string>>;
   saisonBis: string;
   setSaisonBis: Dispatch<SetStateAction<string>>;
+  verbrauchAuf100Km: number;
+  spritPreisProLiter: number;
 }
 
 export default function HistorieStatistikTab({
@@ -73,7 +75,9 @@ export default function HistorieStatistikTab({
   saisonVon,
   setSaisonVon,
   saisonBis,
-  setSaisonBis
+  setSaisonBis,
+  verbrauchAuf100Km,
+  spritPreisProLiter
 }: HistorieStatistikTabProps) {
   const [unterTab, setUnterTab] = useState<UnterTab>('heute');
   const [alleVerlaufseintraegeAnzeigen, setAlleVerlaufseintraegeAnzeigen] = useState(false);
@@ -84,6 +88,45 @@ export default function HistorieStatistikTab({
     .filter(einsatz => !heutigeIds.has(einsatz.id))
     .sort((a, b) => b.timestamp - a.timestamp);
   const sichtbarerVerlauf = alleVerlaufseintraegeAnzeigen ? verlauf : verlauf.slice(0, 10);
+  const alleEinsaetze = (() => {
+    const einsaetzeNachId = new Map<number, EinsatzLog>();
+    [...history, ...archivListe.flatMap(archiv => archiv.einsätze)]
+      .forEach(einsatz => einsaetzeNachId.set(einsatz.id, einsatz));
+    return [...einsaetzeNachId.values()];
+  })();
+  const kostenAnalyse = alleEinsaetze.reduce<EinsatzKostenAnalyse[]>((auswertung, einsatz) => {
+    const kilometer = Number.parseFloat(einsatz.kmGefahren.replace(',', '.')) || 0;
+    const verbrauch = materialverbrauch(einsatz);
+    const verbrauchJe100Km = einsatz.verbrauchAuf100Km ?? verbrauchAuf100Km;
+    const preisProLiter = einsatz.spritPreisProLiter ?? spritPreisProLiter;
+    let objekt = auswertung.find(wert => wert.kundeName === einsatz.kundeName && wert.objName === einsatz.objName);
+    if (!objekt) {
+      objekt = {
+        kundeName: einsatz.kundeName,
+        objName: einsatz.objName,
+        anzahlEinsaetze: 0,
+        kilometer: 0,
+        spritKosten: 0,
+        materialKg: 0,
+        materialLiter: 0,
+        saecke: 0
+      };
+      auswertung.push(objekt);
+    }
+    objekt.anzahlEinsaetze += 1;
+    objekt.kilometer += kilometer;
+    objekt.spritKosten += kilometer * Math.max(0, verbrauchJe100Km) / 100 * Math.max(0, preisProLiter);
+    if (verbrauch?.einheit.toLowerCase() === 'liter') {
+      objekt.materialLiter += verbrauch.menge;
+    } else if (verbrauch) {
+      objekt.materialKg += verbrauch.menge;
+      objekt.saecke += verbrauch.menge / 25;
+    }
+    return auswertung;
+  }, []).sort((a, b) =>
+    a.kundeName.localeCompare(b.kundeName, 'de') || a.objName.localeCompare(b.objName, 'de')
+  );
+  const saisonHinweisAnzeigen = new Date().getMonth() >= 3 && history.length > 0;
   const ausgewaehltesArchiv = archivListe.find(archiv => archiv.id === ausgewaehltesArchivId) ?? null;
   const archivVerbrauchNachEinheit = ausgewaehltesArchiv?.einsätze.reduce<Record<string, number>>((summen, einsatz) => {
     const verbrauch = materialverbrauch(einsatz);
@@ -234,6 +277,45 @@ export default function HistorieStatistikTab({
               <div>Streumittel: <b>{gesamtStat.materialKg.toLocaleString('de-DE')} kg</b></div>
             </div>
           </section>
+          <section style={{ backgroundColor: bgCard, padding: '14px', borderRadius: '14px', border: '1px solid ' + borderCard, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <h2 style={{ fontSize: '0.95rem', fontWeight: 'bold', margin: 0, color: textApp }}>💶 Kosten nach Kunde & Liegenschaft</h2>
+            <p style={{ color: textSub, fontSize: '0.7rem', lineHeight: 1.4, margin: 0 }}>
+              Spritkosten werden aus Strecke, Verbrauch und Spritpreis berechnet. Bei neuen Einträgen gelten die zum Einsatzzeitpunkt gespeicherten Werte; ältere Einträge verwenden die aktuellen Einstellungen. Streumittel wird zusätzlich als Sack-Äquivalent (25 kg) ausgewiesen.
+            </p>
+            {kostenAnalyse.length === 0 ? (
+              <p style={{ color: textSub, fontSize: '0.78rem', margin: 0 }}>Noch keine Einsatzdaten für eine Kostenanalyse vorhanden.</p>
+            ) : (
+              [...new Set(kostenAnalyse.map(eintrag => eintrag.kundeName))].map(kundeName => {
+                const kundenWerte = kostenAnalyse.filter(eintrag => eintrag.kundeName === kundeName);
+                const einsaetze = kundenWerte.reduce((summe, eintrag) => summe + eintrag.anzahlEinsaetze, 0);
+                const kilometer = kundenWerte.reduce((summe, eintrag) => summe + eintrag.kilometer, 0);
+                const spritkosten = kundenWerte.reduce((summe, eintrag) => summe + eintrag.spritKosten, 0);
+                const materialKg = kundenWerte.reduce((summe, eintrag) => summe + eintrag.materialKg, 0);
+                const saecke = kundenWerte.reduce((summe, eintrag) => summe + eintrag.saecke, 0);
+                const liter = kundenWerte.reduce((summe, eintrag) => summe + eintrag.materialLiter, 0);
+                return (
+                  <details key={kundeName} style={{ border: '1px solid ' + borderCard, borderRadius: '9px', padding: '9px', backgroundColor: darkMode ? '#14171a' : '#f9fafb' }}>
+                    <summary style={{ cursor: 'pointer', color: textApp, fontSize: '0.78rem', fontWeight: 700 }}>
+                      {kundeName} · {einsaetze} Einsätze · {kilometer.toLocaleString('de-DE', { maximumFractionDigits: 1 })} km · {spritkosten.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })} · {materialKg.toLocaleString('de-DE', { maximumFractionDigits: 1 })} kg ({saecke.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Säcke){liter > 0 ? ` · ${liter.toLocaleString('de-DE', { maximumFractionDigits: 1 })} l` : ''}
+                    </summary>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginTop: '9px' }}>
+                      {kundenWerte.map(eintrag => (
+                        <div key={eintrag.objName} style={{ borderTop: '1px solid ' + borderCard, paddingTop: '7px', color: textApp, fontSize: '0.72rem' }}>
+                          <strong>{eintrag.objName}</strong>
+                          <div style={{ color: textSub, marginTop: '3px', lineHeight: 1.5 }}>
+                            {eintrag.anzahlEinsaetze} Einsätze · {eintrag.kilometer.toLocaleString('de-DE', { maximumFractionDigits: 1 })} km · {eintrag.spritKosten.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                          </div>
+                          <div style={{ color: textSub, lineHeight: 1.5 }}>
+                            Streumittel: {eintrag.materialKg.toLocaleString('de-DE', { maximumFractionDigits: 1 })} kg ({eintrag.saecke.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Säcke){eintrag.materialLiter > 0 ? ` · ${eintrag.materialLiter.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Liter` : ''}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                );
+              })
+            )}
+          </section>
           <button onClick={() => setActiveTab('mehr')} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: '#598f1e', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}>
             ← Zurück zu Mehr
           </button>
@@ -242,6 +324,15 @@ export default function HistorieStatistikTab({
 
       {unterTab === 'verlauf' && (
         <>
+          {saisonHinweisAnzeigen && (
+            <aside role="status" style={{ backgroundColor: darkMode ? '#292319' : '#fffbeb', border: '1px solid #f59e0b', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <strong style={{ color: darkMode ? '#fbbf24' : '#92400e', fontSize: '0.82rem' }}>🗓️ Die Wintersaison ist vorbei.</strong>
+              <span style={{ color: textApp, fontSize: '0.75rem', lineHeight: 1.4 }}>Möchtest du die Einsätze jetzt ins Archiv verschieben und die neue Saison vorbereiten?</span>
+              <button type="button" onClick={saisonArchivieren} style={{ alignSelf: 'flex-start', backgroundColor: '#f59e0b', color: '#111827', border: 'none', borderRadius: '7px', padding: '8px 10px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer' }}>
+                Saison archivieren
+              </button>
+            </aside>
+          )}
           <section style={{ backgroundColor: bgCard, padding: '14px', borderRadius: '14px', border: '1px solid ' + borderCard, display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
               <div>
