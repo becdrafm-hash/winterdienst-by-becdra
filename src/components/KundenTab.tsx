@@ -72,14 +72,14 @@ export default function KundenTab({
         ← Zurück zu Mehr
       </button>
 
-      <div style={{ order: 2, backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ order: 2, backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'left' }}>
         <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>👥 Kunden verwalten</h2>
         {kunden.length === 0 ? (
           <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Kunden angelegt.</p>
         ) : (
           kunden.map(kunde => (
-            <details key={kunde.id} style={{ border: `1px solid ${darkMode ? '#36414d' : '#d8e1ea'}`, borderRadius: '10px', padding: '0 12px 12px', backgroundColor: darkMode ? '#1b2229' : '#f1f5f9' }}>
-              <summary style={{ cursor: 'pointer', padding: '12px 0', color: textApp, fontSize: '0.88rem', fontWeight: 700 }}>
+            <details key={kunde.id} style={{ border: `1px solid ${darkMode ? '#36513e' : '#bbf7d0'}`, borderRadius: '10px', padding: '0 12px 12px', backgroundColor: darkMode ? '#17251c' : '#f0fdf4', textAlign: 'left' }}>
+              <summary style={{ cursor: 'pointer', padding: '12px 0', color: textApp, fontSize: '0.88rem', fontWeight: 700, textAlign: 'left' }}>
                 {kunde.firma}
                 <span style={{ marginLeft: '8px', fontSize: '0.68rem', fontWeight: 500, color: textSub }}>
                   {kunde.bevorzugterKanal === 'email' ? '✉️ E-Mail' : kunde.bevorzugterKanal === 'keine' ? '🔕 Keine Meldung' : '💬 WhatsApp'}
@@ -104,7 +104,7 @@ export default function KundenTab({
                   </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '2px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '2px', textAlign: 'left' }}>
                   <div>
                     <p style={{ fontSize: '0.75rem', color: textSub, margin: '2px 0 0 0' }}>✉ {kunde.email || 'Keine E-Mail'} | 📞 {kunde.whatsapp || 'Keine Nummer'}</p>
                     <p style={{ fontSize: '0.7rem', color: textSub, margin: '3px 0 0 0' }}>

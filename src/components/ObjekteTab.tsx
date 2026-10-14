@@ -75,7 +75,7 @@ export default function ObjekteTab({
 }: ObjekteTabProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ order: 2, backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div style={{ order: 2, backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left' }}>
         <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>📍 Alle Liegenschaften verwalten</h2>
         {liegenschaften.length === 0 ? (
           <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Liegenschaften angelegt.</p>
@@ -91,12 +91,12 @@ export default function ObjekteTab({
               && liege.lon >= -180
               && liege.lon <= 180;
             return (
-              <details key={liege.id} style={{ backgroundColor: darkMode ? '#1b2229' : '#f1f5f9', borderRadius: '8px', border: `1px solid ${darkMode ? '#36414d' : '#d8e1ea'}` }}>
-                <summary style={{ cursor: 'pointer', listStylePosition: 'inside', padding: '9px 10px', color: textApp, fontSize: '0.78rem' }}>
+              <details key={liege.id} style={{ backgroundColor: darkMode ? '#17251c' : '#f0fdf4', borderRadius: '8px', border: `1px solid ${darkMode ? '#36513e' : '#bbf7d0'}`, textAlign: 'left' }}>
+                <summary style={{ cursor: 'pointer', listStylePosition: 'inside', padding: '9px 10px', color: textApp, fontSize: '0.78rem', textAlign: 'left' }}>
                   <strong>{liege.name}</strong>
                   <span style={{ color: textSub }}> · {zugehKunde?.firma || 'Kein Kunde'} · #{liege.reihenfolge}</span>
                 </summary>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '0 10px 10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '0 10px 10px', textAlign: 'left' }}>
                   <div style={{ fontSize: '0.72rem', color: textSub }}>{liege.address} · {liege.size} m²</div>
                   {gpsAktiv && <div style={{ fontSize: '0.68rem', color: '#5b9b20' }}>✓ GPS aktiv</div>}
                   <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
