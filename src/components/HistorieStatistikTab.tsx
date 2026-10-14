@@ -1,6 +1,7 @@
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { STREUMITTEL } from '../constants/streuMittel';
 import type { EinsatzKostenAnalyse, EinsatzLog, MaterialEinkaufspreise, SaisonArchiv } from '../types';
+import { datumAlsIso } from '../utils/saisonZeitraum';
 
 type AppTab = 'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison';
 type StatistikWerte = { anzahl: number; km: number; sprit: string; materialKg: number };
@@ -85,6 +86,15 @@ export default function HistorieStatistikTab({
   const [unterTab, setUnterTab] = useState<UnterTab>('heute');
   const [alleVerlaufseintraegeAnzeigen, setAlleVerlaufseintraegeAnzeigen] = useState(false);
   const [ausgewaehltesArchivId, setAusgewaehltesArchivId] = useState<number | null>(null);
+  const [heuteIso, setHeuteIso] = useState(() => datumAlsIso(new Date()));
+
+  useEffect(() => {
+    const jetzt = new Date();
+    const mitternacht = new Date(jetzt.getFullYear(), jetzt.getMonth(), jetzt.getDate() + 1);
+    const timer = window.setTimeout(() => setHeuteIso(datumAlsIso(new Date())), mitternacht.getTime() - jetzt.getTime());
+    return () => window.clearTimeout(timer);
+  }, [heuteIso]);
+
   const heuteEinsaetze = history.filter(einsatz => einsatz.date.startsWith(heuteDatumString));
   const heutigeIds = new Set(heuteEinsaetze.map(einsatz => einsatz.id));
   const verlauf = history
@@ -150,7 +160,9 @@ export default function HistorieStatistikTab({
   }, []).sort((a, b) =>
     a.kundeName.localeCompare(b.kundeName, 'de') || a.objName.localeCompare(b.objName, 'de')
   );
-  const saisonHinweisAnzeigen = new Date().getMonth() >= 3 && history.length > 0;
+  const saisonHinweisAnzeigen = /^\d{4}-\d{2}-\d{2}$/.test(saisonBis)
+    && heuteIso > saisonBis
+    && history.length > 0;
   const ausgewaehltesArchiv = archivListe.find(archiv => archiv.id === ausgewaehltesArchivId) ?? null;
   const archivVerbrauchNachEinheit = ausgewaehltesArchiv?.einsätze.reduce<Record<string, number>>((summen, einsatz) => {
     const verbrauch = materialverbrauch(einsatz);

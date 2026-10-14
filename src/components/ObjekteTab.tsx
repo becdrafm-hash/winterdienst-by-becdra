@@ -75,7 +75,7 @@ export default function ObjekteTab({
 }: ObjekteTabProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ order: 2, backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>📍 Alle Liegenschaften verwalten</h2>
         {liegenschaften.length === 0 ? (
           <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem' }}>Noch keine Liegenschaften angelegt.</p>
@@ -91,25 +91,27 @@ export default function ObjekteTab({
               && liege.lon >= -180
               && liege.lon <= 180;
             return (
-              <div key={liege.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '12px', borderRadius: '8px', border: '1px solid ' + borderCard }}>
-                <div>
-                  <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#8cc63f' }}>{zugehKunde?.firma || 'Kein Kunde'}</div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textApp }}>{liege.name} (#{liege.reihenfolge})</div>
-                  <div style={{ fontSize: '0.75rem', color: textSub }}>{liege.address} • {liege.size} m²</div>
-                  {gpsAktiv && <div style={{ fontSize: '0.7rem', color: '#5b9b20', marginTop: '3px' }}>✓ GPS aktiv</div>}
+              <details key={liege.id} style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', borderRadius: '8px', border: '1px solid ' + borderCard }}>
+                <summary style={{ cursor: 'pointer', listStylePosition: 'inside', padding: '9px 10px', color: textApp, fontSize: '0.78rem' }}>
+                  <strong>{liege.name}</strong>
+                  <span style={{ color: textSub }}> · {zugehKunde?.firma || 'Kein Kunde'} · #{liege.reihenfolge}</span>
+                </summary>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '0 10px 10px' }}>
+                  <div style={{ fontSize: '0.72rem', color: textSub }}>{liege.address} · {liege.size} m²</div>
+                  {gpsAktiv && <div style={{ fontSize: '0.68rem', color: '#5b9b20' }}>✓ GPS aktiv</div>}
+                  <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                    <button onClick={() => startEditLiege(liege)} style={{ flex: 1, backgroundColor: darkMode ? '#20252a' : '#ffffff', border: '1px solid ' + borderCard, padding: '8px', borderRadius: '8px', cursor: 'pointer', color: textApp, fontSize: '0.75rem', fontWeight: 'bold' }}>✏️ Bearbeiten</button>
+                    <button onClick={() => deleteLiegenschaft(liege.id)} style={{ flex: 1, backgroundColor: darkMode ? '#3b1f23' : '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '8px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️ Löschen</button>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-                  <button onClick={() => startEditLiege(liege)} style={{ flex: 1, backgroundColor: darkMode ? '#20252a' : '#ffffff', border: '1px solid ' + borderCard, padding: '12px', borderRadius: '8px', cursor: 'pointer', color: textApp, fontSize: '0.9rem', fontWeight: 'bold' }}>✏️ Bearbeiten</button>
-                  <button onClick={() => deleteLiegenschaft(liege.id)} style={{ flex: 1, backgroundColor: darkMode ? '#3b1f23' : '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '12px', borderRadius: '8px', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️ Löschen</button>
-                </div>
-              </div>
+              </details>
             );
           })
         )}
       </div>
 
-      <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>➕ Neue Liegenschaft hinzufügen</h2>
+      <div style={{ order: 1, backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+        <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 10px 0', color: textApp }}>➕ Neue Liegenschaft anlegen</h2>
         <form onSubmit={addLiegenschaft} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Kunde auswählen</label>
