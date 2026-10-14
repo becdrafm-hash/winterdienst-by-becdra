@@ -91,7 +91,7 @@ export default function ObjekteTab({
               && liege.lon >= -180
               && liege.lon <= 180;
             return (
-              <details key={liege.id} style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', borderRadius: '8px', border: '1px solid ' + borderCard }}>
+              <details key={liege.id} style={{ backgroundColor: darkMode ? '#1b2229' : '#f1f5f9', borderRadius: '8px', border: `1px solid ${darkMode ? '#36414d' : '#d8e1ea'}` }}>
                 <summary style={{ cursor: 'pointer', listStylePosition: 'inside', padding: '9px 10px', color: textApp, fontSize: '0.78rem' }}>
                   <strong>{liege.name}</strong>
                   <span style={{ color: textSub }}> · {zugehKunde?.firma || 'Kein Kunde'} · #{liege.reihenfolge}</span>
