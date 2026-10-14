@@ -657,21 +657,25 @@ export default function App() {
 
   const teileBerichtMitHindernisfoto = (
     berichtText: string,
+    betreffText: string,
+    objName: string,
     hindernisFotoUrl?: string,
-    hindernisFotoName?: string
   ) => {
     if (!hindernisFotoUrl) return false;
 
     const bildDaten = hindernisFotoUrl.match(/^data:(image\/[\w.+-]+);base64,(.+)$/);
-    const dateiname = `${hindernisFotoName?.replace(/\.[^.]+$/, '') || 'hindernisfoto'}.jpg`;
+    const dateiname = `Winterdienst_Foto_${objName.replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_')}.jpg`;
     if (bildDaten && typeof navigator.share === 'function' && navigator.canShare) {
       const bildBytes = Uint8Array.from(atob(bildDaten[2]), zeichen => zeichen.charCodeAt(0));
       const fotoDatei = new File([bildBytes], dateiname, { type: bildDaten[1] });
 
       if (navigator.canShare({ files: [fotoDatei] })) {
+        void navigator.clipboard?.writeText(betreffText).catch((error: unknown) => {
+          console.error('Berichtsbetreff konnte nicht in die Zwischenablage kopiert werden:', error);
+        });
         void navigator.share({
-          title: 'Winterdienst-Einsatzbericht',
-          text: berichtText,
+          title: betreffText,
+          text: `${betreffText}\n\n${berichtText}`,
           files: [fotoDatei]
         }).catch((error: unknown) => {
           if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -728,6 +732,9 @@ export default function App() {
       `Status: Ordnungsgemäß betreut\n\n` +
       `Mit freundlichen Grüßen\n` +
       `Becdra FM`;
+    const betreffText = `Winterdienst-Einsatzbericht - ${item.kundeName} (${item.objName})`;
+    const mailSubject = encodeURIComponent(betreffText);
+    const mailBody = encodeURIComponent(berichtText);
 
     setDialogConfig({
       visible: true,
@@ -735,17 +742,12 @@ export default function App() {
       text: hatHindernisFoto
         ? `Möchtest du den Bericht für "${item.kundeName}" (${item.objName}) mit dem Hindernisfoto teilen? Es öffnet sich die Teilen-Auswahl deines Geräts.`
         : `Möchtest du den Bericht für "${item.kundeName}" (${item.objName}) per WhatsApp oder E-Mail senden?`,
-      confirmText: (
-        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-          {!hatHindernisFoto && <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z"/></svg>}
-          <span>{hatHindernisFoto ? 'Bericht + Foto teilen' : 'WhatsApp senden'}</span>
-        </span>
-      ),
-      secondaryText: hatHindernisFoto ? 'Bericht + Foto teilen' : '✉️ E-Mail senden',
+      confirmText: hatHindernisFoto ? '📸 Bericht + Foto teilen (WhatsApp / App)' : 'WhatsApp senden',
+      secondaryText: hatHindernisFoto ? '✉️ Als E-Mail mit Betreff öffnen (ohne Foto)' : '✉️ E-Mail senden',
       cancelText: 'Abbrechen',
       onConfirm: () => {
         setDialogConfig(prev => ({ ...prev, visible: false }));
-        if (teileBerichtMitHindernisfoto(berichtText, item.hindernisFotoUrl, item.hindernisFoto)) {
+        if (teileBerichtMitHindernisfoto(berichtText, betreffText, item.objName, item.hindernisFotoUrl)) {
           aktualisiereBerichtStatus(einsatz => einsatz.id === item.id, 'gesendet_teilen');
           return;
         }
@@ -755,12 +757,6 @@ export default function App() {
       },
       onSecondary: () => {
         setDialogConfig(prev => ({ ...prev, visible: false }));
-        if (teileBerichtMitHindernisfoto(berichtText, item.hindernisFotoUrl, item.hindernisFoto)) {
-          aktualisiereBerichtStatus(einsatz => einsatz.id === item.id, 'gesendet_teilen');
-          return;
-        }
-        const mailSubject = encodeURIComponent(`Winterdienst-Einsatzbericht - ${item.kundeName} (${item.objName})`);
-        const mailBody = encodeURIComponent(berichtText);
         window.location.href = `mailto:${zielEmail}?subject=${mailSubject}&body=${mailBody}`;
         aktualisiereBerichtStatus(einsatz => einsatz.id === item.id, 'gesendet_email');
       },
@@ -1171,6 +1167,7 @@ export default function App() {
         `Status: Ordnungsgemäß betreut\n\n` +
         `Mit freundlichen Grüßen\n` +
         `Becdra FM`;
+      const betreffText = `Winterdienst-Einsatzbericht - ${geforderterKunde.firma} (${heuteDatum})`;
 
       const bevorzugterKanal = geforderterKunde.bevorzugterKanal ?? 'whatsapp';
       if (bevorzugterKanal === 'keine') {
@@ -1187,8 +1184,9 @@ export default function App() {
           setDialogConfig(prev => ({ ...prev, visible: false }));
           if (fotoTeilen && teileBerichtMitHindernisfoto(
             berichtText,
-            hindernisFotoUrl || undefined,
-            hindernisFoto || undefined
+            betreffText,
+            activeObjekt.name,
+            hindernisFotoUrl || undefined
           )) {
             aktualisiereBerichtStatus(
               einsatz => einsatz.kundeName === geforderterKunde.firma && einsatz.date.startsWith(heuteDatum),
@@ -1202,7 +1200,7 @@ export default function App() {
             const cleanPhone = geforderterKunde.whatsapp.replace(/[^0-9]/g, '');
             window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(berichtText)}`, '_blank');
           } else {
-            const mailSubject = encodeURIComponent(`Winterdienst-Einsatzbericht - ${geforderterKunde.firma} (${heuteDatum})`);
+            const mailSubject = encodeURIComponent(betreffText);
             const mailBody = encodeURIComponent(berichtText);
             window.location.href = `mailto:${geforderterKunde.email}?subject=${mailSubject}&body=${mailBody}`;
           }
@@ -1218,12 +1216,28 @@ export default function App() {
           titel: 'Kunde vollständig betreut',
           text: `Alle Liegenschaften von "${geforderterKunde.firma}" sind erledigt. Soll die Rückmeldung jetzt per ${kanalName} gesendet werden?`,
           confirmText: hindernisFotoUrl
-            ? '✅ Ja, Bericht + Foto teilen'
+            ? '📸 Bericht + Foto teilen (WhatsApp / App)'
             : `✅ Ja, per ${kanalName} senden`,
-          secondaryText: `Ausnahmsweise per ${ausweichKanalName}`,
+          secondaryText: hindernisFotoUrl
+            ? '✉️ Als E-Mail mit Betreff öffnen (ohne Foto)'
+            : `Ausnahmsweise per ${ausweichKanalName}`,
           cancelText: '⏰ Später senden',
           onConfirm: () => sendeRueckmeldung(bevorzugterKanal, Boolean(hindernisFotoUrl)),
-          onSecondary: () => sendeRueckmeldung(ausweichKanal),
+          onSecondary: () => {
+            if (hindernisFotoUrl) {
+              setDialogConfig(prev => ({ ...prev, visible: false }));
+              const mailSubject = encodeURIComponent(betreffText);
+              const mailBody = encodeURIComponent(berichtText);
+              window.location.href = `mailto:${geforderterKunde.email}?subject=${mailSubject}&body=${mailBody}`;
+              aktualisiereBerichtStatus(
+                einsatz => einsatz.kundeName === geforderterKunde.firma && einsatz.date.startsWith(heuteDatum),
+                'gesendet_email'
+              );
+              zeigeMeldung(`✅ Rückmeldung für ${geforderterKunde.firma} wurde gestartet!`);
+              return;
+            }
+            sendeRueckmeldung(ausweichKanal);
+          },
           onCancel: () => {
             setDialogConfig(prev => ({ ...prev, visible: false }));
             aktualisiereBerichtStatus(
