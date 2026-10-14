@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { type BevorzugterKanal, type EinsatzLog, type Kunde, type Leistungsart, type Liegenschaft, type SaisonArchiv } from './types';
+import { type BevorzugterKanal, type EinsatzLog, type Kunde, type Leistungsart, type Liegenschaft, type MaterialEinkaufspreis, type MaterialEinkaufspreise, type SaisonArchiv } from './types';
 import DialogModal from './components/DialogModal';
 import Header from './components/Header';
 import LagerTab from './components/LagerTab';
@@ -119,6 +119,35 @@ function ladeLagerBestaende(): LagerBestaende {
   return standard;
 }
 
+function ladeMaterialPreise(): MaterialEinkaufspreise {
+  const gespeichertePreise = localStorage.getItem('becdra_material_preise');
+  if (!gespeichertePreise) return {};
+  try {
+    const parsed: unknown = JSON.parse(gespeichertePreise);
+    if (typeof parsed !== 'object' || parsed === null) return {};
+    const preise: MaterialEinkaufspreise = {};
+    for (const material of STREUMITTEL) {
+      const preis = (parsed as Record<string, unknown>)[material.id];
+      if (typeof preis !== 'object' || preis === null) continue;
+      const wert = preis as Record<string, unknown>;
+      if (typeof wert.betrag !== 'number' || !Number.isFinite(wert.betrag) || wert.betrag < 0) continue;
+      if (wert.basis !== 'sack25kg' && wert.basis !== 'tonne' && wert.basis !== 'liter') continue;
+      preise[material.id] = { betrag: wert.betrag, basis: wert.basis };
+    }
+    return preise;
+  } catch (error) {
+    console.error('Gespeicherte Materialpreise konnten nicht gelesen werden:', error);
+    return {};
+  }
+}
+
+function berechnePreisProEinheit(preis: MaterialEinkaufspreis | undefined): number | undefined {
+  if (!preis) return undefined;
+  if (preis.basis === 'sack25kg') return preis.betrag / 25;
+  if (preis.basis === 'tonne') return preis.betrag / 1000;
+  return preis.betrag;
+}
+
 function leseGueltigeKoordinaten(liegenschaft: Pick<Liegenschaft, 'lat' | 'lon'>): { lat: number; lon: number } | null {
   if (typeof liegenschaft.lat !== 'number'
     || !Number.isFinite(liegenschaft.lat)
@@ -223,6 +252,7 @@ export default function App() {
   });
 
   const [lagerBestaende, setLagerBestaende] = useState<LagerBestaende>(ladeLagerBestaende);
+  const [materialPreise, setMaterialPreise] = useState<MaterialEinkaufspreise>(ladeMaterialPreise);
 
   const [spritPreisProLiter, setSpritPreisProLiter] = useState<string>(() => {
     return localStorage.getItem('becdra_spritpreis') || '1.80';
@@ -355,6 +385,10 @@ export default function App() {
     speichereLocalStorage('becdra_lager', JSON.stringify(lagerBestaende.Salz));
     speichereLocalStorage(LAGER_KG_MIGRATION_KEY, 'true');
   }, [lagerBestaende]);
+
+  useEffect(() => {
+    speichereLocalStorage('becdra_material_preise', JSON.stringify(materialPreise));
+  }, [materialPreise]);
 
   useEffect(() => {
     speichereLocalStorage('becdra_dwd_regionen', JSON.stringify(dwdRegionen));
@@ -504,6 +538,7 @@ export default function App() {
       liegenschaften,
       history,
       lagerBestaende,
+      materialPreise,
       lagerBestand: lagerBestaende.Salz,
       lagerEinheit: 'kg',
       startPunkt,
@@ -556,6 +591,27 @@ export default function App() {
               setLagerBestaende(prev => ({ ...prev, Salz: backupLagerKg }));
               speichereLocalStorage(LAGER_KG_MIGRATION_KEY, 'true');
             }
+            if (parsed.materialPreise !== undefined) {
+              const backupPreise: MaterialEinkaufspreise = {};
+              if (typeof parsed.materialPreise !== 'object' || parsed.materialPreise === null) {
+                throw new Error('Die Materialpreise im Backup sind ungültig.');
+              }
+              for (const material of STREUMITTEL) {
+                const preis = parsed.materialPreise[material.id];
+                if (preis === undefined) continue;
+                if (typeof preis !== 'object' || preis === null
+                  || !Number.isFinite(Number(preis.betrag))
+                  || Number(preis.betrag) < 0
+                  || !['sack25kg', 'tonne', 'liter'].includes(preis.basis)) {
+                  throw new Error(`Der Einkaufspreis für ${material.name} im Backup ist ungültig.`);
+                }
+                backupPreise[material.id] = {
+                  betrag: Number(preis.betrag),
+                  basis: preis.basis
+                };
+              }
+              setMaterialPreise(backupPreise);
+            }
             if (parsed.startPunkt) setStartPunkt(parsed.startPunkt);
             if (parsed.spritPreisProLiter) setSpritPreisProLiter(parsed.spritPreisProLiter);
             if (parsed.verbrauchAuf100Km) {
@@ -602,15 +658,31 @@ export default function App() {
     zeigeMeldung('Fahrzeugverbrauch erfolgreich aktualisiert!');
   };
 
-  const anpasseLagerGenau = (material: StreuMittelId, modus: 'add' | 'sub', wert: number) => {
+  const anpasseLagerGenau = (
+    material: StreuMittelId,
+    modus: 'add' | 'sub',
+    wert: number,
+    einkaufspreis?: MaterialEinkaufspreis
+  ) => {
     const materialInfo = STREUMITTEL.find(eintrag => eintrag.id === material);
     if (!materialInfo || !Number.isFinite(wert) || wert <= 0) {
       zeigeMeldung('Bitte eine gültige Lagermenge eingeben.');
       return;
     }
+    if (modus === 'add' && einkaufspreis
+      && (!Number.isFinite(einkaufspreis.betrag)
+        || einkaufspreis.betrag < 0
+        || (materialInfo.einheit === 'Liter' && einkaufspreis.basis !== 'liter')
+        || (materialInfo.einheit === 'kg' && einkaufspreis.basis === 'liter'))) {
+      zeigeMeldung('Bitte einen gültigen Einkaufspreis eingeben.');
+      return;
+    }
 
     if (modus === 'add') {
       setLagerBestaende(prev => ({ ...prev, [material]: prev[material] + wert }));
+      if (einkaufspreis) {
+        setMaterialPreise(prev => ({ ...prev, [material]: einkaufspreis }));
+      }
       zeigeMeldung(`+${wert.toLocaleString('de-DE')} ${materialInfo.einheit} ${materialInfo.name} hinzugefügt.`);
     } else {
       setLagerBestaende(prev => ({ ...prev, [material]: prev[material] - wert }));
@@ -1275,8 +1347,11 @@ export default function App() {
       type: einsatzType,
       duration: `${Math.max(1, diffMinutes)} Min.`,
       materialUsed: `${verbrauchMenge.toLocaleString('de-DE')} ${materialInfo.einheit} (${materialInfo.name})`,
+      materialId,
+      materialVerbrauchMenge: verbrauchMenge,
       materialVerbrauchKg: materialInfo.einheit === 'kg' ? verbrauchMenge : undefined,
       materialVerbrauchEinheit: materialInfo.einheit,
+      materialPreisProEinheit: berechnePreisProEinheit(materialPreise[materialId]),
       kmGefahren: `${kmNum} km`,
       spritKosten: `${berechneteSpritKosten.toFixed(2)} €`,
       verbrauchAuf100Km: Number(verbrauchAuf100Km) || 0,
@@ -1887,6 +1962,7 @@ export default function App() {
             {activeTab === 'lager' && (
               <LagerTab
                 lagerBestaende={lagerBestaende}
+                materialPreise={materialPreise}
                 darkMode={darkMode}
                 onAdjustLager={anpasseLagerGenau}
               />
@@ -1930,6 +2006,9 @@ export default function App() {
                   
                   <button onClick={() => setMehrEinstellungenGeoeffnet(true)} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>
                     🛠️ Einstellungen & Wetter
+                  </button>
+                  <button onClick={() => setActiveTab('liegenschaften')} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>
+                    📍 Liegenschaften verwalten
                   </button>
                   <button onClick={() => setActiveTab('kunden')} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>
                     👥 Kunden verwalten
@@ -1987,6 +2066,7 @@ export default function App() {
                 setSaisonBis={setSaisonBis}
                 verbrauchAuf100Km={Number(verbrauchAuf100Km) || 0}
                 spritPreisProLiter={Number(spritPreisProLiter) || 1.80}
+                materialPreise={materialPreise}
               />
             )}
           </>

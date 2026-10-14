@@ -1,5 +1,6 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
-import type { EinsatzKostenAnalyse, EinsatzLog, SaisonArchiv } from '../types';
+import { STREUMITTEL } from '../constants/streuMittel';
+import type { EinsatzKostenAnalyse, EinsatzLog, MaterialEinkaufspreise, SaisonArchiv } from '../types';
 
 type AppTab = 'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison';
 type StatistikWerte = { anzahl: number; km: number; sprit: string; materialKg: number };
@@ -51,6 +52,7 @@ interface HistorieStatistikTabProps {
   setSaisonBis: Dispatch<SetStateAction<string>>;
   verbrauchAuf100Km: number;
   spritPreisProLiter: number;
+  materialPreise: MaterialEinkaufspreise;
 }
 
 export default function HistorieStatistikTab({
@@ -77,7 +79,8 @@ export default function HistorieStatistikTab({
   saisonBis,
   setSaisonBis,
   verbrauchAuf100Km,
-  spritPreisProLiter
+  spritPreisProLiter,
+  materialPreise
 }: HistorieStatistikTabProps) {
   const [unterTab, setUnterTab] = useState<UnterTab>('heute');
   const [alleVerlaufseintraegeAnzeigen, setAlleVerlaufseintraegeAnzeigen] = useState(false);
@@ -99,6 +102,23 @@ export default function HistorieStatistikTab({
     const verbrauch = materialverbrauch(einsatz);
     const verbrauchJe100Km = einsatz.verbrauchAuf100Km ?? verbrauchAuf100Km;
     const preisProLiter = einsatz.spritPreisProLiter ?? spritPreisProLiter;
+    const materialInfo = einsatz.materialId
+      ? STREUMITTEL.find(material => material.id === einsatz.materialId)
+      : STREUMITTEL.slice().sort((a, b) => b.name.length - a.name.length)
+        .find(material => einsatz.materialUsed.includes(material.name))
+        ?? STREUMITTEL.find(material => new RegExp(`\\b${material.id}\\b`, 'i').test(einsatz.materialUsed));
+    const aktuellerMaterialpreis = materialInfo ? materialPreise[materialInfo.id] : undefined;
+    const preisProMaterialEinheit = einsatz.materialPreisProEinheit
+      ?? (aktuellerMaterialpreis
+        && ((materialInfo?.einheit === 'Liter' && aktuellerMaterialpreis.basis === 'liter')
+          || (materialInfo?.einheit === 'kg' && aktuellerMaterialpreis.basis !== 'liter'))
+        ? aktuellerMaterialpreis.basis === 'sack25kg'
+          ? aktuellerMaterialpreis.betrag / 25
+          : aktuellerMaterialpreis.basis === 'tonne'
+            ? aktuellerMaterialpreis.betrag / 1000
+            : aktuellerMaterialpreis.betrag
+        : undefined);
+    const materialMenge = einsatz.materialVerbrauchMenge ?? verbrauch?.menge ?? 0;
     let objekt = auswertung.find(wert => wert.kundeName === einsatz.kundeName && wert.objName === einsatz.objName);
     if (!objekt) {
       objekt = {
@@ -109,18 +129,22 @@ export default function HistorieStatistikTab({
         spritKosten: 0,
         materialKg: 0,
         materialLiter: 0,
-        saecke: 0
+        saecke: 0,
+        materialKosten: 0
       };
       auswertung.push(objekt);
     }
     objekt.anzahlEinsaetze += 1;
     objekt.kilometer += kilometer;
     objekt.spritKosten += kilometer * Math.max(0, verbrauchJe100Km) / 100 * Math.max(0, preisProLiter);
+    if (preisProMaterialEinheit !== undefined) {
+      objekt.materialKosten += materialMenge * Math.max(0, preisProMaterialEinheit);
+    }
     if (verbrauch?.einheit.toLowerCase() === 'liter') {
-      objekt.materialLiter += verbrauch.menge;
-    } else if (verbrauch) {
-      objekt.materialKg += verbrauch.menge;
-      objekt.saecke += verbrauch.menge / 25;
+      objekt.materialLiter += materialMenge;
+    } else if (verbrauch || einsatz.materialVerbrauchMenge !== undefined) {
+      objekt.materialKg += materialMenge;
+      objekt.saecke += materialMenge / 25;
     }
     return auswertung;
   }, []).sort((a, b) =>
@@ -293,10 +317,11 @@ export default function HistorieStatistikTab({
                 const materialKg = kundenWerte.reduce((summe, eintrag) => summe + eintrag.materialKg, 0);
                 const saecke = kundenWerte.reduce((summe, eintrag) => summe + eintrag.saecke, 0);
                 const liter = kundenWerte.reduce((summe, eintrag) => summe + eintrag.materialLiter, 0);
+                const materialKosten = kundenWerte.reduce((summe, eintrag) => summe + eintrag.materialKosten, 0);
                 return (
                   <details key={kundeName} style={{ border: '1px solid ' + borderCard, borderRadius: '9px', padding: '9px', backgroundColor: darkMode ? '#14171a' : '#f9fafb' }}>
                     <summary style={{ cursor: 'pointer', color: textApp, fontSize: '0.78rem', fontWeight: 700 }}>
-                      {kundeName} · {einsaetze} Einsätze · {kilometer.toLocaleString('de-DE', { maximumFractionDigits: 1 })} km · {spritkosten.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })} · {materialKg.toLocaleString('de-DE', { maximumFractionDigits: 1 })} kg ({saecke.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Säcke){liter > 0 ? ` · ${liter.toLocaleString('de-DE', { maximumFractionDigits: 1 })} l` : ''}
+                      {kundeName} · {einsaetze} Einsätze · {kilometer.toLocaleString('de-DE', { maximumFractionDigits: 1 })} km · Sprit {spritkosten.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })} · Material {materialKosten.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })} · {materialKg.toLocaleString('de-DE', { maximumFractionDigits: 1 })} kg ({saecke.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Säcke){liter > 0 ? ` · ${liter.toLocaleString('de-DE', { maximumFractionDigits: 1 })} l` : ''}
                     </summary>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginTop: '9px' }}>
                       {kundenWerte.map(eintrag => (
@@ -307,6 +332,9 @@ export default function HistorieStatistikTab({
                           </div>
                           <div style={{ color: textSub, lineHeight: 1.5 }}>
                             Streumittel: {eintrag.materialKg.toLocaleString('de-DE', { maximumFractionDigits: 1 })} kg ({eintrag.saecke.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Säcke){eintrag.materialLiter > 0 ? ` · ${eintrag.materialLiter.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Liter` : ''}
+                          </div>
+                          <div style={{ color: textSub, lineHeight: 1.5 }}>
+                            Kosten: {eintrag.spritKosten.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })} Sprit · {eintrag.materialKosten.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })} Material
                           </div>
                         </div>
                       ))}

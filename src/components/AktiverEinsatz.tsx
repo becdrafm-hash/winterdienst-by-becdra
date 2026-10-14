@@ -104,7 +104,7 @@ export default function AktiverEinsatz({
 
         {activeObjekt.raeumPlan && (
           <button onClick={() => setShowActiveRaeumPlanPopup(true)} style={{ backgroundColor: '#111827', color: '#ffffff', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.85rem' }}>
-            🗺️ Räumplan als Pop-up öffnen
+            🗺️ Räumplan anzeigen
           </button>
         )}
 
@@ -211,20 +211,23 @@ export default function AktiverEinsatz({
       </div>
 
       {showActiveRaeumPlanPopup && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 4000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '16px' }}>
-          <div style={{ backgroundColor: bgCard, border: '2px solid #8cc63f', borderRadius: '16px', maxWidth: '400px', width: '100%', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', boxSizing: 'border-box' }}>
+        <div role="dialog" aria-modal="true" aria-labelledby="active-raeumplan-title" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 4000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '16px' }}>
+          <div style={{ backgroundColor: bgCard, border: '2px solid #8cc63f', borderRadius: '16px', maxWidth: '900px', width: '100%', height: 'min(90vh, 900px)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>🗺️ Räumplan: {activeObjekt.name}</h3>
-              <button onClick={() => setShowActiveRaeumPlanPopup(false)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', fontWeight: 'bold', color: textApp, cursor: 'pointer' }}>✕</button>
+              <h3 id="active-raeumplan-title" style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>🗺️ Räumplan: {activeObjekt.name}</h3>
+              <button type="button" aria-label="Räumplan schließen" onClick={() => setShowActiveRaeumPlanPopup(false)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', fontWeight: 'bold', color: textApp, cursor: 'pointer' }}>✕</button>
             </div>
-            <div style={{ width: '100%', height: '300px', backgroundColor: '#111', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+            <div style={{ width: '100%', flex: 1, minHeight: 0, backgroundColor: '#111', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
               {activeObjekt.raeumPlan ? (
-                <img src={activeObjekt.raeumPlan} alt="Räumplan" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                activeObjekt.raeumPlan.toLowerCase().startsWith('data:application/pdf')
+                  || /\.pdf(?:$|[?#])/i.test(activeObjekt.raeumPlan)
+                  ? <iframe title={`Räumplan ${activeObjekt.name}`} src={activeObjekt.raeumPlan} style={{ width: '100%', height: '100%', border: 0, backgroundColor: '#ffffff' }} />
+                  : <img src={activeObjekt.raeumPlan} alt={`Räumplan ${activeObjekt.name}`} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
               ) : (
                 <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>Kein Räumplan für dieses Objekt hinterlegt.</p>
               )}
             </div>
-            <button onClick={() => setShowActiveRaeumPlanPopup(false)} style={{ backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}>
+            <button type="button" onClick={() => setShowActiveRaeumPlanPopup(false)} style={{ backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}>
               Schließen
             </button>
           </div>

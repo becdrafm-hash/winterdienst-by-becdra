@@ -6,6 +6,15 @@ export const LEISTUNGSARTEN = [
 
 export type Leistungsart = typeof LEISTUNGSARTEN[number];
 export type BevorzugterKanal = 'whatsapp' | 'email' | 'keine';
+export type StreuMittelId = 'Salz' | 'Splitt' | 'Sand' | 'Lava' | 'Acetat';
+export type MaterialPreisBasis = 'sack25kg' | 'tonne' | 'liter';
+
+export interface MaterialEinkaufspreis {
+  betrag: number;
+  basis: MaterialPreisBasis;
+}
+
+export type MaterialEinkaufspreise = Partial<Record<StreuMittelId, MaterialEinkaufspreis>>;
 
 export interface Liegenschaft {
   id: number;
@@ -43,8 +52,11 @@ export interface EinsatzLog {
   type: Leistungsart;
   duration: string;
   materialUsed: string;
+  materialId?: StreuMittelId;
+  materialVerbrauchMenge?: number;
   materialVerbrauchKg?: number;
   materialVerbrauchEinheit?: string;
+  materialPreisProEinheit?: number;
   kmGefahren: string;
   spritKosten: string;
   verbrauchAuf100Km?: number;
@@ -79,4 +91,5 @@ export interface EinsatzKostenAnalyse {
   materialKg: number;
   materialLiter: number;
   saecke: number;
+  materialKosten: number;
 }

@@ -36,19 +36,16 @@ export default function Navigation({
     backgroundColor: isActive ? '#8cc63f' : (darkMode ? '#14171a' : '#f3f4f6'),
     color: isActive ? '#111827' : textSub
   });
-  const isMehrActive = ['mehr', 'kunden', 'statistik', 'history_saison'].includes(activeTab);
+  const isMehrActive = ['mehr', 'liegenschaften', 'kunden', 'statistik', 'history_saison'].includes(activeTab);
 
   return (
     <nav style={{ position: 'fixed', bottom: 0, left: 0, width: '100%', backgroundColor: bgCard, borderTop: '2px solid #8cc63f', borderInline: '1px solid ' + borderCard, boxShadow: '0 -4px 15px rgba(0,0,0,0.08)', zIndex: 100, transition: 'background-color 0.3s ease' }}>
-      <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', padding: '8px', gap: '6px' }}>
+      <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', padding: '8px', gap: '6px' }}>
         <button onClick={() => setActiveTab('mehr')} style={navButtonStyle(isMehrActive)}>
           ⚙️ Mehr
         </button>
         <button onClick={() => setActiveTab('tour')} style={navButtonStyle(activeTab === 'tour')}>
           🚗 Tour
-        </button>
-        <button onClick={() => setActiveTab('liegenschaften')} style={navButtonStyle(activeTab === 'liegenschaften')}>
-          📍 Objekte
         </button>
         <button onClick={() => setActiveTab('lager')} style={navButtonStyle(activeTab === 'lager')}>
           📦 Lager
