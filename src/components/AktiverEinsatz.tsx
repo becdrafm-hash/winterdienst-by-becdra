@@ -11,8 +11,6 @@ interface AktiverEinsatzProps {
   borderCard: string;
   bgCard: string;
   wetterLage: string;
-  wetterVorOrt: string;
-  setWetterVorOrt: Dispatch<SetStateAction<string>>;
   startTime: Date | null;
   pauseBeginn: number | null;
   pausendauerMs: number;
@@ -46,8 +44,6 @@ export default function AktiverEinsatz({
   borderCard,
   bgCard,
   wetterLage,
-  wetterVorOrt,
-  setWetterVorOrt,
   startTime,
   pauseBeginn,
   pausendauerMs,
@@ -168,20 +164,6 @@ export default function AktiverEinsatz({
             {LEISTUNGSARTEN.map(leistungsart => (
               <option key={leistungsart} value={leistungsart}>{leistungsart}</option>
             ))}
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="wetter-vor-ort" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: textApp, marginBottom: '4px' }}>Wetterverhältnisse vor Ort <span style={{ color: '#dc2626' }}>*</span></label>
-          <select id="wetter-vor-ort" required value={wetterVorOrt} onChange={event => setWetterVorOrt(event.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }}>
-            <option value="">Bitte Wetterlage auswählen</option>
-            <option value="Glatteis">Glatteis</option>
-            <option value="Schneefall">Schneefall</option>
-            <option value="Reifglätte">Reifglätte</option>
-            <option value="Schneeglätte">Schneeglätte</option>
-            <option value="Überfrierende Nässe">Überfrierende Nässe</option>
-            <option value="Kein Glätte-/Schneefall">Kein Glätte-/Schneefall</option>
-            <option value="Sonstige">Sonstige</option>
           </select>
         </div>
 

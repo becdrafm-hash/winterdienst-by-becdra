@@ -100,6 +100,46 @@ export default function HistorieStatistikTab({
     if (verbrauch) summen[verbrauch.einheit] = (summen[verbrauch.einheit] ?? 0) + verbrauch.menge;
     return summen;
   }, {}) ?? {};
+  const heutigeBerichte = history.filter(einsatz => einsatz.date.startsWith(heuteDatumString));
+  const weitereBerichte = history.filter(einsatz => !einsatz.date.startsWith(heuteDatumString));
+
+  const zeigeEinsatzkarte = (item: EinsatzLog) => (
+    <div key={item.id} style={{ border: '1px solid ' + borderCard, padding: '10px', borderRadius: '10px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h4 style={{ fontWeight: 'bold', color: textApp, margin: 0, fontSize: '0.9rem' }}>{item.kundeName} - {item.objName}</h4>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          <button onClick={() => sendeHistorienBericht(item)} style={{ background: darkMode ? '#22262a' : '#eef6e6', border: '1px solid #8cc63f', color: '#598f1e', padding: '3px 6px', borderRadius: '6px', fontSize: '0.65rem', cursor: 'pointer', fontWeight: 'bold' }}>📤 Senden</button>
+          <button onClick={() => druckeEinsatzBericht(item)} style={{ background: darkMode ? '#22262a' : '#f3f4f6', border: '1px solid ' + borderCard, color: textApp, padding: '3px 6px', borderRadius: '6px', fontSize: '0.65rem', cursor: 'pointer', fontWeight: 'bold' }}>🖨️ PDF</button>
+          <button onClick={() => deleteHistoryItem(item.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.7rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️</button>
+        </div>
+      </div>
+      <span style={{ fontSize: '0.65rem', fontFamily: 'monospace', color: textSub }}>{item.date}</span>
+      {item.berichtStatus === 'keine_meldung_gewuenscht' ? (
+        <span style={{ alignSelf: 'flex-start', backgroundColor: darkMode ? '#374151' : '#f3f4f6', borderRadius: '6px', color: textSub, fontSize: '0.65rem', fontWeight: 600, padding: '3px 6px' }}>
+          🔕 Keine Kundenmeldung gewünscht
+        </span>
+      ) : item.berichtStatus === 'gesendet_whatsapp'
+        || item.berichtStatus === 'gesendet_email'
+        || item.berichtStatus === 'gesendet_teilen' ? (
+          <span style={{ alignSelf: 'flex-start', backgroundColor: darkMode ? '#1d2b1b' : '#f4fce3', borderRadius: '6px', color: darkMode ? '#a3d977' : '#3f6212', fontSize: '0.65rem', fontWeight: 600, padding: '3px 6px' }}>
+            ✓ Gemeldet ({item.berichtStatus === 'gesendet_whatsapp'
+              ? 'WhatsApp'
+              : item.berichtStatus === 'gesendet_email'
+                ? 'E-Mail'
+                : 'Teilen'}{item.berichtGesendetAm ? `, ${item.berichtGesendetAm}` : ''})
+          </span>
+        ) : (
+          <span style={{ alignSelf: 'flex-start', backgroundColor: darkMode ? '#3b2f16' : '#fff7ed', borderRadius: '6px', color: darkMode ? '#fbbf24' : '#b45309', fontSize: '0.65rem', fontWeight: 600, padding: '3px 6px' }}>
+            ⏳ Rückmeldung noch offen
+          </span>
+        )}
+      <p style={{ fontSize: '0.75rem', color: textApp, margin: 0 }}>Wetter: <b>{item.wetter}</b> | Typ: <b>{item.type}</b></p>
+      {item.hindernisInfo && <p style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 'bold', margin: 0 }}>⚠️ Hindernis: {item.hindernisInfo}</p>}
+      <p style={{ fontSize: '0.75rem', color: '#8cc63f', fontWeight: 500, margin: 0 }}>
+        Verbrauch: {item.materialUsed} | Fahrstrecke: <b>{item.kmGefahren}</b> (~{item.spritKosten} Sprit)
+      </p>
+    </div>
+  );
 
   const exportiereArchivAlsCsv = (archiv: SaisonArchiv) => {
     const csvWert = (wert: string | number | undefined) => `"${String(wert ?? '').replaceAll('"', '""')}"`;
@@ -212,59 +252,96 @@ export default function HistorieStatistikTab({
       <button onClick={() => setActiveTab('mehr')} style={{ background: 'none', border: 'none', color: '#8cc63f', fontWeight: 'bold', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}>
         ← Zurück zu Mehr
       </button>
+      <section style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1.05rem', margin: 0 }}>📋 Tagesberichte ({heuteDatumString})</h2>
+        {heutigeBerichte.length === 0 ? (
+          <p style={{ textAlign: 'center', color: textSub, padding: '12px 0', fontSize: '0.85rem', margin: 0 }}>Heute sind noch keine Einsätze dokumentiert.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {heutigeBerichte.map(zeigeEinsatzkarte)}
+          </div>
+        )}
+      </section>
+
+      <section style={{ backgroundColor: bgCard, padding: '14px', borderRadius: '14px', border: '1px solid ' + borderCard, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <h2 style={{ fontSize: '0.95rem', fontWeight: 'bold', margin: 0, color: textApp }}>📊 Übersicht</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '10px', borderRadius: '10px', border: '1px solid ' + borderCard }}>
+            <h3 style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#8cc63f', margin: '0 0 6px', textTransform: 'uppercase' }}>📅 Heute</h3>
+            <div style={{ display: 'grid', gap: '4px', fontSize: '0.75rem' }}>
+              <div>Einsätze: <b>{heuStat.anzahl}</b></div>
+              <div>Km: <b>{heuStat.km} km</b></div>
+              <div>Sprit: <b>{heuStat.sprit} €</b></div>
+              <div>Material: <b>{heuStat.materialKg.toLocaleString('de-DE')} kg</b></div>
+            </div>
+          </div>
+          <div style={{ backgroundColor: darkMode ? '#14171a' : '#f4fce3', padding: '10px', borderRadius: '10px', border: '1px solid #8cc63f' }}>
+            <h3 style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#598f1e', margin: '0 0 6px', textTransform: 'uppercase' }}>📦 Saison ({saisonName})</h3>
+            <div style={{ display: 'grid', gap: '4px', fontSize: '0.75rem' }}>
+              <div>Einsätze: <b>{gesamtStat.anzahl}</b></div>
+              <div>Km: <b>{gesamtStat.km} km</b></div>
+              <div>Sprit: <b>{gesamtStat.sprit} €</b></div>
+              <div>Material: <b>{gesamtStat.materialKg.toLocaleString('de-DE')} kg</b></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section style={{ backgroundColor: bgCard, padding: '14px', borderRadius: '14px', border: '1px solid ' + borderCard, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <h3 style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textApp, margin: 0 }}>🧾 Monatsnachweis je Liegenschaft</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div>
+            <label htmlFor="abrechnung-monat" style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, marginBottom: '4px' }}>Monat</label>
+            <input id="abrechnung-monat" type="month" value={abrechnungMonat} onChange={event => setAbrechnungMonat(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#22262a' : '#ffffff', color: textApp, fontSize: '0.8rem' }} />
+          </div>
+          <div>
+            <label htmlFor="abrechnung-liegenschaft" style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: textSub, marginBottom: '4px' }}>Liegenschaft</label>
+            <select id="abrechnung-liegenschaft" value={abrechnungLiegenschaft} onChange={event => setAbrechnungLiegenschaft(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#22262a' : '#ffffff', color: textApp, fontSize: '0.8rem' }}>
+              <option value="">Alle Liegenschaften</option>
+              {liegenschaftNamen.map(name => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </div>
+        </div>
+        {abbrechnungsEinsaetze.length === 0 ? (
+          <p style={{ color: textSub, fontSize: '0.75rem', margin: 0 }}>Keine Einsätze für diese Auswahl gefunden.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {abbrechnungsEinsaetze.map(einsatz => (
+              <div key={einsatz.id} style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', border: '1px solid ' + borderCard, borderRadius: '8px', padding: '8px', display: 'grid', gridTemplateColumns: 'minmax(68px, auto) 1fr', gap: '3px 8px', fontSize: '0.72rem' }}>
+                <strong style={{ color: textApp }}>{new Date(einsatz.timestamp).toLocaleDateString('de-DE')}</strong>
+                <span style={{ color: textApp, fontWeight: 600 }}>{einsatz.objName}</span>
+                <span style={{ color: textSub }}>Leistung</span>
+                <span style={{ color: textApp }}>{einsatz.type}</span>
+                <span style={{ color: textSub }}>Material</span>
+                <span style={{ color: textApp }}>{einsatz.materialUsed}</span>
+                <span style={{ color: textSub }}>Dauer</span>
+                <span style={{ color: textApp }}>{einsatz.duration}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ borderTop: '1px solid ' + borderCard, paddingTop: '8px', display: 'flex', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', fontSize: '0.75rem', color: textApp }}>
+          <strong>Summe: {abbrechnungsEinsaetze.length} Einsätze</strong>
+          <strong>Material: {Object.entries(verbrauchNachEinheit).map(([einheit, menge]) => `${menge.toLocaleString('de-DE', { maximumFractionDigits: 1 })} ${einheit}`).join(' + ') || '0'}</strong>
+        </div>
+      </section>
+
       <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '1px solid ' + borderCard, boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1.05rem', margin: 0 }}>Einsatz-Historie</h2>
-            <p style={{ fontSize: '0.75rem', color: textSub, margin: '2px 0 0 0' }}>Laufende Saison</p>
+            <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1.05rem', margin: 0 }}>Weitere Einsätze der Saison</h2>
+            <p style={{ fontSize: '0.75rem', color: textSub, margin: '2px 0 0 0' }}>Berichte außerhalb des heutigen Tages</p>
           </div>
           <button onClick={exportToCSV} style={{ backgroundColor: '#111827', color: '#ffffff', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
             📥 CSV Export
           </button>
         </div>
 
-        {history.length === 0 ? (
-          <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>Noch keine Einsätze dokumentiert.</p>
+        {weitereBerichte.length === 0 ? (
+          <p style={{ textAlign: 'center', color: textSub, padding: '24px 0', fontSize: '0.85rem' }}>Keine weiteren Einsätze in der laufenden Saison.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {history.map(item => (
-              <div key={item.id} style={{ border: '1px solid ' + borderCard, padding: '10px', borderRadius: '10px', backgroundColor: darkMode ? '#14171a' : '#f9fafb', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h4 style={{ fontWeight: 'bold', color: textApp, margin: 0, fontSize: '0.9rem' }}>{item.kundeName} - {item.objName}</h4>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <button onClick={() => sendeHistorienBericht(item)} style={{ background: darkMode ? '#22262a' : '#eef6e6', border: '1px solid #8cc63f', color: '#598f1e', padding: '3px 6px', borderRadius: '6px', fontSize: '0.65rem', cursor: 'pointer', fontWeight: 'bold' }}>📤 Senden</button>
-                    <button onClick={() => druckeEinsatzBericht(item)} style={{ background: darkMode ? '#22262a' : '#f3f4f6', border: '1px solid ' + borderCard, color: textApp, padding: '3px 6px', borderRadius: '6px', fontSize: '0.65rem', cursor: 'pointer', fontWeight: 'bold' }}>🖨️ PDF</button>
-                    <button onClick={() => deleteHistoryItem(item.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.7rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️</button>
-                  </div>
-                </div>
-                <span style={{ fontSize: '0.65rem', fontFamily: 'monospace', color: textSub }}>{item.date}</span>
-                {item.berichtStatus === 'keine_meldung_gewuenscht' ? (
-                  <span style={{ alignSelf: 'flex-start', backgroundColor: darkMode ? '#374151' : '#f3f4f6', borderRadius: '6px', color: textSub, fontSize: '0.65rem', fontWeight: 600, padding: '3px 6px' }}>
-                    🔕 Keine Kundenmeldung gewünscht
-                  </span>
-                ) : item.berichtStatus === 'gesendet_whatsapp'
-                  || item.berichtStatus === 'gesendet_email'
-                  || item.berichtStatus === 'gesendet_teilen' ? (
-                    <span style={{ alignSelf: 'flex-start', backgroundColor: darkMode ? '#1d2b1b' : '#f4fce3', borderRadius: '6px', color: darkMode ? '#a3d977' : '#3f6212', fontSize: '0.65rem', fontWeight: 600, padding: '3px 6px' }}>
-                      ✓ Gemeldet ({item.berichtStatus === 'gesendet_whatsapp'
-                        ? 'WhatsApp'
-                        : item.berichtStatus === 'gesendet_email'
-                          ? 'E-Mail'
-                          : 'Teilen'}{item.berichtGesendetAm ? `, ${item.berichtGesendetAm}` : ''})
-                    </span>
-                  ) : (
-                    <span style={{ alignSelf: 'flex-start', backgroundColor: darkMode ? '#3b2f16' : '#fff7ed', borderRadius: '6px', color: darkMode ? '#fbbf24' : '#b45309', fontSize: '0.65rem', fontWeight: 600, padding: '3px 6px' }}>
-                      ⏳ Rückmeldung noch offen
-                    </span>
-                  )}
-                <p style={{ fontSize: '0.75rem', color: textApp, margin: 0 }}>Wetter: <b>{item.wetter}</b> | Typ: <b>{item.type}</b></p>
-                {item.wetterVorOrt && <p style={{ fontSize: '0.75rem', color: textApp, margin: 0 }}>Wetter vor Ort: <b>{item.wetterVorOrt}</b></p>}
-                {item.hindernisInfo && <p style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 'bold', margin: 0 }}>⚠️ Hindernis: {item.hindernisInfo}</p>}
-                <p style={{ fontSize: '0.75rem', color: '#8cc63f', fontWeight: 500, margin: 0 }}>
-                  Verbrauch: {item.materialUsed} | Fahrstrecke: <b>{item.kmGefahren}</b> (~{item.spritKosten} Sprit)
-                </p>
-              </div>
-            ))}
+            {weitereBerichte.map(zeigeEinsatzkarte)}
           </div>
         )}
       </div>

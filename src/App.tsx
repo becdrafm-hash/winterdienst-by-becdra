@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LEISTUNGSARTEN, type BevorzugterKanal, type EinsatzLog, type Kunde, type Leistungsart, type Liegenschaft, type SaisonArchiv } from './types';
+import { type BevorzugterKanal, type EinsatzLog, type Kunde, type Leistungsart, type Liegenschaft, type SaisonArchiv } from './types';
 import DialogModal from './components/DialogModal';
 import Header from './components/Header';
 import LagerTab from './components/LagerTab';
@@ -16,6 +16,20 @@ import { normalisiereStreuMittelId, STREUMITTEL, type LagerBestaende, type Streu
 
 const LAGER_KG_MIGRATION_KEY = 'becdra_lager_kg_migration_v1';
 const LAGER_BESTAENDE_KEY = 'becdra_lager_bestaende';
+
+function speichereLocalStorage(schluessel: string, wert: string): boolean {
+  try {
+    localStorage.setItem(schluessel, wert);
+    return true;
+  } catch (error) {
+    console.error(`LocalStorage-Eintrag "${schluessel}" konnte nicht gespeichert werden:`, error);
+    return false;
+  }
+}
+
+function entferneFotoDaten(einsatz: EinsatzLog): EinsatzLog {
+  return { ...einsatz, fotoUrl: undefined, hindernisFotoUrl: undefined };
+}
 
 function ladeLagerBestaende(): LagerBestaende {
   const standard: LagerBestaende = { Salz: 0, Splitt: 0, Sand: 0, Lava: 0, Acetat: 0 };
@@ -228,9 +242,8 @@ export default function App() {
       return { pauseBeginn: null, pausendauerMs: 0 };
     }
   });
-  const [einsatzType, setEinsatzType] = useState<Leistungsart>(LEISTUNGSARTEN[0]);
+  const [einsatzType, setEinsatzType] = useState<Leistungsart>('streuen');
   const [wetterLage, setWetterLage] = useState('Wird geladen...');
-  const [wetterVorOrt, setWetterVorOrt] = useState('');
   const [materialVerbrauchKg, setMaterialVerbrauchKg] = useState('');
   const [gefahreneKm, setGefahreneKm] = useState(() =>
     localStorage.getItem('becdra_gefahrene_km') || '0'
@@ -267,38 +280,116 @@ export default function App() {
   });
 
   useEffect(() => {
-    localStorage.setItem('becdra_kunden', JSON.stringify(kunden));
+    speichereLocalStorage('becdra_kunden', JSON.stringify(kunden));
   }, [kunden]);
 
   useEffect(() => {
-    localStorage.setItem('becdra_liegenschaften', JSON.stringify(liegenschaften));
+    speichereLocalStorage('becdra_liegenschaften', JSON.stringify(liegenschaften));
   }, [liegenschaften]);
 
   useEffect(() => {
-    localStorage.setItem(LAGER_BESTAENDE_KEY, JSON.stringify(lagerBestaende));
-    localStorage.setItem('becdra_lager', JSON.stringify(lagerBestaende.Salz));
-    localStorage.setItem(LAGER_KG_MIGRATION_KEY, 'true');
+    speichereLocalStorage(LAGER_BESTAENDE_KEY, JSON.stringify(lagerBestaende));
+    speichereLocalStorage('becdra_lager', JSON.stringify(lagerBestaende.Salz));
+    speichereLocalStorage(LAGER_KG_MIGRATION_KEY, 'true');
   }, [lagerBestaende]);
 
   useEffect(() => {
-    localStorage.setItem('becdra_dwd_regionen', JSON.stringify(dwdRegionen));
+    speichereLocalStorage('becdra_dwd_regionen', JSON.stringify(dwdRegionen));
   }, [dwdRegionen]);
 
   useEffect(() => {
-    localStorage.setItem('becdra_streumittel', JSON.stringify(streuMittelListe));
+    speichereLocalStorage('becdra_streumittel', JSON.stringify(streuMittelListe));
   }, [streuMittelListe]);
 
   useEffect(() => {
-    localStorage.setItem('becdra_history', JSON.stringify(history));
-  }, [history]);
+    const gespeicherteHistorie = [...history];
+    try {
+        localStorage.setItem('becdra_history', JSON.stringify(gespeicherteHistorie));
+      return;
+    } catch (error) {
+      console.error('Einsatzhistorie konnte wegen vollem Speicher nicht gespeichert werden:', error);
+    }
+
+    for (let index = gespeicherteHistorie.length - 1; index >= 0; index -= 1) {
+      const einsatz = gespeicherteHistorie[index];
+      if (!einsatz.fotoUrl && !einsatz.hindernisFotoUrl) continue;
+      gespeicherteHistorie[index] = entferneFotoDaten(einsatz);
+      try {
+        localStorage.setItem('becdra_history', JSON.stringify(gespeicherteHistorie));
+        console.warn('Ältere Fotodaten wurden entfernt, damit die Einsatzhistorie gespeichert werden kann.');
+        return;
+      } catch (error) {
+        console.error('Einsatzhistorie ist trotz Entfernen älterer Fotodaten weiterhin zu groß:', error);
+      }
+    }
+
+    const archivFuerFallback = [...archivListe];
+    let archivBereinigt = false;
+    for (let archivIndex = archivFuerFallback.length - 1; archivIndex >= 0; archivIndex -= 1) {
+      const archiv = archivFuerFallback[archivIndex];
+      for (let einsatzIndex = archiv.einsätze.length - 1; einsatzIndex >= 0; einsatzIndex -= 1) {
+        const einsatz = archiv.einsätze[einsatzIndex];
+        if (!einsatz.fotoUrl && !einsatz.hindernisFotoUrl) continue;
+        const einsätze = [...archiv.einsätze];
+        einsätze[einsatzIndex] = entferneFotoDaten(einsatz);
+        archivFuerFallback[archivIndex] = { ...archiv, einsätze };
+        try {
+          localStorage.setItem('becdra_saison_archiv', JSON.stringify(archivFuerFallback));
+          archivBereinigt = true;
+        } catch (error) {
+          console.error('Ältere Archivfotos konnten nicht entfernt werden:', error);
+          continue;
+        }
+
+        try {
+          localStorage.setItem('becdra_history', JSON.stringify(gespeicherteHistorie));
+          console.warn('Ältere Archiv- und Fotodaten wurden entfernt, damit die Einsatzhistorie gespeichert werden kann.');
+          return;
+        } catch (error) {
+          console.error('Einsatzhistorie konnte auch nach Bereinigen des Saisonarchivs nicht gespeichert werden:', error);
+        }
+      }
+    }
+    if (archivBereinigt) {
+      console.warn('Ältere Archivfotos wurden zur Freigabe von LocalStorage entfernt.');
+    }
+
+    console.error('Speicher voll: Der Einsatz bleibt in der App erhalten, konnte aber nicht dauerhaft gespeichert werden.');
+  }, [archivListe, history]);
 
   useEffect(() => {
-    localStorage.setItem('becdra_saison_archiv', JSON.stringify(archivListe));
+    const gespeichertesArchiv = [...archivListe];
+    try {
+      localStorage.setItem('becdra_saison_archiv', JSON.stringify(gespeichertesArchiv));
+      return;
+    } catch (error) {
+      console.error('Saisonarchiv konnte wegen vollem Speicher nicht gespeichert werden:', error);
+    }
+
+    for (let archivIndex = gespeichertesArchiv.length - 1; archivIndex >= 0; archivIndex -= 1) {
+      const archiv = gespeichertesArchiv[archivIndex];
+      for (let einsatzIndex = archiv.einsätze.length - 1; einsatzIndex >= 0; einsatzIndex -= 1) {
+        const einsatz = archiv.einsätze[einsatzIndex];
+        if (!einsatz.fotoUrl && !einsatz.hindernisFotoUrl) continue;
+        const einsätze = [...archiv.einsätze];
+        einsätze[einsatzIndex] = entferneFotoDaten(einsatz);
+        gespeichertesArchiv[archivIndex] = { ...archiv, einsätze };
+        try {
+          localStorage.setItem('becdra_saison_archiv', JSON.stringify(gespeichertesArchiv));
+          console.warn('Ältere Archivfotos wurden entfernt, damit das Saisonarchiv gespeichert werden kann.');
+          return;
+        } catch (error) {
+          console.error('Saisonarchiv ist trotz Entfernen älterer Fotodaten weiterhin zu groß:', error);
+        }
+      }
+    }
+
+    console.error('Speicher voll: Das Saisonarchiv konnte nicht dauerhaft gespeichert werden.');
   }, [archivListe]);
 
   useEffect(() => {
     if (activeKunde) {
-      localStorage.setItem('becdra_active_kunde', JSON.stringify(activeKunde));
+      speichereLocalStorage('becdra_active_kunde', JSON.stringify(activeKunde));
     } else {
       localStorage.removeItem('becdra_active_kunde');
     }
@@ -306,7 +397,7 @@ export default function App() {
 
   useEffect(() => {
     if (activeObjekt) {
-      localStorage.setItem('becdra_active_objekt', JSON.stringify(activeObjekt));
+      speichereLocalStorage('becdra_active_objekt', JSON.stringify(activeObjekt));
     } else {
       localStorage.removeItem('becdra_active_objekt');
     }
@@ -314,7 +405,7 @@ export default function App() {
 
   useEffect(() => {
     if (startTime) {
-      localStorage.setItem('becdra_starttime', startTime.toISOString());
+      speichereLocalStorage('becdra_starttime', startTime.toISOString());
     } else {
       localStorage.removeItem('becdra_starttime');
     }
@@ -322,7 +413,7 @@ export default function App() {
 
   useEffect(() => {
     if (activeKunde && activeObjekt && startTime) {
-      localStorage.setItem('becdra_arbeitszeit', JSON.stringify(arbeitszeitStatus));
+      speichereLocalStorage('becdra_arbeitszeit', JSON.stringify(arbeitszeitStatus));
     } else {
       localStorage.removeItem('becdra_arbeitszeit');
     }
@@ -330,7 +421,7 @@ export default function App() {
 
   useEffect(() => {
     if (activeKunde && activeObjekt && startTime) {
-      localStorage.setItem('becdra_gefahrene_km', gefahreneKm);
+      speichereLocalStorage('becdra_gefahrene_km', gefahreneKm);
     } else {
       localStorage.removeItem('becdra_gefahrene_km');
     }
@@ -384,7 +475,7 @@ export default function App() {
                 backupBestaende[material.id] = bestand;
               }
               setLagerBestaende(backupBestaende);
-              localStorage.setItem(LAGER_KG_MIGRATION_KEY, 'true');
+              speichereLocalStorage(LAGER_KG_MIGRATION_KEY, 'true');
             } else if (parsed.lagerBestand !== undefined) {
               const backupBestand = Number(parsed.lagerBestand);
               const backupLagerKg = parsed.lagerEinheit === 'kg' ? backupBestand : backupBestand * 25;
@@ -392,7 +483,7 @@ export default function App() {
                 throw new Error('Der Lagerbestand im Backup ist ungültig.');
               }
               setLagerBestaende(prev => ({ ...prev, Salz: backupLagerKg }));
-              localStorage.setItem(LAGER_KG_MIGRATION_KEY, 'true');
+              speichereLocalStorage(LAGER_KG_MIGRATION_KEY, 'true');
             }
             if (parsed.startPunkt) setStartPunkt(parsed.startPunkt);
             if (parsed.spritPreisProLiter) setSpritPreisProLiter(parsed.spritPreisProLiter);
@@ -415,14 +506,14 @@ export default function App() {
   const speichereStartpunkt = (e: React.FormEvent) => {
     e.preventDefault();
     setStartPunkt(editingStartPunkt);
-    localStorage.setItem('becdra_startpunkt', editingStartPunkt);
+    speichereLocalStorage('becdra_startpunkt', editingStartPunkt);
     zeigeMeldung('Startpunkt erfolgreich aktualisiert!');
   };
 
   const speichereSpritPreis = (e: React.FormEvent) => {
     e.preventDefault();
     setSpritPreisProLiter(editingSpritPreis);
-    localStorage.setItem('becdra_spritpreis', editingSpritPreis);
+    speichereLocalStorage('becdra_spritpreis', editingSpritPreis);
     zeigeMeldung('Spritpreis erfolgreich aktualisiert!');
   };
 
@@ -436,7 +527,7 @@ export default function App() {
 
     const gespeicherterVerbrauch = String(verbrauch);
     setVerbrauchAuf100Km(gespeicherterVerbrauch);
-    localStorage.setItem('becdra_verbrauch', gespeicherterVerbrauch);
+    speichereLocalStorage('becdra_verbrauch', gespeicherterVerbrauch);
     zeigeMeldung('Fahrzeugverbrauch erfolgreich aktualisiert!');
   };
 
@@ -725,7 +816,6 @@ export default function App() {
       `Objekt: ${item.objName}\n` +
       `Datum und Uhrzeit: ${item.date}\n` +
       `Wetter: ${item.wetter}\n` +
-      (item.wetterVorOrt ? `Wetterverhältnisse vor Ort: ${item.wetterVorOrt}\n` : '') +
       `Maßnahme: ${item.type}\n` +
       hindernisZeile +
       `────────────────────────\n` +
@@ -792,8 +882,8 @@ export default function App() {
         const canvas = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
-        const maxWidth = 800;
-        const maxHeight = 600;
+        const maxWidth = 600;
+        const maxHeight = 450;
 
         if (width > height) {
           if (width > maxWidth) {
@@ -812,7 +902,7 @@ export default function App() {
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
 
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
         callback(dataUrl);
       };
       if (e.target?.result) {
@@ -861,7 +951,6 @@ export default function App() {
             <h3>Einsatz-Details (Intern):</h3>
             <ul>
               <li><b>Wetterlage:</b> ${item.wetter}</li>
-              ${item.wetterVorOrt ? `<li><b>Wetterverhältnisse vor Ort:</b> ${item.wetterVorOrt}</li>` : ''}
               <li><b>Art des Einsatzes:</b> ${item.type}</li>
               <li><b>Einsatzdauer:</b> ${item.duration}</li>
               <li><b>Materialverbrauch:</b> ${item.materialUsed}</li>
@@ -926,8 +1015,8 @@ export default function App() {
     setActiveKunde(kunde);
     setActiveObjekt(obj);
     setStartTime(new Date());
+    setEinsatzType('streuen');
     setArbeitszeitStatus({ pauseBeginn: null, pausendauerMs: 0 });
-    setWetterVorOrt('');
     setMaterialVerbrauchKg('');
     setAufgenommenesFoto(null);
     setAufgenommenesFotoUrl(null);
@@ -1025,7 +1114,6 @@ export default function App() {
         clearActiveEinsatz();
         setAufgenommenesFoto(null);
         setAufgenommenesFotoUrl(null);
-        setWetterVorOrt('');
         setMaterialVerbrauchKg('');
         setHindernisNotiz('');
         setHindernisFoto(null);
@@ -1066,7 +1154,6 @@ export default function App() {
       zeigeMeldung('Bitte einen gültigen Streumittelverbrauch eingeben.');
       return;
     }
-    const wetterVorOrtWert = wetterVorOrt.trim() || wetterLage || 'Standard / Wie Wetterbericht';
     const endTime = new Date();
     const aktuellePauseMs = arbeitszeitStatus.pauseBeginn === null
       ? 0
@@ -1086,6 +1173,8 @@ export default function App() {
 
     stopGpsTracking();
     const berechneteSpritKosten = (kmNum * Number(verbrauchAuf100Km) / 100) * (Number(spritPreisProLiter) || 1.80);
+    const gespeichertesHindernisFotoUrl = hindernisFotoUrl;
+    const gespeichertesHindernisFoto = hindernisFoto;
 
     setLagerBestaende(prev => ({ ...prev, [materialId]: prev[materialId] - verbrauchMenge }));
 
@@ -1096,7 +1185,6 @@ export default function App() {
       date: new Date().toLocaleDateString('de-DE') + ' ' + new Date().toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}),
       timestamp: Date.now(),
       wetter: wetterLage,
-      wetterVorOrt: wetterVorOrtWert,
       type: einsatzType,
       duration: `${Math.max(1, diffMinutes)} Min.`,
       materialUsed: `${verbrauchMenge.toLocaleString('de-DE')} ${materialInfo.einheit} (${materialInfo.name})`,
@@ -1107,8 +1195,8 @@ export default function App() {
       fotoName: aufgenommenesFoto || undefined,
       fotoUrl: aufgenommenesFotoUrl || undefined,
       hindernisInfo: hindernisNotiz ? hindernisNotiz : undefined,
-      hindernisFoto: hindernisFoto || undefined,
-      hindernisFotoUrl: hindernisFotoUrl || undefined
+      hindernisFoto: gespeichertesHindernisFoto || undefined,
+      hindernisFotoUrl: gespeichertesHindernisFotoUrl || undefined
     };
 
     setHistory(prev => [newLog, ...prev]);
@@ -1138,7 +1226,6 @@ export default function App() {
     clearActiveEinsatz();
     setAufgenommenesFoto(null);
     setAufgenommenesFotoUrl(null);
-    setWetterVorOrt('');
     setMaterialVerbrauchKg('');
     setHindernisNotiz('');
     setHindernisFoto(null);
@@ -1161,7 +1248,6 @@ export default function App() {
         `Auftraggeber: ${geforderterKunde.firma}\n` +
         `Datum: ${heuteDatum}\n` +
         `Wetter: ${wetterLage}\n\n` +
-        `Wetterverhältnisse vor Ort: ${wetterVorOrtWert}\n\n` +
         `Betreute Objekte:\n${liegenschaftsListeText}\n` +
         `────────────────────────\n` +
         `Status: Ordnungsgemäß betreut\n\n` +
@@ -1178,15 +1264,13 @@ export default function App() {
         zeigeMeldung('Einsatz gespeichert (Keine Kundenmeldung eingestellt).');
       } else {
         const kanalName = bevorzugterKanal === 'whatsapp' ? 'WhatsApp' : 'E-Mail';
-        const ausweichKanal = bevorzugterKanal === 'whatsapp' ? 'email' : 'whatsapp';
-        const ausweichKanalName = ausweichKanal === 'email' ? 'E-Mail' : 'WhatsApp';
         const sendeRueckmeldung = (kanal: 'whatsapp' | 'email', fotoTeilen = false) => {
           setDialogConfig(prev => ({ ...prev, visible: false }));
           if (fotoTeilen && teileBerichtMitHindernisfoto(
             berichtText,
             betreffText,
             activeObjekt.name,
-            hindernisFotoUrl || undefined
+            gespeichertesHindernisFotoUrl || undefined
           )) {
             aktualisiereBerichtStatus(
               einsatz => einsatz.kundeName === geforderterKunde.firma && einsatz.date.startsWith(heuteDatum),
@@ -1215,29 +1299,11 @@ export default function App() {
           visible: true,
           titel: 'Kunde vollständig betreut',
           text: `Alle Liegenschaften von "${geforderterKunde.firma}" sind erledigt. Soll die Rückmeldung jetzt per ${kanalName} gesendet werden?`,
-          confirmText: hindernisFotoUrl
-            ? '📸 Bericht + Foto teilen (WhatsApp / App)'
+          confirmText: gespeichertesHindernisFotoUrl
+            ? '✅ Ja, Bericht + Foto senden'
             : `✅ Ja, per ${kanalName} senden`,
-          secondaryText: hindernisFotoUrl
-            ? '✉️ Als E-Mail mit Betreff öffnen (ohne Foto)'
-            : `Ausnahmsweise per ${ausweichKanalName}`,
           cancelText: '⏰ Später senden',
-          onConfirm: () => sendeRueckmeldung(bevorzugterKanal, Boolean(hindernisFotoUrl)),
-          onSecondary: () => {
-            if (hindernisFotoUrl) {
-              setDialogConfig(prev => ({ ...prev, visible: false }));
-              const mailSubject = encodeURIComponent(betreffText);
-              const mailBody = encodeURIComponent(berichtText);
-              window.location.href = `mailto:${geforderterKunde.email}?subject=${mailSubject}&body=${mailBody}`;
-              aktualisiereBerichtStatus(
-                einsatz => einsatz.kundeName === geforderterKunde.firma && einsatz.date.startsWith(heuteDatum),
-                'gesendet_email'
-              );
-              zeigeMeldung(`✅ Rückmeldung für ${geforderterKunde.firma} wurde gestartet!`);
-              return;
-            }
-            sendeRueckmeldung(ausweichKanal);
-          },
+          onConfirm: () => sendeRueckmeldung(bevorzugterKanal, Boolean(gespeichertesHindernisFotoUrl)),
           onCancel: () => {
             setDialogConfig(prev => ({ ...prev, visible: false }));
             aktualisiereBerichtStatus(
@@ -1518,8 +1584,6 @@ export default function App() {
             borderCard={borderCard}
             bgCard={bgCard}
             wetterLage={wetterLage}
-            wetterVorOrt={wetterVorOrt}
-            setWetterVorOrt={setWetterVorOrt}
             startTime={startTime}
             pauseBeginn={arbeitszeitStatus.pauseBeginn}
             pausendauerMs={arbeitszeitStatus.pausendauerMs}
@@ -1679,11 +1743,8 @@ export default function App() {
                   <button onClick={() => setActiveTab('kunden')} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>
                     👥 Kunden verwalten
                   </button>
-                  <button onClick={() => setActiveTab('statistik')} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>
-                    📊 Einsatz-Statistik (Tag & Saison)
-                  </button>
                   <button onClick={() => setActiveTab('history_saison')} style={{ backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '12px', borderRadius: '10px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>
-                    📜 Einsatz-Historie & Archiv
+                    📋 Tagesberichte, Statistik & Archiv
                   </button>
                 </div>
 
