@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LEISTUNGSARTEN, type EinsatzLog, type Kunde, type Leistungsart, type Liegenschaft, type SaisonArchiv } from './types';
+import { LEISTUNGSARTEN, type BevorzugterKanal, type EinsatzLog, type Kunde, type Leistungsart, type Liegenschaft, type SaisonArchiv } from './types';
 import DialogModal from './components/DialogModal';
 import Header from './components/Header';
 import LagerTab from './components/LagerTab';
@@ -169,6 +169,7 @@ export default function App() {
   const [neuFirma, setNeuFirma] = useState('');
   const [neuEmail, setNeuEmail] = useState('');
   const [neuWhatsapp, setNeuWhatsapp] = useState('');
+  const [neuBevorzugterKanal, setNeuBevorzugterKanal] = useState<BevorzugterKanal>('whatsapp');
 
   const [selectedKundeId, setSelectedKundeId] = useState<number>(() => kunden[0]?.id || 1);
   const [neuObjName, setNeuObjName] = useState('');
@@ -183,6 +184,7 @@ export default function App() {
   const [editFirma, setEditFirma] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editWhatsapp, setEditWhatsapp] = useState('');
+  const [editBevorzugterKanal, setEditBevorzugterKanal] = useState<BevorzugterKanal>('whatsapp');
 
   const [editingLiege, setEditingLiege] = useState<Liegenschaft | null>(null);
   const [editObjName, setEditObjName] = useState('');
@@ -461,13 +463,15 @@ export default function App() {
       id: Date.now(),
       firma: neuFirma,
       email: neuEmail,
-      whatsapp: neuWhatsapp
+      whatsapp: neuWhatsapp,
+      bevorzugterKanal: neuBevorzugterKanal
     };
     setKunden([...kunden, neuerKunde]);
     setSelectedKundeId(neuerKunde.id);
     setNeuFirma('');
     setNeuEmail('');
     setNeuWhatsapp('');
+    setNeuBevorzugterKanal('whatsapp');
     zeigeMeldung('Kunde erfolgreich angelegt!');
   };
 
@@ -476,10 +480,17 @@ export default function App() {
     setEditFirma(kunde.firma);
     setEditEmail(kunde.email);
     setEditWhatsapp(kunde.whatsapp);
+    setEditBevorzugterKanal(kunde.bevorzugterKanal ?? 'whatsapp');
   };
 
   const saveEditKunde = (id: number) => {
-    setKunden(kunden.map(k => k.id === id ? { ...k, firma: editFirma, email: editEmail, whatsapp: editWhatsapp } : k));
+    setKunden(kunden.map(k => k.id === id ? {
+      ...k,
+      firma: editFirma,
+      email: editEmail,
+      whatsapp: editWhatsapp,
+      bevorzugterKanal: editBevorzugterKanal
+    } : k));
     setEditingKundeId(null);
     zeigeMeldung('Kunde aktualisiert!');
   };
@@ -681,6 +692,18 @@ export default function App() {
     return false;
   };
 
+  const aktualisiereBerichtStatus = (
+    passt: (einsatz: EinsatzLog) => boolean,
+    status: NonNullable<EinsatzLog['berichtStatus']>
+  ) => {
+    const berichtGesendetAm = status === 'offen' || status === 'keine_meldung_gewuenscht'
+      ? undefined
+      : new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    setHistory(prev => prev.map(einsatz => passt(einsatz)
+      ? { ...einsatz, berichtStatus: status, berichtGesendetAm }
+      : einsatz));
+  };
+
   const sendeHistorienBericht = (item: EinsatzLog) => {
     const gefundenerKunde = kunden.find(k => k.firma === item.kundeName);
     const zielWhatsapp = gefundenerKunde ? gefundenerKunde.whatsapp : '+4915100000000';
@@ -700,7 +723,6 @@ export default function App() {
       `Wetter: ${item.wetter}\n` +
       (item.wetterVorOrt ? `Wetterverhältnisse vor Ort: ${item.wetterVorOrt}\n` : '') +
       `Maßnahme: ${item.type}\n` +
-      (item.materialUsed ? `Streumittelverbrauch: ${item.materialUsed}\n` : '') +
       hindernisZeile +
       `────────────────────────\n` +
       `Status: Ordnungsgemäß betreut\n\n` +
@@ -723,16 +745,24 @@ export default function App() {
       cancelText: 'Abbrechen',
       onConfirm: () => {
         setDialogConfig(prev => ({ ...prev, visible: false }));
-        if (teileBerichtMitHindernisfoto(berichtText, item.hindernisFotoUrl, item.hindernisFoto)) return;
+        if (teileBerichtMitHindernisfoto(berichtText, item.hindernisFotoUrl, item.hindernisFoto)) {
+          aktualisiereBerichtStatus(einsatz => einsatz.id === item.id, 'gesendet_teilen');
+          return;
+        }
         const cleanPhone = zielWhatsapp.replace(/[^0-9]/g, '');
         window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(berichtText)}`, '_blank');
+        aktualisiereBerichtStatus(einsatz => einsatz.id === item.id, 'gesendet_whatsapp');
       },
       onSecondary: () => {
         setDialogConfig(prev => ({ ...prev, visible: false }));
-        if (teileBerichtMitHindernisfoto(berichtText, item.hindernisFotoUrl, item.hindernisFoto)) return;
+        if (teileBerichtMitHindernisfoto(berichtText, item.hindernisFotoUrl, item.hindernisFoto)) {
+          aktualisiereBerichtStatus(einsatz => einsatz.id === item.id, 'gesendet_teilen');
+          return;
+        }
         const mailSubject = encodeURIComponent(`Winterdienst-Einsatzbericht - ${item.kundeName} (${item.objName})`);
         const mailBody = encodeURIComponent(berichtText);
         window.location.href = `mailto:${zielEmail}?subject=${mailSubject}&body=${mailBody}`;
+        aktualisiereBerichtStatus(einsatz => einsatz.id === item.id, 'gesendet_email');
       },
       onCancel: () => setDialogConfig(prev => ({ ...prev, visible: false }))
     });
@@ -1099,7 +1129,6 @@ export default function App() {
           name: einsatz.objName,
           address: liegenschaft?.address || '',
           type: einsatz.type,
-          materialUsed: einsatz.materialUsed,
           hindernisInfo: einsatz.hindernisInfo
         };
       });
@@ -1126,7 +1155,6 @@ export default function App() {
           `Objekt: ${einsatz.name}`,
           `Adresse: ${einsatz.address}`,
           `Maßnahme: ${einsatz.type}`,
-          `Streumittelverbrauch: ${einsatz.materialUsed}`,
           `Hindernisse: ${einsatz.hindernisInfo || 'Keine dokumentiert'}`
         ].join('\n'))
         .join('\n\n');
@@ -1144,38 +1172,68 @@ export default function App() {
         `Mit freundlichen Grüßen\n` +
         `Becdra FM`;
 
-      setDialogConfig({
-        visible: true,
-        titel: 'Kunde vollständig betreut',
-        text: hindernisFotoUrl
-          ? `Alle Liegenschaften von "${geforderterKunde.firma}" wurden heute betreut. Der Bericht wird zusammen mit dem Hindernisfoto über die Teilen-Auswahl deines Geräts bereitgestellt.`
-          : `Alle Liegenschaften von "${geforderterKunde.firma}" wurden heute betreut! Wie möchtest du den Bericht senden?`,
-        confirmText: (
-          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-            {!hindernisFotoUrl && <svg width="16" height="16" viewBox="0 0 24 24" fill="#111827"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-2.972-1.487-4.925-2.668-6.892-6.075-.149-.255-.015-.394.113-.532.115-.121.272-.322.408-.484.135-.163.18-.277.27-.461.09-.185.045-.347-.022-.484-.067-.137-.57-1.377-.783-1.885-.207-.497-.418-.431-.67-.439-.232-.008-.497-.008-.763-.008-.266 0-.698.099-1.063.495-.365.396-1.395 1.364-1.395 3.327 0 1.963 1.432 3.857 1.631 4.125.199.268 2.819 4.302 6.836 6.027 3.553 1.536 4.276 1.231 5.043 1.155.767-.076 2.47-.98 2.818-1.926.348-.946.348-1.755.244-1.927z"/></svg>}
-            <span>{hindernisFotoUrl ? 'Bericht + Foto teilen' : 'WhatsApp senden'}</span>
-          </span>
-        ),
-        secondaryText: hindernisFotoUrl ? 'Bericht + Foto teilen' : '✉️ E-Mail senden',
-        cancelText: '⏰ Später',
-        onConfirm: () => {
+      const bevorzugterKanal = geforderterKunde.bevorzugterKanal ?? 'whatsapp';
+      if (bevorzugterKanal === 'keine') {
+        aktualisiereBerichtStatus(
+          einsatz => einsatz.kundeName === geforderterKunde.firma && einsatz.date.startsWith(heuteDatum),
+          'keine_meldung_gewuenscht'
+        );
+        zeigeMeldung('Einsatz gespeichert (Keine Kundenmeldung eingestellt).');
+      } else {
+        const kanalName = bevorzugterKanal === 'whatsapp' ? 'WhatsApp' : 'E-Mail';
+        const ausweichKanal = bevorzugterKanal === 'whatsapp' ? 'email' : 'whatsapp';
+        const ausweichKanalName = ausweichKanal === 'email' ? 'E-Mail' : 'WhatsApp';
+        const sendeRueckmeldung = (kanal: 'whatsapp' | 'email', fotoTeilen = false) => {
           setDialogConfig(prev => ({ ...prev, visible: false }));
-          if (teileBerichtMitHindernisfoto(berichtText, hindernisFotoUrl || undefined, hindernisFoto || undefined)) return;
-          const cleanPhone = geforderterKunde.whatsapp.replace(/[^0-9]/g, '');
-          window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(berichtText)}`, '_blank');
-        },
-        onSecondary: () => {
-          setDialogConfig(prev => ({ ...prev, visible: false }));
-          if (teileBerichtMitHindernisfoto(berichtText, hindernisFotoUrl || undefined, hindernisFoto || undefined)) return;
-          const mailSubject = encodeURIComponent(`Winterdienst-Einsatzbericht - ${geforderterKunde.firma} (${new Date().toLocaleDateString('de-DE')})`);
-          const mailBody = encodeURIComponent(berichtText);
-          window.location.href = `mailto:${geforderterKunde.email}?subject=${mailSubject}&body=${mailBody}`;
-        },
-        onCancel: () => {
-          setDialogConfig(prev => ({ ...prev, visible: false }));
-          zeigeMeldung('Einsatz gespeichert. Später in Historie senden.');
-        }
-      });
+          if (fotoTeilen && teileBerichtMitHindernisfoto(
+            berichtText,
+            hindernisFotoUrl || undefined,
+            hindernisFoto || undefined
+          )) {
+            aktualisiereBerichtStatus(
+              einsatz => einsatz.kundeName === geforderterKunde.firma && einsatz.date.startsWith(heuteDatum),
+              'gesendet_teilen'
+            );
+            zeigeMeldung(`✅ Rückmeldung für ${geforderterKunde.firma} wurde gestartet!`);
+            return;
+          }
+
+          if (kanal === 'whatsapp') {
+            const cleanPhone = geforderterKunde.whatsapp.replace(/[^0-9]/g, '');
+            window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(berichtText)}`, '_blank');
+          } else {
+            const mailSubject = encodeURIComponent(`Winterdienst-Einsatzbericht - ${geforderterKunde.firma} (${heuteDatum})`);
+            const mailBody = encodeURIComponent(berichtText);
+            window.location.href = `mailto:${geforderterKunde.email}?subject=${mailSubject}&body=${mailBody}`;
+          }
+          aktualisiereBerichtStatus(
+            einsatz => einsatz.kundeName === geforderterKunde.firma && einsatz.date.startsWith(heuteDatum),
+            kanal === 'whatsapp' ? 'gesendet_whatsapp' : 'gesendet_email'
+          );
+          zeigeMeldung(`✅ Rückmeldung für ${geforderterKunde.firma} wurde gestartet!`);
+        };
+
+        setDialogConfig({
+          visible: true,
+          titel: 'Kunde vollständig betreut',
+          text: `Alle Liegenschaften von "${geforderterKunde.firma}" sind erledigt. Soll die Rückmeldung jetzt per ${kanalName} gesendet werden?`,
+          confirmText: hindernisFotoUrl
+            ? '✅ Ja, Bericht + Foto teilen'
+            : `✅ Ja, per ${kanalName} senden`,
+          secondaryText: `Ausnahmsweise per ${ausweichKanalName}`,
+          cancelText: '⏰ Später senden',
+          onConfirm: () => sendeRueckmeldung(bevorzugterKanal, Boolean(hindernisFotoUrl)),
+          onSecondary: () => sendeRueckmeldung(ausweichKanal),
+          onCancel: () => {
+            setDialogConfig(prev => ({ ...prev, visible: false }));
+            aktualisiereBerichtStatus(
+              einsatz => einsatz.kundeName === geforderterKunde.firma && einsatz.date.startsWith(heuteDatum),
+              'offen'
+            );
+            zeigeMeldung('⏳ Gespeichert – Bericht in Historie als OFFEN markiert.');
+          }
+        });
+      }
     } else {
       zeigeMeldung('Einsatz erfolgreich gespeichert!');
     }
@@ -1500,12 +1558,16 @@ export default function App() {
                 setEditEmail={setEditEmail}
                 editWhatsapp={editWhatsapp}
                 setEditWhatsapp={setEditWhatsapp}
+                editBevorzugterKanal={editBevorzugterKanal}
+                setEditBevorzugterKanal={setEditBevorzugterKanal}
                 neuFirma={neuFirma}
                 setNeuFirma={setNeuFirma}
                 neuEmail={neuEmail}
                 setNeuEmail={setNeuEmail}
                 neuWhatsapp={neuWhatsapp}
                 setNeuWhatsapp={setNeuWhatsapp}
+                neuBevorzugterKanal={neuBevorzugterKanal}
+                setNeuBevorzugterKanal={setNeuBevorzugterKanal}
                 setEditingKundeId={setEditingKundeId}
                 darkMode={darkMode}
                 textApp={textApp}

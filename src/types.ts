@@ -5,6 +5,7 @@ export const LEISTUNGSARTEN = [
 ] as const;
 
 export type Leistungsart = typeof LEISTUNGSARTEN[number];
+export type BevorzugterKanal = 'whatsapp' | 'email' | 'keine';
 
 export interface Liegenschaft {
   id: number;
@@ -25,6 +26,7 @@ export interface Kunde {
   firma: string;
   email: string;
   whatsapp: string;
+  bevorzugterKanal?: BevorzugterKanal;
 }
 
 export interface EinsatzLog {
@@ -47,6 +49,8 @@ export interface EinsatzLog {
   hindernisInfo?: string;
   hindernisFoto?: string;
   hindernisFotoUrl?: string;
+  berichtStatus?: 'gesendet_whatsapp' | 'gesendet_email' | 'gesendet_teilen' | 'offen' | 'keine_meldung_gewuenscht';
+  berichtGesendetAm?: string;
 }
 
 export interface SaisonArchiv {

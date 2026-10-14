@@ -1,5 +1,5 @@
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
-import type { Kunde } from '../types';
+import type { BevorzugterKanal, Kunde } from '../types';
 
 type AppTab = 'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison';
 
@@ -12,12 +12,16 @@ interface KundenTabProps {
   setEditEmail: Dispatch<SetStateAction<string>>;
   editWhatsapp: string;
   setEditWhatsapp: Dispatch<SetStateAction<string>>;
+  editBevorzugterKanal: BevorzugterKanal;
+  setEditBevorzugterKanal: Dispatch<SetStateAction<BevorzugterKanal>>;
   neuFirma: string;
   setNeuFirma: Dispatch<SetStateAction<string>>;
   neuEmail: string;
   setNeuEmail: Dispatch<SetStateAction<string>>;
   neuWhatsapp: string;
   setNeuWhatsapp: Dispatch<SetStateAction<string>>;
+  neuBevorzugterKanal: BevorzugterKanal;
+  setNeuBevorzugterKanal: Dispatch<SetStateAction<BevorzugterKanal>>;
   setEditingKundeId: Dispatch<SetStateAction<number | null>>;
   darkMode: boolean;
   textApp: string;
@@ -40,12 +44,16 @@ export default function KundenTab({
   setEditEmail,
   editWhatsapp,
   setEditWhatsapp,
+  editBevorzugterKanal,
+  setEditBevorzugterKanal,
   neuFirma,
   setNeuFirma,
   neuEmail,
   setNeuEmail,
   neuWhatsapp,
   setNeuWhatsapp,
+  neuBevorzugterKanal,
+  setNeuBevorzugterKanal,
   setEditingKundeId,
   darkMode,
   textApp,
@@ -76,6 +84,14 @@ export default function KundenTab({
                   <input type="text" value={editFirma} onChange={e => setEditFirma(e.target.value)} placeholder="Firmenname" style={{ padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: bgCard, color: textApp }} />
                   <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="E-Mail" style={{ padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: bgCard, color: textApp }} />
                   <input type="text" value={editWhatsapp} onChange={e => setEditWhatsapp(e.target.value)} placeholder="WhatsApp" style={{ padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: bgCard, color: textApp }} />
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.75rem', fontWeight: 600, color: textSub }}>
+                    Bevorzugte Rückmeldung
+                    <select value={editBevorzugterKanal} onChange={e => setEditBevorzugterKanal(e.target.value as BevorzugterKanal)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid ' + borderCard, fontSize: '0.85rem', backgroundColor: bgCard, color: textApp }}>
+                      <option value="whatsapp">💬 WhatsApp</option>
+                      <option value="email">✉️ E-Mail</option>
+                      <option value="keine">🔕 Keine Meldung</option>
+                    </select>
+                  </label>
                   <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                     <button onClick={() => saveEditKunde(kunde.id)} style={{ flex: 1, backgroundColor: '#8cc63f', color: '#111827', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}>Speichern</button>
                     <button onClick={() => setEditingKundeId(null)} style={{ flex: 1, backgroundColor: darkMode ? '#374151' : '#e5e7eb', color: textApp, border: 'none', padding: '10px', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer' }}>Abbrechen</button>
@@ -86,6 +102,9 @@ export default function KundenTab({
                   <div>
                     <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', margin: 0, color: textApp }}>{kunde.firma}</h3>
                     <p style={{ fontSize: '0.75rem', color: textSub, margin: '2px 0 0 0' }}>✉ {kunde.email || 'Keine E-Mail'} | 📞 {kunde.whatsapp || 'Keine Nummer'}</p>
+                    <p style={{ fontSize: '0.7rem', color: textSub, margin: '3px 0 0 0' }}>
+                      Bevorzugte Rückmeldung: {kunde.bevorzugterKanal === 'email' ? '✉️ E-Mail' : kunde.bevorzugterKanal === 'keine' ? '🔕 Keine Meldung' : '💬 WhatsApp'}
+                    </p>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={() => startEditKunde(kunde)} style={{ flex: 1, backgroundColor: darkMode ? '#14171a' : '#f3f4f6', color: textApp, border: '1px solid ' + borderCard, padding: '8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -116,6 +135,14 @@ export default function KundenTab({
           <div>
             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>WhatsApp-Nummer</label>
             <input type="text" value={neuWhatsapp} onChange={e => setNeuWhatsapp(e.target.value)} placeholder="+49151..." style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: textSub, textTransform: 'uppercase', marginBottom: '4px' }}>Bevorzugte Rückmeldung</label>
+            <select value={neuBevorzugterKanal} onChange={e => setNeuBevorzugterKanal(e.target.value as BevorzugterKanal)} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }}>
+              <option value="whatsapp">💬 WhatsApp</option>
+              <option value="email">✉️ E-Mail</option>
+              <option value="keine">🔕 Keine Meldung</option>
+            </select>
           </div>
           <button type="submit" style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', border: 'none', cursor: 'pointer' }}>Kunden speichern</button>
         </form>

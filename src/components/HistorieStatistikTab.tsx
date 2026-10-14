@@ -238,6 +238,25 @@ export default function HistorieStatistikTab({
                   </div>
                 </div>
                 <span style={{ fontSize: '0.65rem', fontFamily: 'monospace', color: textSub }}>{item.date}</span>
+                {item.berichtStatus === 'keine_meldung_gewuenscht' ? (
+                  <span style={{ alignSelf: 'flex-start', backgroundColor: darkMode ? '#374151' : '#f3f4f6', borderRadius: '6px', color: textSub, fontSize: '0.65rem', fontWeight: 600, padding: '3px 6px' }}>
+                    🔕 Keine Kundenmeldung gewünscht
+                  </span>
+                ) : item.berichtStatus === 'gesendet_whatsapp'
+                  || item.berichtStatus === 'gesendet_email'
+                  || item.berichtStatus === 'gesendet_teilen' ? (
+                    <span style={{ alignSelf: 'flex-start', backgroundColor: darkMode ? '#1d2b1b' : '#f4fce3', borderRadius: '6px', color: darkMode ? '#a3d977' : '#3f6212', fontSize: '0.65rem', fontWeight: 600, padding: '3px 6px' }}>
+                      ✓ Gemeldet ({item.berichtStatus === 'gesendet_whatsapp'
+                        ? 'WhatsApp'
+                        : item.berichtStatus === 'gesendet_email'
+                          ? 'E-Mail'
+                          : 'Teilen'}{item.berichtGesendetAm ? `, ${item.berichtGesendetAm}` : ''})
+                    </span>
+                  ) : (
+                    <span style={{ alignSelf: 'flex-start', backgroundColor: darkMode ? '#3b2f16' : '#fff7ed', borderRadius: '6px', color: darkMode ? '#fbbf24' : '#b45309', fontSize: '0.65rem', fontWeight: 600, padding: '3px 6px' }}>
+                      ⏳ Rückmeldung noch offen
+                    </span>
+                  )}
                 <p style={{ fontSize: '0.75rem', color: textApp, margin: 0 }}>Wetter: <b>{item.wetter}</b> | Typ: <b>{item.type}</b></p>
                 {item.wetterVorOrt && <p style={{ fontSize: '0.75rem', color: textApp, margin: 0 }}>Wetter vor Ort: <b>{item.wetterVorOrt}</b></p>}
                 {item.hindernisInfo && <p style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 'bold', margin: 0 }}>⚠️ Hindernis: {item.hindernisInfo}</p>}
