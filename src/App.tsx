@@ -243,8 +243,6 @@ export default function App() {
   const [hindernisFoto, setHindernisFoto] = useState<string | null>(null);
   const [hindernisFotoUrl, setHindernisFotoUrl] = useState<string | null>(null);
 
-  const [heuteBetreuteProKunde, setHeuteBetreuteProKunde] = useState<{ [kundeId: number]: { name: string; address: string; type: Leistungsart }[] }>({});
-  
   const [history, setHistory] = useState<EinsatzLog[]>(() => {
     try {
       const saved = localStorage.getItem('becdra_history');
@@ -746,11 +744,15 @@ export default function App() {
       return;
     }
     const win = window.open();
+    const istPdf = planUrl.toLowerCase().startsWith('data:application/pdf')
+      || /\.pdf(?:$|[?#])/i.test(planUrl);
     win?.document.write(`
       <html>
         <head><title>Räumplan Ansicht</title></head>
         <body style="margin:0; background:#111; display:flex; justify-content:center; align-items:center; height:100vh;">
-          <img src="${planUrl}" style="max-width:100%; max-height:100%; object-fit:contain;" />
+          ${istPdf
+            ? `<iframe src="${planUrl}" style="width:100%; height:100vh; border:none;"></iframe>`
+            : `<img src="${planUrl}" style="max-width:100%; max-height:100%; object-fit:contain;" />`}
         </body>
       </html>
     `);
@@ -801,6 +803,7 @@ export default function App() {
     
     const doc = iframe.contentWindow?.document;
     if (!doc) {
+      iframe.remove();
       zeigeMeldung('Fehler beim Erstellen des PDF-Berichts.');
       return;
     }
@@ -862,6 +865,7 @@ export default function App() {
           <script>
             setTimeout(() => {
               window.print();
+              setTimeout(() => window.frameElement?.remove(), 2000);
             }, 500);
           </script>
         </body>
@@ -1030,15 +1034,13 @@ export default function App() {
 
   const finishEinsatz = () => {
     if (!activeKunde || !activeObjekt || !startTime) return;
-    const verbrauchMenge = Number(materialVerbrauchKg);
-    if (materialVerbrauchKg.trim() === '' || !Number.isFinite(verbrauchMenge) || verbrauchMenge < 0) {
+    const eingabeVerbrauch = materialVerbrauchKg.trim();
+    const verbrauchMenge = eingabeVerbrauch === '' ? 0 : Number(eingabeVerbrauch);
+    if (!Number.isFinite(verbrauchMenge) || verbrauchMenge < 0) {
       zeigeMeldung('Bitte einen gültigen Streumittelverbrauch eingeben.');
       return;
     }
-    if (!wetterVorOrt) {
-      zeigeMeldung('Bitte die Wetterverhältnisse vor Ort auswählen.');
-      return;
-    }
+    const wetterVorOrtWert = wetterVorOrt.trim() || wetterLage || 'Standard / Wie Wetterbericht';
     const endTime = new Date();
     const aktuellePauseMs = arbeitszeitStatus.pauseBeginn === null
       ? 0
@@ -1068,7 +1070,7 @@ export default function App() {
       date: new Date().toLocaleDateString('de-DE') + ' ' + new Date().toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}),
       timestamp: Date.now(),
       wetter: wetterLage,
-      wetterVorOrt,
+      wetterVorOrt: wetterVorOrtWert,
       type: einsatzType,
       duration: `${Math.max(1, diffMinutes)} Min.`,
       materialUsed: `${verbrauchMenge.toLocaleString('de-DE')} ${materialInfo.einheit} (${materialInfo.name})`,
@@ -1086,17 +1088,25 @@ export default function App() {
     setHistory(prev => [newLog, ...prev]);
 
     const kundeId = activeKunde.id;
-    const aktuelleListeFuerKunden = heuteBetreuteProKunde[kundeId] || [];
-    const updatedBetreut = [...aktuelleListeFuerKunden, { name: activeObjekt.name, address: activeObjekt.address, type: einsatzType }];
-    
-    setHeuteBetreuteProKunde(prev => ({
-      ...prev,
-      [kundeId]: updatedBetreut
-    }));
+    const heuteDatum = new Date().toLocaleDateString('de-DE');
+    const heutigeEinsaetzeDesKunden = [...history, newLog]
+      .filter(einsatz => einsatz.kundeName === activeKunde.firma && einsatz.date.startsWith(heuteDatum))
+      .map(einsatz => {
+        const liegenschaft = liegenschaften.find(
+          liege => liege.kundeId === kundeId && liege.name === einsatz.objName
+        );
+        return {
+          name: einsatz.objName,
+          address: liegenschaft?.address || '',
+          type: einsatz.type,
+          materialUsed: einsatz.materialUsed,
+          hindernisInfo: einsatz.hindernisInfo
+        };
+      });
 
     const kundenLiegen = liegenschaften.filter(l => l.kundeId === kundeId);
     const alleObjekteDesKundenNamen = kundenLiegen.map(l => l.name);
-    const erledigteObjekteNamen = updatedBetreut.map(b => b.name);
+    const erledigteObjekteNamen = heutigeEinsaetzeDesKunden.map(einsatz => einsatz.name);
     const alleErledigt = alleObjekteDesKundenNamen.every(name => erledigteObjekteNamen.includes(name));
 
     const geforderterKunde = activeKunde;
@@ -1111,24 +1121,24 @@ export default function App() {
     setShowActiveRaeumPlanPopup(false);
 
     if (alleErledigt && alleObjekteDesKundenNamen.length > 0) {
-      const liegenschaftsListeText = updatedBetreut
-        .map(b => `Objekt: ${b.name}\nAdresse: ${b.address}\nMaßnahme: ${b.type}`)
+      const liegenschaftsListeText = heutigeEinsaetzeDesKunden
+        .map(einsatz => [
+          `Objekt: ${einsatz.name}`,
+          `Adresse: ${einsatz.address}`,
+          `Maßnahme: ${einsatz.type}`,
+          `Streumittelverbrauch: ${einsatz.materialUsed}`,
+          `Hindernisse: ${einsatz.hindernisInfo || 'Keine dokumentiert'}`
+        ].join('\n'))
         .join('\n\n');
-
-      const hindernisHinweis = hindernisNotiz
-        ? `Hindernisse: ${hindernisNotiz}`
-        : 'Hindernisse: Keine dokumentiert';
 
       const berichtText =
         `WINTERDIENST - EINSATZBERICHT\n` +
         `────────────────────────\n` +
         `Auftraggeber: ${geforderterKunde.firma}\n` +
-        `Datum: ${new Date().toLocaleDateString('de-DE')}\n` +
+        `Datum: ${heuteDatum}\n` +
         `Wetter: ${wetterLage}\n\n` +
-        `Wetterverhältnisse vor Ort: ${wetterVorOrt}\n` +
-        `Streumittelverbrauch: ${verbrauchMenge.toLocaleString('de-DE')} ${materialInfo.einheit} (${materialInfo.name})\n\n` +
-        `Betreute Objekte:\n${liegenschaftsListeText}\n\n` +
-        `${hindernisHinweis}\n` +
+        `Wetterverhältnisse vor Ort: ${wetterVorOrtWert}\n\n` +
+        `Betreute Objekte:\n${liegenschaftsListeText}\n` +
         `────────────────────────\n` +
         `Status: Ordnungsgemäß betreut\n\n` +
         `Mit freundlichen Grüßen\n` +
@@ -1256,7 +1266,7 @@ export default function App() {
       zeigeMeldung('Keine Daten für den Export vorhanden.');
       return;
     }
-    let csvContent = "data:text/csv;charset=utf-8,Kunde;Liegenschaft;Datum;Wetter;Wetter vor Ort;Art;Material;Verbrauch;Einheit;Km;Sprit;Besonderheiten/Hindernisse\n";
+    let csvContent = "data:text/csv;charset=utf-8,Kunde;Liegenschaft;Datum;Wetter;Wetter vor Ort;Art;Material & Verbrauch;Einheit;Km;Sprit;Besonderheiten/Hindernisse\n";
     history.forEach(item => {
       const csvWert = (wert: string | number | undefined) => `"${String(wert ?? '').replaceAll('"', '""')}"`;
       csvContent += [
