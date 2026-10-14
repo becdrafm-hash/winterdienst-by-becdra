@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  DWD_REGIONEN,
+  ladeAktuellesWetter,
   ladeDwdWinterwarnungen,
+  type DwdAktuellesWetter,
   type DwdRegionId,
   type DwdWinterwarnung
 } from '../services/dwdWetter';
@@ -15,7 +16,7 @@ interface DwdWetterBannerProps {
   borderCard: string;
 }
 
-type Ladezustand = 'laden' | 'geladen' | 'fehler';
+type Ladezustand = 'laden' | 'geladen';
 
 function zeitpunkt(timestamp: number): string {
   return new Date(timestamp).toLocaleString('de-DE', {
@@ -36,41 +37,61 @@ export default function DwdWetterBanner({
 }: DwdWetterBannerProps) {
   const [warnungen, setWarnungen] = useState<DwdWinterwarnung[]>([]);
   const [ladezustand, setLadezustand] = useState<Ladezustand>('laden');
-  const [fehler, setFehler] = useState<string | null>(null);
+  const [warnungenGeprueft, setWarnungenGeprueft] = useState(false);
+  const [wetter, setWetter] = useState<DwdAktuellesWetter | null>(null);
+  const [wetterLaedt, setWetterLaedt] = useState(true);
+  const [wetterFehlgeschlagen, setWetterFehlgeschlagen] = useState(false);
   const [aktualisiert, setAktualisiert] = useState<Date | null>(null);
   const [ladeVersion, setLadeVersion] = useState(0);
   const [ausgeklappt, setAusgeklappt] = useState(false);
 
   const ladeWarnungen = useCallback(async (signal: AbortSignal) => {
     setLadezustand('laden');
-    setFehler(null);
+    setWarnungenGeprueft(false);
+    setAktualisiert(null);
 
     try {
       const aktuelleWarnungen = await ladeDwdWinterwarnungen(regionen, signal);
       if (signal.aborted) return;
       setWarnungen(aktuelleWarnungen);
       setAktualisiert(new Date());
+      setWarnungenGeprueft(true);
       setLadezustand('geladen');
-    } catch (error) {
+    } catch {
       if (signal.aborted) return;
-      setFehler(error instanceof Error ? error.message : 'Unbekannter Fehler beim Laden der DWD-Warnungen.');
-      setLadezustand('fehler');
+      setWarnungen([]);
+      setLadezustand('geladen');
     }
   }, [regionen]);
 
-  const regionsNamen = DWD_REGIONEN
-    .filter(region => regionen.includes(region.id))
-    .map(region => region.name)
-    .join(', ');
+  const ladeWetter = useCallback(async (signal: AbortSignal) => {
+    setWetterLaedt(true);
+    setWetterFehlgeschlagen(false);
+
+    try {
+      const aktuellesWetter = await ladeAktuellesWetter(signal);
+      if (signal.aborted) return;
+      setWetter(aktuellesWetter);
+      setWetterFehlgeschlagen(false);
+    } catch {
+      if (signal.aborted) return;
+      setWetter(null);
+      setWetterFehlgeschlagen(true);
+    } finally {
+      if (!signal.aborted) setWetterLaedt(false);
+    }
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
     const initialLoad = window.setTimeout(() => {
       void ladeWarnungen(controller.signal);
+      void ladeWetter(controller.signal);
     }, 0);
 
     const timer = window.setInterval(() => {
       void ladeWarnungen(controller.signal);
+      void ladeWetter(controller.signal);
     }, 10 * 60 * 1000);
 
     return () => {
@@ -78,35 +99,51 @@ export default function DwdWetterBanner({
       window.clearTimeout(initialLoad);
       window.clearInterval(timer);
     };
-  }, [ladeWarnungen, ladeVersion]);
+  }, [ladeWetter, ladeWarnungen, ladeVersion]);
 
   const hatWarnung = warnungen.length > 0;
-  const akzentfarbe = ladezustand === 'fehler'
-    ? (darkMode ? '#f87171' : '#dc2626')
-    : hatWarnung
-      ? (darkMode ? '#fbbf24' : '#b45309')
-      : '#8cc63f';
-  const statusHintergrund = ladezustand === 'fehler'
-    ? (darkMode ? '#3b1f23' : '#fef2f2')
-    : hatWarnung
-      ? (darkMode ? '#3b2f16' : '#fff7ed')
-      : (darkMode ? '#1d2b1b' : '#f4fce3');
-  const statusText = ladezustand === 'geladen' && !hatWarnung && regionen.length > 0
-    ? (darkMode ? '#a3d977' : '#3f6212')
-    : akzentfarbe;
-  const statusMeldung = ladezustand === 'fehler'
-    ? 'DWD-Warnung nicht verfügbar'
-    : regionen.length === 0
-      ? 'Keine DWD-Region ausgewählt'
-      : ladezustand === 'laden'
-        ? 'DWD-Warnungen werden geladen …'
+  const akzentfarbe = hatWarnung ? (darkMode ? '#fbbf24' : '#b45309') : '#8cc63f';
+  const statusHintergrund = hatWarnung
+    ? (darkMode ? '#3b2f16' : '#fff7ed')
+    : (darkMode ? '#1d2b1b' : '#f4fce3');
+  const statusMeldung = regionen.length === 0
+    ? 'Keine DWD-Region ausgewählt'
+    : ladezustand === 'laden'
+      ? 'DWD-Warnungen werden geladen …'
+      : !warnungenGeprueft
+        ? null
         : hatWarnung
           ? `${warnungen.length} akute Winterwarnung${warnungen.length === 1 ? '' : 'en'}`
-          : 'Keine akute Winterwarnung';
+          : `Keine amtlichen Warnungen aktiv – ${wetter && wetter.temperatur <= 2 ? 'Hinweis: Temperaturen nahe dem Gefrierpunkt' : 'Stabile Lage'}`;
+  const wetterText = wetter
+    ? `Aktuelles Wetter: ${wetter.temperatur.toLocaleString('de-DE', { maximumFractionDigits: 1 })} °C | Niederschlag: ${wetter.niederschlag.toLocaleString('de-DE', { maximumFractionDigits: 1 })} mm`
+    : wetterLaedt
+      ? 'Aktuelles Wetter wird geladen …'
+      : wetterFehlgeschlagen
+        ? 'Aktuelles Live-Wetter derzeit nicht verfügbar'
+        : 'Aktuelles Wetter wird geladen …';
 
   return (
     <section style={{ backgroundColor: bgCard, border: `1px solid ${borderCard}`, borderRadius: '10px', color: textApp, overflow: 'hidden' }}>
-      <div style={{ alignItems: 'center', backgroundColor: statusHintergrund, display: 'flex', gap: '8px', minHeight: '38px', padding: '0 8px' }}>
+      <div style={{ alignItems: 'center', backgroundColor: bgCard, borderBottom: `1px solid ${borderCard}`, display: 'flex', gap: '8px', justifyContent: 'space-between', padding: '9px 10px' }}>
+        <div>
+          <strong style={{ color: textApp, fontSize: '0.78rem' }}>{wetterText}</strong>
+          {wetter && wetter.temperatur <= 2 && (hatWarnung || regionen.length === 0 || !warnungenGeprueft) && (
+            <div style={{ color: textSub, fontSize: '0.7rem', marginTop: '3px' }}>
+              Hinweis: Temperaturen nahe dem Gefrierpunkt
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setLadeVersion(version => version + 1)}
+          aria-label="Wetter und DWD-Warnungen aktualisieren"
+          style={{ background: 'transparent', border: 'none', color: textSub, cursor: 'pointer', flexShrink: 0, fontSize: '1rem', lineHeight: 1, padding: '5px' }}
+        >
+          ↻
+        </button>
+      </div>
+      {statusMeldung && <div style={{ alignItems: 'center', backgroundColor: statusHintergrund, display: 'flex', gap: '8px', minHeight: '38px', padding: '0 8px' }}>
         <button
           type="button"
           onClick={() => hatWarnung && setAusgeklappt(value => !value)}
@@ -117,7 +154,7 @@ export default function DwdWetterBanner({
             alignItems: 'center',
             background: 'transparent',
             border: 'none',
-            color: statusText,
+            color: hatWarnung ? akzentfarbe : (darkMode ? '#a3d977' : '#3f6212'),
             cursor: hatWarnung ? 'pointer' : 'default',
             display: 'flex',
             flex: 1,
@@ -128,7 +165,7 @@ export default function DwdWetterBanner({
             textAlign: 'left'
           }}
         >
-          <span aria-hidden="true">{ladezustand === 'fehler' ? '⚠️' : hatWarnung ? '⚠️' : '🌨️'}</span>
+          <span aria-hidden="true">{hatWarnung ? '⚠️' : '🌨️'}</span>
           <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{statusMeldung}</strong>
           {hatWarnung && <span aria-hidden="true">{ausgeklappt ? '▴' : '▾'}</span>}
         </button>
@@ -137,31 +174,7 @@ export default function DwdWetterBanner({
             {aktualisiert.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
           </span>
         )}
-        <button
-          type="button"
-          onClick={() => setLadeVersion(version => version + 1)}
-          disabled={ladezustand === 'laden'}
-          aria-label="DWD-Warnungen aktualisieren"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: textSub,
-            cursor: ladezustand === 'laden' ? 'wait' : 'pointer',
-            flexShrink: 0,
-            fontSize: '1rem',
-            lineHeight: 1,
-            padding: '5px'
-          }}
-        >
-          ↻
-        </button>
-      </div>
-
-      {ladezustand === 'fehler' && (
-        <p style={{ backgroundColor: bgCard, color: textSub, fontSize: '0.75rem', lineHeight: 1.4, margin: 0, padding: '8px 10px' }}>
-          DWD-Warnungen{regionsNamen && ` für ${regionsNamen}`} konnten nicht geladen werden: {fehler}
-        </p>
-      )}
+      </div>}
 
       {hatWarnung && (
         <div

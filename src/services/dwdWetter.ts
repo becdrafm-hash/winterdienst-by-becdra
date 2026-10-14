@@ -1,4 +1,11 @@
 const DWD_WARNUNGEN_URL = 'https://www.dwd.de/DWD/warnungen/warnapp/json/warnings.json';
+const OPEN_METEO_WETTER_URL = 'https://api.open-meteo.com/v1/forecast?latitude=51.75&longitude=6.40&current=temperature_2m,precipitation,weather_code';
+
+export interface DwdAktuellesWetter {
+  temperatur: number;
+  niederschlag: number;
+  wetterCode: number;
+}
 
 export const DWD_REGIONEN = [
   { id: 'kreis-kleve', name: 'Kreis Kleve' },
@@ -71,6 +78,36 @@ function istWinterwarnung(meldung: DwdWarnmeldung): boolean {
   return /glatteis|glätte|eisregen|schnee/i.test(
     `${meldung.event} ${meldung.headline} ${meldung.description}`
   );
+}
+
+export async function ladeAktuellesWetter(signal?: AbortSignal): Promise<DwdAktuellesWetter> {
+  const response = await fetch(OPEN_METEO_WETTER_URL, { signal });
+  if (!response.ok) {
+    throw new Error(`Das aktuelle Wetter konnte nicht geladen werden (HTTP ${response.status}).`);
+  }
+
+  const daten: unknown = await response.json();
+  if (typeof daten !== 'object' || daten === null || !('current' in daten)) {
+    throw new Error('Die Wetterantwort hat ein unerwartetes Format.');
+  }
+
+  const aktuell = daten.current;
+  if (typeof aktuell !== 'object' || aktuell === null) {
+    throw new Error('Die aktuellen Wetterdaten sind ungültig.');
+  }
+
+  const werte = aktuell as Record<string, unknown>;
+  if (typeof werte.temperature_2m !== 'number' || !Number.isFinite(werte.temperature_2m)
+    || typeof werte.precipitation !== 'number' || !Number.isFinite(werte.precipitation)
+    || typeof werte.weather_code !== 'number' || !Number.isFinite(werte.weather_code)) {
+    throw new Error('Die aktuellen Wetterdaten sind unvollständig.');
+  }
+
+  return {
+    temperatur: werte.temperature_2m,
+    niederschlag: werte.precipitation,
+    wetterCode: werte.weather_code
+  };
 }
 
 export async function ladeDwdWinterwarnungen(
