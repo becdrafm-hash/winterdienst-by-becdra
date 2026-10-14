@@ -24,6 +24,53 @@ function ermittleStandardSaisonZeitraum(heute = new Date()): { von: string; bis:
   return { von: `${startJahr}-11-01`, bis: `${startJahr + 1}-03-31` };
 }
 
+interface KundenBerichtDaten {
+  kundeName: string;
+  datum: string;
+  wetter: string;
+  liegenschaften: {
+    name: string;
+    address: string;
+    timestamp: number;
+    type: Leistungsart;
+    hindernisInfo?: string;
+  }[];
+}
+
+function erstelleKundenBerichtText(daten: KundenBerichtDaten, format: 'whatsapp' | 'plain'): string {
+  const ueberschrift = (text: string) => format === 'whatsapp' ? `*${text}*` : text;
+  const massnahmen: Record<Leistungsart, string> = {
+    'räumen + streuen': 'Räumen + Streuen',
+    streuen: 'Streuen',
+    'Streugut entfernen': 'Streugut entfernen'
+  };
+  const objektBloecke = daten.liegenschaften.map(einsatz => [
+    `▸ Objekt: ${einsatz.name}`,
+    `   Anschrift: ${einsatz.address}`,
+    `   Uhrzeit: ${new Date(einsatz.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`,
+    `   Maßnahme: ${massnahmen[einsatz.type]}`,
+    `   Besonderheiten: ${einsatz.hindernisInfo || 'Keine besonderen Vorkommnisse'}`
+  ].join('\n'));
+
+  return [
+    ueberschrift('❄️ WINTERDIENST – EINSATZNACHWEIS'),
+    'Becdra FM • Garten- & Hausmeisterservice',
+    '',
+    `Auftraggeber: ${daten.kundeName}`,
+    `Datum: ${daten.datum}`,
+    `Wetterlage: ${daten.wetter}`,
+    '',
+    ueberschrift('📍 Betreute Liegenschaft(en):'),
+    objektBloecke.join('\n\n'),
+    '',
+    ueberschrift('✅ Status: Ordnungsgemäß im Rahmen der Verkehrssicherungspflicht betreut.'),
+    '',
+    'Mit freundlichen Grüßen',
+    'Michael Beckers',
+    'Becdra FM'
+  ].join('\n');
+}
+
 function speichereLocalStorage(schluessel: string, wert: string): boolean {
   try {
     localStorage.setItem(schluessel, wert);
@@ -844,25 +891,24 @@ export default function App() {
     const zielWhatsapp = gefundenerKunde ? gefundenerKunde.whatsapp : '+4915100000000';
     const zielEmail = gefundenerKunde ? gefundenerKunde.email : 'kontakt@beispiel.de';
     const hatHindernisFoto = Boolean(item.hindernisFotoUrl);
-
-    const hindernisZeile = item.hindernisInfo
-      ? `Hindernisse: ${item.hindernisInfo}\n`
-      : 'Hindernisse: Keine dokumentiert\n';
-
-    const berichtText =
-      `WINTERDIENST - EINSATZBERICHT\n` +
-      `────────────────────────\n` +
-      `Auftraggeber: ${item.kundeName}\n` +
-      `Objekt: ${item.objName}\n` +
-      `Datum und Uhrzeit: ${item.date}\n` +
-      `Wetter: ${item.wetter}\n` +
-      `Maßnahme: ${item.type}\n` +
-      hindernisZeile +
-      `────────────────────────\n` +
-      `Status: Ordnungsgemäß betreut\n\n` +
-      `Mit freundlichen Grüßen\n` +
-      `Becdra FM`;
-    const betreffText = `Winterdienst-Einsatzbericht - ${item.kundeName} (${item.objName})`;
+    const liegenschaft = liegenschaften.find(objekt =>
+      objekt.name === item.objName && (!gefundenerKunde || objekt.kundeId === gefundenerKunde.id)
+    ) ?? liegenschaften.find(objekt => objekt.name === item.objName);
+    const berichtDaten: KundenBerichtDaten = {
+      kundeName: item.kundeName,
+      datum: item.date.split(' ')[0],
+      wetter: item.wetter,
+      liegenschaften: [{
+        name: item.objName,
+        address: item.objAddress?.trim() || liegenschaft?.address || 'Anschrift nicht hinterlegt',
+        timestamp: item.timestamp,
+        type: item.type,
+        hindernisInfo: item.hindernisInfo
+      }]
+    };
+    const berichtText = erstelleKundenBerichtText(berichtDaten, 'plain');
+    const berichtTextWhatsapp = erstelleKundenBerichtText(berichtDaten, 'whatsapp');
+    const betreffText = `Einsatznachweis Winterdienst – ${item.kundeName} (${berichtDaten.datum})`;
     const mailSubject = encodeURIComponent(betreffText);
     const mailBody = encodeURIComponent(berichtText);
 
@@ -882,7 +928,7 @@ export default function App() {
           return;
         }
         const cleanPhone = zielWhatsapp.replace(/[^0-9]/g, '');
-        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(berichtText)}`, '_blank');
+        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(berichtTextWhatsapp)}`, '_blank');
         aktualisiereBerichtStatus(einsatz => einsatz.id === item.id, 'gesendet_whatsapp');
       },
       onSecondary: () => {
@@ -1222,6 +1268,7 @@ export default function App() {
       id: Date.now(),
       kundeName: activeKunde.firma,
       objName: activeObjekt.name,
+      objAddress: activeObjekt.address,
       date: new Date().toLocaleDateString('de-DE') + ' ' + new Date().toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}),
       timestamp: Date.now(),
       wetter: wetterLage,
@@ -1263,7 +1310,8 @@ export default function App() {
         );
         return {
           name: einsatz.objName,
-          address: liegenschaft?.address || '',
+          address: einsatz.objAddress?.trim() || liegenschaft?.address || 'Anschrift nicht hinterlegt',
+          timestamp: einsatz.timestamp,
           type: einsatz.type,
           hindernisInfo: einsatz.hindernisInfo
         };
@@ -1284,27 +1332,15 @@ export default function App() {
     setShowActiveRaeumPlanPopup(false);
 
     if (alleErledigt && alleObjekteDesKundenNamen.length > 0) {
-      const liegenschaftsListeText = heutigeEinsaetzeDesKunden
-        .map(einsatz => [
-          `Objekt: ${einsatz.name}`,
-          `Adresse: ${einsatz.address}`,
-          `Maßnahme: ${einsatz.type}`,
-          `Hindernisse: ${einsatz.hindernisInfo || 'Keine dokumentiert'}`
-        ].join('\n'))
-        .join('\n\n');
-
-      const berichtText =
-        `WINTERDIENST - EINSATZBERICHT\n` +
-        `────────────────────────\n` +
-        `Auftraggeber: ${geforderterKunde.firma}\n` +
-        `Datum: ${heuteDatum}\n` +
-        `Wetter: ${wetterLage}\n\n` +
-        `Betreute Objekte:\n${liegenschaftsListeText}\n` +
-        `────────────────────────\n` +
-        `Status: Ordnungsgemäß betreut\n\n` +
-        `Mit freundlichen Grüßen\n` +
-        `Becdra FM`;
-      const betreffText = `Winterdienst-Einsatzbericht - ${geforderterKunde.firma} (${heuteDatum})`;
+      const berichtDaten: KundenBerichtDaten = {
+        kundeName: geforderterKunde.firma,
+        datum: heuteDatum,
+        wetter: wetterLage,
+        liegenschaften: heutigeEinsaetzeDesKunden
+      };
+      const berichtTextPlain = erstelleKundenBerichtText(berichtDaten, 'plain');
+      const berichtTextWhatsapp = erstelleKundenBerichtText(berichtDaten, 'whatsapp');
+      const betreffText = `Einsatznachweis Winterdienst – ${geforderterKunde.firma} (${heuteDatum})`;
 
       const bevorzugterKanal = geforderterKunde.bevorzugterKanal ?? 'whatsapp';
       if (bevorzugterKanal === 'keine') {
@@ -1318,7 +1354,7 @@ export default function App() {
         const sendeRueckmeldung = (kanal: 'whatsapp' | 'email', fotoTeilen = false) => {
           setDialogConfig(prev => ({ ...prev, visible: false }));
           if (fotoTeilen && teileBerichtMitHindernisfoto(
-            berichtText,
+            berichtTextPlain,
             betreffText,
             activeObjekt.name,
             gespeichertesHindernisFotoUrl || undefined
@@ -1333,10 +1369,10 @@ export default function App() {
 
           if (kanal === 'whatsapp') {
             const cleanPhone = geforderterKunde.whatsapp.replace(/[^0-9]/g, '');
-            window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(berichtText)}`, '_blank');
+            window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(berichtTextWhatsapp)}`, '_blank');
           } else {
             const mailSubject = encodeURIComponent(betreffText);
-            const mailBody = encodeURIComponent(berichtText);
+            const mailBody = encodeURIComponent(berichtTextPlain);
             window.location.href = `mailto:${geforderterKunde.email}?subject=${mailSubject}&body=${mailBody}`;
           }
           aktualisiereBerichtStatus(

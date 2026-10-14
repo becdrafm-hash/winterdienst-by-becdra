@@ -35,6 +35,7 @@ export interface EinsatzLog {
   id: number;
   kundeName: string;
   objName: string;
+  objAddress?: string;
   date: string;
   timestamp: number;
   wetter: string;
