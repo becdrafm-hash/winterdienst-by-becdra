@@ -51,6 +51,7 @@ export interface EinsatzLog {
   wetterVorOrt?: string;
   type: Leistungsart;
   duration: string;
+  echteMinuten?: number;
   materialUsed: string;
   materialId?: StreuMittelId;
   materialVerbrauchMenge?: number;

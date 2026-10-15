@@ -209,7 +209,7 @@ export default function HistorieStatistikTab({
   const exportiereArchivAlsCsv = (archiv: SaisonArchiv) => {
     const csvWert = (wert: string | number | undefined) => `"${String(wert ?? '').replaceAll('"', '""')}"`;
     const zeilen = [
-      ['Kunde', 'Liegenschaft', 'Datum', 'Wetter', 'Wetter vor Ort', 'Leistungsart', 'Material', 'Verbrauch', 'Einheit', 'Dauer', 'Kilometer', 'Spritkosten', 'Besonderheiten/Hindernisse', 'Hindernisfoto'],
+      ['Kunde', 'Liegenschaft', 'Datum', 'Wetter', 'Wetter vor Ort', 'Leistungsart', 'Material', 'Verbrauch', 'Einheit', 'Echte Arbeitszeit (Min.)', 'Kunden-Zeitfenster', 'Kilometer', 'Spritkosten', 'Besonderheiten/Hindernisse', 'Hindernisfoto'],
       ...archiv.einsätze.map(einsatz => [
         einsatz.kundeName,
         einsatz.objName,
@@ -220,6 +220,7 @@ export default function HistorieStatistikTab({
         einsatz.materialUsed,
         materialverbrauch(einsatz)?.menge,
         materialverbrauch(einsatz)?.einheit,
+        einsatz.echteMinuten,
         einsatz.duration,
         einsatz.kmGefahren,
         einsatz.spritKosten,

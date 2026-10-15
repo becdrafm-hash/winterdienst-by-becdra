@@ -15,6 +15,7 @@ import { ermittleLiegenschaftKoordinaten } from './services/liegenschaftGeocodin
 import { normalisiereStreuMittelId, STREUMITTEL, type LagerBestaende, type StreuMittelId } from './constants/streuMittel';
 import { istWochenendeOderFeiertag } from './feiertage';
 import { datumAlsIso, liegtImBetreuungszeitraum } from './utils/saisonZeitraum';
+import { berechneEinsatzZeiten } from './utils/einsatzZeiten';
 
 const LAGER_KG_MIGRATION_KEY = 'becdra_lager_kg_migration_v1';
 const LAGER_BESTAENDE_KEY = 'becdra_lager_bestaende';
@@ -33,6 +34,7 @@ interface KundenBerichtDaten {
     address: string;
     timestamp: number;
     type: Leistungsart;
+    duration: string;
     hindernisInfo?: string;
   }[];
 }
@@ -48,6 +50,7 @@ function erstelleKundenBerichtText(daten: KundenBerichtDaten, format: 'whatsapp'
     `▸ Objekt: ${einsatz.name}`,
     `   Anschrift: ${einsatz.address}`,
     `   Uhrzeit: ${new Date(einsatz.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`,
+    `   Zeitfenster (15-Minuten-Takt): ${einsatz.duration}`,
     `   Maßnahme: ${massnahmen[einsatz.type]}`,
     `   Besonderheiten: ${einsatz.hindernisInfo || 'Keine besonderen Vorkommnisse'}`
   ].join('\n'));
@@ -975,6 +978,7 @@ export default function App() {
         address: item.objAddress?.trim() || liegenschaft?.address || 'Anschrift nicht hinterlegt',
         timestamp: item.timestamp,
         type: item.type,
+        duration: item.duration,
         hindernisInfo: item.hindernisInfo
       }]
     };
@@ -1110,7 +1114,8 @@ export default function App() {
             <ul>
               <li><b>Wetterlage:</b> ${item.wetter}</li>
               <li><b>Art des Einsatzes:</b> ${item.type}</li>
-              <li><b>Einsatzdauer:</b> ${item.duration}</li>
+              <li><b>Echte Arbeitszeit (intern):</b> ${typeof item.echteMinuten === 'number' ? `${item.echteMinuten} Min.` : 'Nicht erfasst'}</li>
+              <li><b>Kunden-Zeitfenster (15-Minuten-Takt):</b> ${item.duration}</li>
               <li><b>Materialverbrauch:</b> ${item.materialUsed}</li>
               <li><b>Fahrstrecke:</b> ${item.kmGefahren} (~${item.spritKosten} Sprit)</li>
               ${item.fotoName ? `<li><b>Fotodokumentation:</b> ${item.fotoName}</li>` : ''}
@@ -1320,7 +1325,7 @@ export default function App() {
       0,
       endTime.getTime() - startTime.getTime() - arbeitszeitStatus.pausendauerMs - aktuellePauseMs
     );
-    const diffMinutes = Math.round(arbeitsdauerMs / 60000);
+    const einsatzZeiten = berechneEinsatzZeiten(arbeitsdauerMs);
     const kmNum = Number(gefahreneKm) || 0;
     const materialId = normalisiereStreuMittelId(activeObjekt.material);
     const materialInfo = STREUMITTEL.find(material => material.id === materialId);
@@ -1345,7 +1350,8 @@ export default function App() {
       timestamp: Date.now(),
       wetter: wetterLage,
       type: einsatzType,
-      duration: `${Math.max(1, diffMinutes)} Min.`,
+      duration: `${einsatzZeiten.kundenMinuten} Min.`,
+      echteMinuten: einsatzZeiten.echteMinuten,
       materialUsed: `${verbrauchMenge.toLocaleString('de-DE')} ${materialInfo.einheit} (${materialInfo.name})`,
       materialId,
       materialVerbrauchMenge: verbrauchMenge,
@@ -1390,6 +1396,7 @@ export default function App() {
           address: einsatz.objAddress?.trim() || liegenschaft?.address || 'Anschrift nicht hinterlegt',
           timestamp: einsatz.timestamp,
           type: einsatz.type,
+          duration: einsatz.duration,
           hindernisInfo: einsatz.hindernisInfo
         };
       });
@@ -1636,7 +1643,7 @@ export default function App() {
       zeigeMeldung('Keine Daten für den Export vorhanden.');
       return;
     }
-    let csvContent = "data:text/csv;charset=utf-8,Kunde;Liegenschaft;Datum;Wetter;Wetter vor Ort;Art;Material & Verbrauch;Einheit;Km;Sprit;Besonderheiten/Hindernisse\n";
+    let csvContent = "data:text/csv;charset=utf-8,Kunde;Liegenschaft;Datum;Wetter;Wetter vor Ort;Art;Echte Arbeitszeit (Min.);Kunden-Zeitfenster;Material & Verbrauch;Einheit;Km;Sprit;Besonderheiten/Hindernisse\n";
     history.forEach(item => {
       const csvWert = (wert: string | number | undefined) => `"${String(wert ?? '').replaceAll('"', '""')}"`;
       csvContent += [
@@ -1646,6 +1653,8 @@ export default function App() {
         item.wetter,
         item.wetterVorOrt,
         item.type,
+        item.echteMinuten,
+        item.duration,
         item.materialUsed,
         item.materialVerbrauchEinheit,
         item.kmGefahren,
