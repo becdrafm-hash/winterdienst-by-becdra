@@ -15,7 +15,7 @@ import { ermittleLiegenschaftKoordinaten } from './services/liegenschaftGeocodin
 import { normalisiereStreuMittelId, STREUMITTEL, type LagerBestaende, type StreuMittelId } from './constants/streuMittel';
 import { istWochenendeOderFeiertag } from './feiertage';
 import { datumAlsIso, liegtImBetreuungszeitraum } from './utils/saisonZeitraum';
-import { berechneEinsatzZeitenRückwärts } from './utils/einsatzZeiten';
+import { berechneEinsatzZeiten, formatiereEinsatzZeitfenster } from './utils/einsatzZeiten';
 
 const LAGER_KG_MIGRATION_KEY = 'becdra_lager_kg_migration_v1';
 const LAGER_BESTAENDE_KEY = 'becdra_lager_bestaende';
@@ -33,8 +33,9 @@ interface KundenBerichtDaten {
     name: string;
     address: string;
     timestamp: number;
+    startTimestamp?: number;
+    endTimestamp?: number;
     type: Leistungsart;
-    duration: string;
     zeitFensterAnzeige: string;
     hindernisInfo?: string;
   }[];
@@ -50,7 +51,7 @@ function erstelleKundenBerichtText(daten: KundenBerichtDaten, format: 'whatsapp'
   const objektBloecke = daten.liegenschaften.map(einsatz => [
     `▸ Objekt: ${einsatz.name}`,
     `   Anschrift: ${einsatz.address}`,
-    `   Zeitfenster: ${einsatz.zeitFensterAnzeige}`,
+    `   Einsatzzeit: ${einsatz.zeitFensterAnzeige}`,
     `   Maßnahme: ${massnahmen[einsatz.type]}`,
     `   Besonderheiten: ${einsatz.hindernisInfo || 'Keine besonderen Vorkommnisse'}`
   ].join('\n'));
@@ -978,8 +979,9 @@ export default function App() {
         address: item.objAddress?.trim() || liegenschaft?.address || 'Anschrift nicht hinterlegt',
         timestamp: item.timestamp,
         type: item.type,
-        duration: item.duration,
-        zeitFensterAnzeige: item.zeitFensterAnzeige ?? item.duration,
+        startTimestamp: item.startTimestamp,
+        endTimestamp: item.endTimestamp ?? item.timestamp,
+        zeitFensterAnzeige: formatiereEinsatzZeitfenster(item.startTimestamp, item.endTimestamp ?? item.timestamp),
         hindernisInfo: item.hindernisInfo
       }]
     };
@@ -1108,7 +1110,8 @@ export default function App() {
             <p><b>Startpunkt (Betrieb/Basis):</b> ${startPunkt}</p>
             <p><b>Kunde / Auftraggeber:</b> ${item.kundeName}</p>
             <p><b>Liegenschaft / Objekt:</b> ${item.objName}</p>
-            <p><b>Datum & Uhrzeit:</b> ${item.date}</p>
+            <p><b>Datum:</b> ${item.date.split(' ')[0]}</p>
+            <p><b>Einsatzzeit (Start - Ende):</b> ${formatiereEinsatzZeitfenster(item.startTimestamp, item.endTimestamp ?? item.timestamp)}</p>
           </div>
           <div class="box">
             <h3>Einsatz-Details (Intern):</h3>
@@ -1116,7 +1119,6 @@ export default function App() {
               <li><b>Wetterlage:</b> ${item.wetter}</li>
               <li><b>Art des Einsatzes:</b> ${item.type}</li>
               <li><b>Echte Arbeitszeit (intern):</b> ${typeof item.echteMinuten === 'number' ? `${item.echteMinuten} Min.` : 'Nicht erfasst'}</li>
-              <li><b>Kunden-Zeitfenster:</b> ${item.zeitFensterAnzeige ?? item.duration}</li>
               <li><b>Materialverbrauch:</b> ${item.materialUsed}</li>
               <li><b>Fahrstrecke:</b> ${item.kmGefahren} (~${item.spritKosten} Sprit)</li>
               ${item.fotoName ? `<li><b>Fotodokumentation:</b> ${item.fotoName}</li>` : ''}
@@ -1322,7 +1324,7 @@ export default function App() {
     const aktuellePauseMs = arbeitszeitStatus.pauseBeginn === null
       ? 0
       : Math.max(0, endTime.getTime() - arbeitszeitStatus.pauseBeginn);
-    const einsatzZeiten = berechneEinsatzZeitenRückwärts(
+    const einsatzZeiten = berechneEinsatzZeiten(
       startTime,
       endTime,
       arbeitszeitStatus.pausendauerMs + aktuellePauseMs
@@ -1349,9 +1351,11 @@ export default function App() {
       objAddress: activeObjekt.address,
       date: endTime.toLocaleDateString('de-DE') + ' ' + endTime.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}),
       timestamp: endTime.getTime(),
+      startTimestamp: startTime.getTime(),
+      endTimestamp: endTime.getTime(),
       wetter: wetterLage,
       type: einsatzType,
-      duration: `${einsatzZeiten.kundenMinuten} Min.`,
+      duration: `${einsatzZeiten.echteMinuten} Min.`,
       echteMinuten: einsatzZeiten.echteMinuten,
       zeitFensterAnzeige: einsatzZeiten.zeitFensterAnzeige,
       materialUsed: `${verbrauchMenge.toLocaleString('de-DE')} ${materialInfo.einheit} (${materialInfo.name})`,
@@ -1397,9 +1401,10 @@ export default function App() {
           name: einsatz.objName,
           address: einsatz.objAddress?.trim() || liegenschaft?.address || 'Anschrift nicht hinterlegt',
           timestamp: einsatz.timestamp,
+          startTimestamp: einsatz.startTimestamp,
+          endTimestamp: einsatz.endTimestamp ?? einsatz.timestamp,
           type: einsatz.type,
-          duration: einsatz.duration,
-          zeitFensterAnzeige: einsatz.zeitFensterAnzeige ?? einsatz.duration,
+          zeitFensterAnzeige: formatiereEinsatzZeitfenster(einsatz.startTimestamp, einsatz.endTimestamp ?? einsatz.timestamp),
           hindernisInfo: einsatz.hindernisInfo
         };
       });
@@ -1646,19 +1651,20 @@ export default function App() {
       zeigeMeldung('Keine Daten für den Export vorhanden.');
       return;
     }
-    let csvContent = "data:text/csv;charset=utf-8,Kunde;Liegenschaft;Datum;Wetter;Wetter vor Ort;Art;Echte Arbeitszeit (Min.);Kunden-Zeitfenster;Zeitfensteranzeige;Material & Verbrauch;Einheit;Km;Sprit;Besonderheiten/Hindernisse\n";
+    let csvContent = "data:text/csv;charset=utf-8,Kunde;Liegenschaft;Datum;Startzeit;Endzeit;Einsatzzeit;Wetter;Wetter vor Ort;Art;Echte Arbeitszeit (Min., intern);Material & Verbrauch;Einheit;Km;Sprit;Besonderheiten/Hindernisse\n";
     history.forEach(item => {
       const csvWert = (wert: string | number | undefined) => `"${String(wert ?? '').replaceAll('"', '""')}"`;
       csvContent += [
         item.kundeName,
         item.objName,
         item.date,
+        item.startTimestamp === undefined ? 'Nicht erfasst' : new Date(item.startTimestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+        new Date(item.endTimestamp ?? item.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+        formatiereEinsatzZeitfenster(item.startTimestamp, item.endTimestamp ?? item.timestamp),
         item.wetter,
         item.wetterVorOrt,
         item.type,
         item.echteMinuten,
-        item.duration,
-        item.zeitFensterAnzeige,
         item.materialUsed,
         item.materialVerbrauchEinheit,
         item.kmGefahren,

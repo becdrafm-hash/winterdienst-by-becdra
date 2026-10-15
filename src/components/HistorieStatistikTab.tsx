@@ -2,6 +2,7 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { STREUMITTEL } from '../constants/streuMittel';
 import type { EinsatzKostenAnalyse, EinsatzLog, MaterialEinkaufspreise, SaisonArchiv } from '../types';
 import { datumAlsIso } from '../utils/saisonZeitraum';
+import { formatiereEinsatzZeitfenster } from '../utils/einsatzZeiten';
 
 type AppTab = 'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison';
 type StatistikWerte = { anzahl: number; km: number; sprit: string; materialKg: number };
@@ -183,6 +184,9 @@ export default function HistorieStatistikTab({
           <button aria-label="Einsatz löschen" onClick={() => deleteHistoryItem(item.id)} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 'bold' }}>🗑️</button>
         </div>
       </div>
+      <p style={{ fontSize: '0.75rem', color: textApp, margin: 0 }}>
+        Einsatzzeit: <b>{formatiereEinsatzZeitfenster(item.startTimestamp, item.endTimestamp ?? item.timestamp)}</b>
+      </p>
       {item.berichtStatus === 'keine_meldung_gewuenscht' ? (
         <span style={{ alignSelf: 'flex-start', backgroundColor: darkMode ? '#374151' : '#f3f4f6', borderRadius: '6px', color: textSub, fontSize: '0.65rem', fontWeight: 600, padding: '3px 6px' }}>
           🔕 Keine Kundenmeldung gewünscht
@@ -209,11 +213,14 @@ export default function HistorieStatistikTab({
   const exportiereArchivAlsCsv = (archiv: SaisonArchiv) => {
     const csvWert = (wert: string | number | undefined) => `"${String(wert ?? '').replaceAll('"', '""')}"`;
     const zeilen = [
-      ['Kunde', 'Liegenschaft', 'Datum', 'Wetter', 'Wetter vor Ort', 'Leistungsart', 'Material', 'Verbrauch', 'Einheit', 'Echte Arbeitszeit (Min.)', 'Kunden-Zeitfenster', 'Zeitfensteranzeige', 'Kilometer', 'Spritkosten', 'Besonderheiten/Hindernisse', 'Hindernisfoto'],
+      ['Kunde', 'Liegenschaft', 'Datum', 'Startzeit', 'Endzeit', 'Einsatzzeit', 'Wetter', 'Wetter vor Ort', 'Leistungsart', 'Material', 'Verbrauch', 'Einheit', 'Echte Arbeitszeit (Min., intern)', 'Kilometer', 'Spritkosten', 'Besonderheiten/Hindernisse', 'Hindernisfoto'],
       ...archiv.einsätze.map(einsatz => [
         einsatz.kundeName,
         einsatz.objName,
         einsatz.date,
+        einsatz.startTimestamp === undefined ? 'Nicht erfasst' : new Date(einsatz.startTimestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+        new Date(einsatz.endTimestamp ?? einsatz.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+        formatiereEinsatzZeitfenster(einsatz.startTimestamp, einsatz.endTimestamp ?? einsatz.timestamp),
         einsatz.wetter,
         einsatz.wetterVorOrt,
         einsatz.type,
@@ -221,8 +228,6 @@ export default function HistorieStatistikTab({
         materialverbrauch(einsatz)?.menge,
         materialverbrauch(einsatz)?.einheit,
         einsatz.echteMinuten,
-        einsatz.duration,
-        einsatz.zeitFensterAnzeige,
         einsatz.kmGefahren,
         einsatz.spritKosten,
         einsatz.hindernisInfo,
@@ -480,7 +485,7 @@ export default function HistorieStatistikTab({
                   <span style={{ color: textSub, fontSize: '0.68rem' }}>{einsatz.kundeName} · {einsatz.date}</span>
                   <span style={{ color: textApp, fontSize: '0.73rem' }}>Leistung: <b>{einsatz.type}</b></span>
                   <span style={{ color: textApp, fontSize: '0.73rem' }}>Materialverbrauch: <b>{einsatz.materialUsed}</b></span>
-                  <span style={{ color: textApp, fontSize: '0.73rem' }}>Kunden-Zeitfenster: <b>{einsatz.zeitFensterAnzeige ?? einsatz.duration}</b></span>
+                  <span style={{ color: textApp, fontSize: '0.73rem' }}>Einsatzzeit: <b>{formatiereEinsatzZeitfenster(einsatz.startTimestamp, einsatz.endTimestamp ?? einsatz.timestamp)}</b></span>
                   <span style={{ color: textSub, fontSize: '0.7rem' }}>Wetter: {einsatz.wetterVorOrt || einsatz.wetter}</span>
                   {einsatz.hindernisInfo && <span style={{ color: '#dc2626', fontSize: '0.7rem' }}>⚠️ Besonderheiten: {einsatz.hindernisInfo}</span>}
                   {einsatz.hindernisFoto && <span style={{ color: textSub, fontSize: '0.68rem' }}>Hindernisfoto: {einsatz.hindernisFoto}</span>}

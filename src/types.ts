@@ -47,6 +47,8 @@ export interface EinsatzLog {
   objAddress?: string;
   date: string;
   timestamp: number;
+  startTimestamp?: number;
+  endTimestamp?: number;
   wetter: string;
   wetterVorOrt?: string;
   type: Leistungsart;

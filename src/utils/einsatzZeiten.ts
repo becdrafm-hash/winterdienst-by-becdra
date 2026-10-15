@@ -1,10 +1,27 @@
 export interface EinsatzZeiten {
   echteMinuten: number;
-  kundenMinuten: number;
   zeitFensterAnzeige: string;
 }
 
-export function berechneEinsatzZeitenRückwärts(
+export function formatiereEinsatzZeitfenster(
+  startTimestamp?: number,
+  endTimestamp?: number
+): string {
+  if (
+    typeof startTimestamp !== 'number'
+    || !Number.isFinite(startTimestamp)
+    || typeof endTimestamp !== 'number'
+    || !Number.isFinite(endTimestamp)
+  ) {
+    return 'Nicht erfasst';
+  }
+
+  const formatiereUhrzeit = (timestamp: number) =>
+    new Date(timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  return `${formatiereUhrzeit(startTimestamp)} - ${formatiereUhrzeit(endTimestamp)}`;
+}
+
+export function berechneEinsatzZeiten(
   startZeit: Date,
   endZeit: Date,
   pausendauerMs = 0
@@ -18,12 +35,9 @@ export function berechneEinsatzZeitenRückwärts(
     ? Math.max(0, endMs - startMs - sicherePausendauerMs)
     : 0;
   const echteMinuten = Math.max(1, Math.round(arbeitsdauerMs / 60000));
-  const kundenMinuten = Math.ceil(echteMinuten / 15) * 15;
-  const fensterBeginn = new Date(endMs - kundenMinuten * 60000);
 
   return {
     echteMinuten,
-    kundenMinuten,
-    zeitFensterAnzeige: `von ${fensterBeginn.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} bis ${endZeit.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
+    zeitFensterAnzeige: formatiereEinsatzZeitfenster(startMs, endMs)
   };
 }
