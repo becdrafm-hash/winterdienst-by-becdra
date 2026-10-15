@@ -4,7 +4,6 @@ import { LEISTUNGSARTEN, type Kunde, type Leistungsart, type Liegenschaft } from
 interface AktiverEinsatzProps {
   activeKunde: Kunde;
   activeObjekt: Liegenschaft;
-  startPunkt: string;
   darkMode: boolean;
   textApp: string;
   textSub: string;
@@ -12,6 +11,9 @@ interface AktiverEinsatzProps {
   bgCard: string;
   wetterLage: string;
   startTime: Date | null;
+  onStartTimeChange: (startTime: Date) => void;
+  manuelleEndZeit: string;
+  setManuelleEndZeit: Dispatch<SetStateAction<string>>;
   pauseBeginn: number | null;
   pausendauerMs: number;
   onTogglePause: () => void;
@@ -31,13 +33,12 @@ interface AktiverEinsatzProps {
   handleFotoCapture: (event: ChangeEvent<HTMLInputElement>) => void;
   handleHindernisFotoCapture: (event: ChangeEvent<HTMLInputElement>) => void;
   cancelEinsatz: () => void;
-  finishEinsatz: () => void;
+  finishEinsatz: (manuelleEndZeit?: string) => void;
 }
 
 export default function AktiverEinsatz({
   activeKunde,
   activeObjekt,
-  startPunkt,
   darkMode,
   textApp,
   textSub,
@@ -45,6 +46,9 @@ export default function AktiverEinsatz({
   bgCard,
   wetterLage,
   startTime,
+  onStartTimeChange,
+  manuelleEndZeit,
+  setManuelleEndZeit,
   pauseBeginn,
   pausendauerMs,
   onTogglePause,
@@ -67,6 +71,7 @@ export default function AktiverEinsatz({
   finishEinsatz
 }: AktiverEinsatzProps) {
   const [jetzt, setJetzt] = useState(() => Date.now());
+  const [zeitenBearbeiten, setZeitenBearbeiten] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setJetzt(Date.now()), 1000);
@@ -109,11 +114,11 @@ export default function AktiverEinsatz({
         )}
 
         <section style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', border: '1px solid ' + borderCard, borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px' }} aria-live="off">
-          <strong style={{ color: textApp, fontSize: '0.8rem' }}>⏱️ Arbeitszeit erfassen</strong>
+          <strong style={{ color: textApp, fontSize: '0.85rem' }}>⏱️ Echte Arbeitszeit vor Ort</strong>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', textAlign: 'center' }}>
             <div>
-              <span style={{ color: textSub, display: 'block', fontSize: '0.7rem' }}>Arbeitszeit</span>
-              <strong style={{ color: textApp, fontSize: '1.1rem', fontVariantNumeric: 'tabular-nums' }}>{formatiereDauer(arbeitszeitMs)}</strong>
+              <span style={{ color: textSub, display: 'block', fontSize: '0.72rem' }}>Netto-Arbeitszeit</span>
+              <strong style={{ color: '#598f1e', fontSize: '1.6rem', fontVariantNumeric: 'tabular-nums' }}>{formatiereDauer(arbeitszeitMs)}</strong>
             </div>
             <div>
               <span style={{ color: textSub, display: 'block', fontSize: '0.7rem' }}>Pausenzeit</span>
@@ -139,12 +144,48 @@ export default function AktiverEinsatz({
           {pauseBeginn !== null && (
             <span style={{ color: '#92400e', fontSize: '0.75rem', textAlign: 'center' }}>Pause läuft – die Arbeitszeit ist angehalten.</span>
           )}
+          <details
+            open={zeitenBearbeiten}
+            onToggle={event => setZeitenBearbeiten(event.currentTarget.open)}
+            style={{ borderTop: '1px solid ' + borderCard, paddingTop: '8px' }}
+          >
+            <summary style={{ color: textSub, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+              Zeiten manuell korrigieren (optional)
+            </summary>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '10px' }}>
+              <div>
+                <label htmlFor="manuelle-startzeit" style={{ display: 'block', color: textApp, fontSize: '0.72rem', fontWeight: 600, marginBottom: '4px' }}>Startzeit</label>
+                <input
+                  id="manuelle-startzeit"
+                  type="time"
+                  required
+                  value={startTime ? `${startTime.getHours().toString().padStart(2, '0')}:${startTime.getMinutes().toString().padStart(2, '0')}` : ''}
+                  onChange={event => {
+                    if (!startTime || !event.target.value) return;
+                    const [stunden, minuten] = event.target.value.split(':').map(Number);
+                    const neueStartzeit = new Date(startTime);
+                    neueStartzeit.setHours(stunden, minuten, 0, 0);
+                    onStartTimeChange(neueStartzeit);
+                  }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }}
+                />
+              </div>
+              <div>
+                <label htmlFor="manuelle-endzeit" style={{ display: 'block', color: textApp, fontSize: '0.72rem', fontWeight: 600, marginBottom: '4px' }}>Endzeit</label>
+                <input
+                  id="manuelle-endzeit"
+                  type="time"
+                  value={manuelleEndZeit}
+                  onChange={event => setManuelleEndZeit(event.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '9px', borderRadius: '8px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }}
+                />
+              </div>
+            </div>
+            <span style={{ display: 'block', color: textSub, fontSize: '0.68rem', marginTop: '6px' }}>
+              Leeres Endzeitfeld verwendet den Zeitpunkt beim Abschließen.
+            </span>
+          </details>
         </section>
-
-        <div style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid ' + borderCard }}>
-          <span style={{ fontSize: '0.8rem', fontWeight: 500, color: textSub }}>🕒 Startpunkt:</span>
-          <span style={{ fontWeight: 'bold', fontSize: '0.75rem', color: '#8cc63f' }}>{startPunkt}</span>
-        </div>
 
         <div style={{ backgroundColor: darkMode ? '#14171a' : '#eef6e6', padding: '10px', borderRadius: '10px', border: '1px solid #8cc63f' }}>
           <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#598f1e', textTransform: 'uppercase', display: 'block' }}>📡 Automatisches Live-Wetter</span>
@@ -205,7 +246,7 @@ export default function AktiverEinsatz({
           </label>
         </div>
 
-        <button onClick={finishEinsatz} style={{ width: '100%', backgroundColor: '#8cc63f', color: '#111827', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', boxShadow: '0 4px 10px rgba(140, 198, 63, 0.3)' }}>
+        <button onClick={() => finishEinsatz(manuelleEndZeit)} style={{ width: '100%', backgroundColor: '#8cc63f', color: '#111827', padding: '12px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', boxShadow: '0 4px 10px rgba(140, 198, 63, 0.3)' }}>
           ✓ Einsatz abschließen & Speichern
         </button>
       </div>

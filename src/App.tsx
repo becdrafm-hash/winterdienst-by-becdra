@@ -25,6 +25,20 @@ function ermittleStandardSaisonZeitraum(heute = new Date()): { von: string; bis:
   return { von: `${startJahr}-11-01`, bis: `${startJahr + 1}-03-31` };
 }
 
+function parseUhrzeitAmDatum(uhrzeit: string, datum: Date, nachMitternachtAb?: Date): Date | null {
+  const treffer = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(uhrzeit);
+  if (!treffer) return null;
+
+  const zeit = new Date(datum);
+  zeit.setHours(Number(treffer[1]), Number(treffer[2]), 0, 0);
+  if (nachMitternachtAb) {
+    const grenze = new Date(nachMitternachtAb);
+    grenze.setSeconds(0, 0);
+    if (zeit.getTime() < grenze.getTime()) zeit.setDate(zeit.getDate() + 1);
+  }
+  return zeit;
+}
+
 interface KundenBerichtDaten {
   kundeName: string;
   datum: string;
@@ -320,6 +334,9 @@ export default function App() {
     const date = new Date(saved);
     return Number.isNaN(date.getTime()) ? null : date;
   });
+  const [manuelleEndZeit, setManuelleEndZeit] = useState(() =>
+    localStorage.getItem('becdra_manuelle_endzeit') || ''
+  );
   const [arbeitszeitStatus, setArbeitszeitStatus] = useState<ArbeitszeitStatus>(() => {
     try {
       const gespeichert = localStorage.getItem('becdra_arbeitszeit');
@@ -519,6 +536,14 @@ export default function App() {
       localStorage.removeItem('becdra_starttime');
     }
   }, [startTime]);
+
+  useEffect(() => {
+    if (activeKunde && activeObjekt && startTime && manuelleEndZeit) {
+      speichereLocalStorage('becdra_manuelle_endzeit', manuelleEndZeit);
+    } else {
+      localStorage.removeItem('becdra_manuelle_endzeit');
+    }
+  }, [activeKunde, activeObjekt, startTime, manuelleEndZeit]);
 
   useEffect(() => {
     if (activeKunde && activeObjekt && startTime) {
@@ -1181,6 +1206,7 @@ export default function App() {
     setActiveKunde(kunde);
     setActiveObjekt(obj);
     setStartTime(new Date());
+    setManuelleEndZeit('');
     setEinsatzType('streuen');
     setArbeitszeitStatus({ pauseBeginn: null, pausendauerMs: 0 });
     setMaterialVerbrauchKg('');
@@ -1249,9 +1275,11 @@ export default function App() {
     localStorage.removeItem('becdra_starttime');
     localStorage.removeItem('becdra_gefahrene_km');
     localStorage.removeItem('becdra_arbeitszeit');
+    localStorage.removeItem('becdra_manuelle_endzeit');
     setActiveKunde(null);
     setActiveObjekt(null);
     setStartTime(null);
+    setManuelleEndZeit('');
     setArbeitszeitStatus({ pauseBeginn: null, pausendauerMs: 0 });
     setGefahreneKm('0');
   };
@@ -1312,7 +1340,7 @@ export default function App() {
     }
   };
 
-  const finishEinsatz = () => {
+  const finishEinsatz = (endZeitEingabe = manuelleEndZeit) => {
     if (!activeKunde || !activeObjekt || !startTime) return;
     const eingabeVerbrauch = materialVerbrauchKg.trim();
     const verbrauchMenge = eingabeVerbrauch === '' ? 0 : Number(eingabeVerbrauch);
@@ -1320,7 +1348,13 @@ export default function App() {
       zeigeMeldung('Bitte einen gültigen Streumittelverbrauch eingeben.');
       return;
     }
-    const endTime = new Date();
+    const endTime = endZeitEingabe
+      ? parseUhrzeitAmDatum(endZeitEingabe, startTime, startTime)
+      : new Date();
+    if (!endTime) {
+      zeigeMeldung('Bitte eine gültige Endzeit eingeben.');
+      return;
+    }
     const aktuellePauseMs = arbeitszeitStatus.pauseBeginn === null
       ? 0
       : Math.max(0, endTime.getTime() - arbeitszeitStatus.pauseBeginn);
@@ -1857,7 +1891,6 @@ export default function App() {
           <AktiverEinsatz
             activeKunde={activeKunde}
             activeObjekt={activeObjekt}
-            startPunkt={startPunkt}
             darkMode={darkMode}
             textApp={textApp}
             textSub={textSub}
@@ -1865,6 +1898,9 @@ export default function App() {
             bgCard={bgCard}
             wetterLage={wetterLage}
             startTime={startTime}
+            onStartTimeChange={setStartTime}
+            manuelleEndZeit={manuelleEndZeit}
+            setManuelleEndZeit={setManuelleEndZeit}
             pauseBeginn={arbeitszeitStatus.pauseBeginn}
             pausendauerMs={arbeitszeitStatus.pausendauerMs}
             onTogglePause={toggleEinsatzPause}
