@@ -79,6 +79,9 @@ export default function AktiverEinsatz({
   }, []);
 
   const aktuellePauseMs = pauseBeginn === null ? 0 : Math.max(0, jetzt - pauseBeginn);
+  const gesamteinsatzzeitMs = startTime
+    ? Math.max(0, jetzt - startTime.getTime())
+    : 0;
   const arbeitszeitMs = startTime
     ? Math.max(0, jetzt - startTime.getTime() - pausendauerMs - aktuellePauseMs)
     : 0;
@@ -114,16 +117,17 @@ export default function AktiverEinsatz({
         )}
 
         <section style={{ backgroundColor: darkMode ? '#14171a' : '#f9fafb', border: '1px solid ' + borderCard, borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px' }} aria-live="off">
-          <strong style={{ color: textApp, fontSize: '0.85rem' }}>⏱️ Echte Arbeitszeit vor Ort</strong>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', textAlign: 'center' }}>
-            <div>
-              <span style={{ color: textSub, display: 'block', fontSize: '0.72rem' }}>Netto-Arbeitszeit</span>
-              <strong style={{ color: '#598f1e', fontSize: '1.6rem', fontVariantNumeric: 'tabular-nums' }}>{formatiereDauer(arbeitszeitMs)}</strong>
-            </div>
-            <div>
-              <span style={{ color: textSub, display: 'block', fontSize: '0.7rem' }}>Pausenzeit</span>
-              <strong style={{ color: textApp, fontSize: '1.1rem', fontVariantNumeric: 'tabular-nums' }}>{formatiereDauer(gesamtePausenMs)}</strong>
-            </div>
+          <div style={{ textAlign: 'center', padding: '2px 0 6px' }}>
+            <span style={{ color: textSub, display: 'block', fontSize: '0.78rem', fontWeight: 600 }}>⏱️ Gesamteinsatzzeit (inkl. Fahrt)</span>
+            <strong style={{ color: '#598f1e', display: 'block', fontSize: '2.2rem', lineHeight: 1.15, fontVariantNumeric: 'tabular-nums' }}>{formatiereDauer(gesamteinsatzzeitMs)}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', backgroundColor: darkMode ? '#1f2937' : '#ffffff', border: '1px solid ' + borderCard, borderRadius: '8px', padding: '8px 10px' }}>
+            <span style={{ color: textSub, fontSize: '0.75rem', fontWeight: 600 }}>Netto-Arbeitszeit vor Ort</span>
+            <strong style={{ color: textApp, fontSize: '1rem', fontVariantNumeric: 'tabular-nums' }}>{formatiereDauer(arbeitszeitMs)}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', padding: '0 2px' }}>
+            <span style={{ color: textSub, fontSize: '0.7rem' }}>Pausenzeit</span>
+            <strong style={{ color: textApp, fontSize: '0.85rem', fontVariantNumeric: 'tabular-nums' }}>{formatiereDauer(gesamtePausenMs)}</strong>
           </div>
           <button
             type="button"
