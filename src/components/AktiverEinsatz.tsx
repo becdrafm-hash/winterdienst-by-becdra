@@ -11,6 +11,8 @@ interface AktiverEinsatzProps {
   bgCard: string;
   wetterLage: string;
   startTime: Date | null;
+  ankunftTime: Date | null;
+  onConfirmArrival: () => void;
   onStartTimeChange: (startTime: Date) => void;
   manuelleEndZeit: string;
   setManuelleEndZeit: Dispatch<SetStateAction<string>>;
@@ -46,6 +48,8 @@ export default function AktiverEinsatz({
   bgCard,
   wetterLage,
   startTime,
+  ankunftTime,
+  onConfirmArrival,
   onStartTimeChange,
   manuelleEndZeit,
   setManuelleEndZeit,
@@ -82,10 +86,14 @@ export default function AktiverEinsatz({
   const gesamteinsatzzeitMs = startTime
     ? Math.max(0, jetzt - startTime.getTime())
     : 0;
-  const arbeitszeitMs = startTime
-    ? Math.max(0, jetzt - startTime.getTime() - pausendauerMs - aktuellePauseMs)
+  const arbeitszeitMs = ankunftTime
+    ? Math.max(0, jetzt - ankunftTime.getTime() - pausendauerMs - aktuellePauseMs)
     : 0;
   const gesamtePausenMs = pausendauerMs + aktuellePauseMs;
+  const gpsAnkunftMoeglich = typeof navigator !== 'undefined'
+    && Boolean(navigator.geolocation)
+    && typeof activeObjekt.lat === 'number'
+    && typeof activeObjekt.lon === 'number';
 
   const formatiereDauer = (dauerMs: number) => {
     const sekunden = Math.floor(dauerMs / 1000);
@@ -125,6 +133,35 @@ export default function AktiverEinsatz({
             <span style={{ color: textSub, fontSize: '0.75rem', fontWeight: 600 }}>Netto-Arbeitszeit vor Ort</span>
             <strong style={{ color: textApp, fontSize: '1rem', fontVariantNumeric: 'tabular-nums' }}>{formatiereDauer(arbeitszeitMs)}</strong>
           </div>
+          <div
+            role="status"
+            style={{
+              borderRadius: '8px',
+              padding: '7px 9px',
+              textAlign: 'center',
+              backgroundColor: ankunftTime ? (pauseBeginn === null ? (darkMode ? '#1d2b1b' : '#f4fce3') : '#fef3c7') : (darkMode ? '#3b2f16' : '#fff7ed'),
+              color: ankunftTime ? (pauseBeginn === null ? '#3f6212' : '#92400e') : '#b45309',
+              fontSize: '0.72rem',
+              fontWeight: 700
+            }}
+          >
+            {ankunftTime
+              ? pauseBeginn === null
+                ? `✓ Netto-Arbeitszeit läuft seit ${ankunftTime.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
+                : '⏸️ Netto-Arbeitszeit pausiert'
+              : gpsAnkunftMoeglich
+                ? '📍 Warte auf GPS-Ankunft an der Liegenschaft'
+                : '📍 Ankunft muss manuell bestätigt werden'}
+          </div>
+          {!ankunftTime && (
+            <button
+              type="button"
+              onClick={onConfirmArrival}
+              style={{ backgroundColor: '#8cc63f', border: 'none', borderRadius: '8px', color: '#111827', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', padding: '9px' }}
+            >
+              Ankunft manuell bestätigen
+            </button>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', padding: '0 2px' }}>
             <span style={{ color: textSub, fontSize: '0.7rem' }}>Pausenzeit</span>
             <strong style={{ color: textApp, fontSize: '0.85rem', fontVariantNumeric: 'tabular-nums' }}>{formatiereDauer(gesamtePausenMs)}</strong>
@@ -132,18 +169,20 @@ export default function AktiverEinsatz({
           <button
             type="button"
             onClick={onTogglePause}
+            disabled={!ankunftTime}
             style={{
-              backgroundColor: pauseBeginn === null ? '#fef3c7' : '#dcfce7',
-              border: '1px solid ' + (pauseBeginn === null ? '#f59e0b' : '#8cc63f'),
+              backgroundColor: !ankunftTime ? (darkMode ? '#374151' : '#e5e7eb') : pauseBeginn === null ? '#fef3c7' : '#dcfce7',
+              border: '1px solid ' + (!ankunftTime ? borderCard : pauseBeginn === null ? '#f59e0b' : '#8cc63f'),
               borderRadius: '8px',
-              color: '#111827',
-              cursor: 'pointer',
+              color: !ankunftTime ? textSub : '#111827',
+              cursor: !ankunftTime ? 'not-allowed' : 'pointer',
               fontSize: '0.85rem',
               fontWeight: 'bold',
-              padding: '10px'
+              padding: '10px',
+              opacity: !ankunftTime ? 0.7 : 1
             }}
           >
-            {pauseBeginn === null ? '⏸️ Pause starten' : '▶️ Arbeit fortsetzen'}
+            {!ankunftTime ? 'Pause nach Ankunft verfügbar' : pauseBeginn === null ? '⏸️ Pause starten' : '▶️ Arbeit fortsetzen'}
           </button>
           {pauseBeginn !== null && (
             <span style={{ color: '#92400e', fontSize: '0.75rem', textAlign: 'center' }}>Pause läuft – die Arbeitszeit ist angehalten.</span>

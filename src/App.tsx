@@ -334,6 +334,12 @@ export default function App() {
     const date = new Date(saved);
     return Number.isNaN(date.getTime()) ? null : date;
   });
+  const [ankunftTime, setAnkunftTime] = useState<Date | null>(() => {
+    const saved = localStorage.getItem('becdra_ankunftzeit');
+    if (!saved) return null;
+    const date = new Date(saved);
+    return Number.isNaN(date.getTime()) ? null : date;
+  });
   const [manuelleEndZeit, setManuelleEndZeit] = useState(() =>
     localStorage.getItem('becdra_manuelle_endzeit') || ''
   );
@@ -536,6 +542,14 @@ export default function App() {
       localStorage.removeItem('becdra_starttime');
     }
   }, [startTime]);
+
+  useEffect(() => {
+    if (activeKunde && activeObjekt && startTime && ankunftTime) {
+      speichereLocalStorage('becdra_ankunftzeit', ankunftTime.toISOString());
+    } else {
+      localStorage.removeItem('becdra_ankunftzeit');
+    }
+  }, [activeKunde, activeObjekt, startTime, ankunftTime]);
 
   useEffect(() => {
     if (activeKunde && activeObjekt && startTime && manuelleEndZeit) {
@@ -1206,6 +1220,7 @@ export default function App() {
     setActiveKunde(kunde);
     setActiveObjekt(obj);
     setStartTime(new Date());
+    setAnkunftTime(null);
     setManuelleEndZeit('');
     setEinsatzType('streuen');
     setArbeitszeitStatus({ pauseBeginn: null, pausendauerMs: 0 });
@@ -1232,6 +1247,33 @@ export default function App() {
         const currentLat = position.coords.latitude;
         const currentLon = position.coords.longitude;
         const currentCoords = { lat: currentLat, lon: currentLon };
+
+        if (
+          ankunftTime === null
+          && typeof activeObjekt.lat === 'number'
+          && Number.isFinite(activeObjekt.lat)
+          && typeof activeObjekt.lon === 'number'
+          && Number.isFinite(activeObjekt.lon)
+        ) {
+          const lat1 = (activeObjekt.lat * Math.PI) / 180;
+          const lat2 = (currentLat * Math.PI) / 180;
+          const deltaLat = lat2 - lat1;
+          const deltaLon = ((currentLon - activeObjekt.lon) * Math.PI) / 180;
+          const a =
+            Math.sin(deltaLat / 2) ** 2 +
+            Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+          const entfernungZumObjektMeter = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          const gpsGenauigkeit = Number.isFinite(position.coords.accuracy)
+            ? Math.max(0, Math.min(position.coords.accuracy, 250))
+            : 0;
+          const ankunftsRadiusMeter = Math.max(100, gpsGenauigkeit);
+          const gpsZeitpunkt = Number.isFinite(position.timestamp) && position.timestamp >= startTime.getTime()
+            ? new Date(position.timestamp)
+            : new Date();
+          if (entfernungZumObjektMeter <= ankunftsRadiusMeter && gpsZeitpunkt.getTime() >= startTime.getTime()) {
+            setAnkunftTime(gpsZeitpunkt);
+          }
+        }
 
         if (lastCoordsRef.current) {
           const lat1 = (lastCoordsRef.current.lat * Math.PI) / 180;
@@ -1260,7 +1302,7 @@ export default function App() {
         watchIdRef.current = null;
       }
     };
-  }, [activeKunde, activeObjekt, startTime]);
+  }, [activeKunde, activeObjekt, startTime, ankunftTime]);
 
   const stopGpsTracking = () => {
     if (watchIdRef.current !== null) {
@@ -1273,18 +1315,21 @@ export default function App() {
     localStorage.removeItem('becdra_active_kunde');
     localStorage.removeItem('becdra_active_objekt');
     localStorage.removeItem('becdra_starttime');
+    localStorage.removeItem('becdra_ankunftzeit');
     localStorage.removeItem('becdra_gefahrene_km');
     localStorage.removeItem('becdra_arbeitszeit');
     localStorage.removeItem('becdra_manuelle_endzeit');
     setActiveKunde(null);
     setActiveObjekt(null);
     setStartTime(null);
+    setAnkunftTime(null);
     setManuelleEndZeit('');
     setArbeitszeitStatus({ pauseBeginn: null, pausendauerMs: 0 });
     setGefahreneKm('0');
   };
 
   const toggleEinsatzPause = () => {
+    if (!ankunftTime) return;
     setArbeitszeitStatus(status => {
       if (status.pauseBeginn !== null) {
         return {
@@ -1342,6 +1387,10 @@ export default function App() {
 
   const finishEinsatz = (endZeitEingabe = manuelleEndZeit) => {
     if (!activeKunde || !activeObjekt || !startTime) return;
+    if (!ankunftTime) {
+      zeigeMeldung('Bitte bestätige zuerst die Ankunft an der Liegenschaft, damit die Netto-Arbeitszeit korrekt erfasst wird.');
+      return;
+    }
     const eingabeVerbrauch = materialVerbrauchKg.trim();
     const verbrauchMenge = eingabeVerbrauch === '' ? 0 : Number(eingabeVerbrauch);
     if (!Number.isFinite(verbrauchMenge) || verbrauchMenge < 0) {
@@ -1355,11 +1404,15 @@ export default function App() {
       zeigeMeldung('Bitte eine gültige Endzeit eingeben.');
       return;
     }
+    if (endTime.getTime() < ankunftTime.getTime()) {
+      zeigeMeldung('Die Endzeit muss nach der erfassten Ankunftszeit liegen.');
+      return;
+    }
     const aktuellePauseMs = arbeitszeitStatus.pauseBeginn === null
       ? 0
       : Math.max(0, endTime.getTime() - arbeitszeitStatus.pauseBeginn);
     const einsatzZeiten = berechneEinsatzZeiten(
-      startTime,
+      ankunftTime,
       endTime,
       arbeitszeitStatus.pausendauerMs + aktuellePauseMs
     );
@@ -1898,6 +1951,10 @@ export default function App() {
             bgCard={bgCard}
             wetterLage={wetterLage}
             startTime={startTime}
+            ankunftTime={ankunftTime}
+            onConfirmArrival={() => {
+              if (!ankunftTime && startTime) setAnkunftTime(new Date());
+            }}
             onStartTimeChange={setStartTime}
             manuelleEndZeit={manuelleEndZeit}
             setManuelleEndZeit={setManuelleEndZeit}
