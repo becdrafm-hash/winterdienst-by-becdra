@@ -209,7 +209,7 @@ export default function HistorieStatistikTab({
   const exportiereArchivAlsCsv = (archiv: SaisonArchiv) => {
     const csvWert = (wert: string | number | undefined) => `"${String(wert ?? '').replaceAll('"', '""')}"`;
     const zeilen = [
-      ['Kunde', 'Liegenschaft', 'Datum', 'Wetter', 'Wetter vor Ort', 'Leistungsart', 'Material', 'Verbrauch', 'Einheit', 'Echte Arbeitszeit (Min.)', 'Kunden-Zeitfenster', 'Kilometer', 'Spritkosten', 'Besonderheiten/Hindernisse', 'Hindernisfoto'],
+      ['Kunde', 'Liegenschaft', 'Datum', 'Wetter', 'Wetter vor Ort', 'Leistungsart', 'Material', 'Verbrauch', 'Einheit', 'Echte Arbeitszeit (Min.)', 'Kunden-Zeitfenster', 'Zeitfensteranzeige', 'Kilometer', 'Spritkosten', 'Besonderheiten/Hindernisse', 'Hindernisfoto'],
       ...archiv.einsätze.map(einsatz => [
         einsatz.kundeName,
         einsatz.objName,
@@ -222,6 +222,7 @@ export default function HistorieStatistikTab({
         materialverbrauch(einsatz)?.einheit,
         einsatz.echteMinuten,
         einsatz.duration,
+        einsatz.zeitFensterAnzeige,
         einsatz.kmGefahren,
         einsatz.spritKosten,
         einsatz.hindernisInfo,
@@ -479,7 +480,7 @@ export default function HistorieStatistikTab({
                   <span style={{ color: textSub, fontSize: '0.68rem' }}>{einsatz.kundeName} · {einsatz.date}</span>
                   <span style={{ color: textApp, fontSize: '0.73rem' }}>Leistung: <b>{einsatz.type}</b></span>
                   <span style={{ color: textApp, fontSize: '0.73rem' }}>Materialverbrauch: <b>{einsatz.materialUsed}</b></span>
-                  <span style={{ color: textApp, fontSize: '0.73rem' }}>Dauer: <b>{einsatz.duration}</b></span>
+                  <span style={{ color: textApp, fontSize: '0.73rem' }}>Kunden-Zeitfenster: <b>{einsatz.zeitFensterAnzeige ?? einsatz.duration}</b></span>
                   <span style={{ color: textSub, fontSize: '0.7rem' }}>Wetter: {einsatz.wetterVorOrt || einsatz.wetter}</span>
                   {einsatz.hindernisInfo && <span style={{ color: '#dc2626', fontSize: '0.7rem' }}>⚠️ Besonderheiten: {einsatz.hindernisInfo}</span>}
                   {einsatz.hindernisFoto && <span style={{ color: textSub, fontSize: '0.68rem' }}>Hindernisfoto: {einsatz.hindernisFoto}</span>}

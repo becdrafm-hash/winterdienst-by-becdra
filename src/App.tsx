@@ -15,7 +15,7 @@ import { ermittleLiegenschaftKoordinaten } from './services/liegenschaftGeocodin
 import { normalisiereStreuMittelId, STREUMITTEL, type LagerBestaende, type StreuMittelId } from './constants/streuMittel';
 import { istWochenendeOderFeiertag } from './feiertage';
 import { datumAlsIso, liegtImBetreuungszeitraum } from './utils/saisonZeitraum';
-import { berechneEinsatzZeiten } from './utils/einsatzZeiten';
+import { berechneEinsatzZeitenRückwärts } from './utils/einsatzZeiten';
 
 const LAGER_KG_MIGRATION_KEY = 'becdra_lager_kg_migration_v1';
 const LAGER_BESTAENDE_KEY = 'becdra_lager_bestaende';
@@ -35,6 +35,7 @@ interface KundenBerichtDaten {
     timestamp: number;
     type: Leistungsart;
     duration: string;
+    zeitFensterAnzeige: string;
     hindernisInfo?: string;
   }[];
 }
@@ -49,8 +50,7 @@ function erstelleKundenBerichtText(daten: KundenBerichtDaten, format: 'whatsapp'
   const objektBloecke = daten.liegenschaften.map(einsatz => [
     `▸ Objekt: ${einsatz.name}`,
     `   Anschrift: ${einsatz.address}`,
-    `   Uhrzeit: ${new Date(einsatz.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`,
-    `   Zeitfenster (15-Minuten-Takt): ${einsatz.duration}`,
+    `   Zeitfenster: ${einsatz.zeitFensterAnzeige}`,
     `   Maßnahme: ${massnahmen[einsatz.type]}`,
     `   Besonderheiten: ${einsatz.hindernisInfo || 'Keine besonderen Vorkommnisse'}`
   ].join('\n'));
@@ -979,6 +979,7 @@ export default function App() {
         timestamp: item.timestamp,
         type: item.type,
         duration: item.duration,
+        zeitFensterAnzeige: item.zeitFensterAnzeige ?? item.duration,
         hindernisInfo: item.hindernisInfo
       }]
     };
@@ -1115,7 +1116,7 @@ export default function App() {
               <li><b>Wetterlage:</b> ${item.wetter}</li>
               <li><b>Art des Einsatzes:</b> ${item.type}</li>
               <li><b>Echte Arbeitszeit (intern):</b> ${typeof item.echteMinuten === 'number' ? `${item.echteMinuten} Min.` : 'Nicht erfasst'}</li>
-              <li><b>Kunden-Zeitfenster (15-Minuten-Takt):</b> ${item.duration}</li>
+              <li><b>Kunden-Zeitfenster:</b> ${item.zeitFensterAnzeige ?? item.duration}</li>
               <li><b>Materialverbrauch:</b> ${item.materialUsed}</li>
               <li><b>Fahrstrecke:</b> ${item.kmGefahren} (~${item.spritKosten} Sprit)</li>
               ${item.fotoName ? `<li><b>Fotodokumentation:</b> ${item.fotoName}</li>` : ''}
@@ -1321,11 +1322,11 @@ export default function App() {
     const aktuellePauseMs = arbeitszeitStatus.pauseBeginn === null
       ? 0
       : Math.max(0, endTime.getTime() - arbeitszeitStatus.pauseBeginn);
-    const arbeitsdauerMs = Math.max(
-      0,
-      endTime.getTime() - startTime.getTime() - arbeitszeitStatus.pausendauerMs - aktuellePauseMs
+    const einsatzZeiten = berechneEinsatzZeitenRückwärts(
+      startTime,
+      endTime,
+      arbeitszeitStatus.pausendauerMs + aktuellePauseMs
     );
-    const einsatzZeiten = berechneEinsatzZeiten(arbeitsdauerMs);
     const kmNum = Number(gefahreneKm) || 0;
     const materialId = normalisiereStreuMittelId(activeObjekt.material);
     const materialInfo = STREUMITTEL.find(material => material.id === materialId);
@@ -1346,12 +1347,13 @@ export default function App() {
       kundeName: activeKunde.firma,
       objName: activeObjekt.name,
       objAddress: activeObjekt.address,
-      date: new Date().toLocaleDateString('de-DE') + ' ' + new Date().toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}),
-      timestamp: Date.now(),
+      date: endTime.toLocaleDateString('de-DE') + ' ' + endTime.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}),
+      timestamp: endTime.getTime(),
       wetter: wetterLage,
       type: einsatzType,
       duration: `${einsatzZeiten.kundenMinuten} Min.`,
       echteMinuten: einsatzZeiten.echteMinuten,
+      zeitFensterAnzeige: einsatzZeiten.zeitFensterAnzeige,
       materialUsed: `${verbrauchMenge.toLocaleString('de-DE')} ${materialInfo.einheit} (${materialInfo.name})`,
       materialId,
       materialVerbrauchMenge: verbrauchMenge,
@@ -1397,6 +1399,7 @@ export default function App() {
           timestamp: einsatz.timestamp,
           type: einsatz.type,
           duration: einsatz.duration,
+          zeitFensterAnzeige: einsatz.zeitFensterAnzeige ?? einsatz.duration,
           hindernisInfo: einsatz.hindernisInfo
         };
       });
@@ -1643,7 +1646,7 @@ export default function App() {
       zeigeMeldung('Keine Daten für den Export vorhanden.');
       return;
     }
-    let csvContent = "data:text/csv;charset=utf-8,Kunde;Liegenschaft;Datum;Wetter;Wetter vor Ort;Art;Echte Arbeitszeit (Min.);Kunden-Zeitfenster;Material & Verbrauch;Einheit;Km;Sprit;Besonderheiten/Hindernisse\n";
+    let csvContent = "data:text/csv;charset=utf-8,Kunde;Liegenschaft;Datum;Wetter;Wetter vor Ort;Art;Echte Arbeitszeit (Min.);Kunden-Zeitfenster;Zeitfensteranzeige;Material & Verbrauch;Einheit;Km;Sprit;Besonderheiten/Hindernisse\n";
     history.forEach(item => {
       const csvWert = (wert: string | number | undefined) => `"${String(wert ?? '').replaceAll('"', '""')}"`;
       csvContent += [
@@ -1655,6 +1658,7 @@ export default function App() {
         item.type,
         item.echteMinuten,
         item.duration,
+        item.zeitFensterAnzeige,
         item.materialUsed,
         item.materialVerbrauchEinheit,
         item.kmGefahren,

@@ -52,6 +52,7 @@ export interface EinsatzLog {
   type: Leistungsart;
   duration: string;
   echteMinuten?: number;
+  zeitFensterAnzeige?: string;
   materialUsed: string;
   materialId?: StreuMittelId;
   materialVerbrauchMenge?: number;
