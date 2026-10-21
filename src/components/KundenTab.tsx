@@ -1,7 +1,7 @@
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import type { BevorzugterKanal, Kunde } from '../types';
 
-type AppTab = 'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison';
+type AppTab = 'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison' | 'garten';
 
 interface KundenTabProps {
   kunden: Kunde[];

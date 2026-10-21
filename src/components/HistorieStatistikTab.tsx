@@ -4,7 +4,7 @@ import type { EinsatzKostenAnalyse, EinsatzLog, MaterialEinkaufspreise, SaisonAr
 import { datumAlsIso } from '../utils/saisonZeitraum';
 import { formatiereEinsatzZeitfenster } from '../utils/einsatzZeiten';
 
-type AppTab = 'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison';
+type AppTab = 'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison' | 'garten';
 type StatistikWerte = { anzahl: number; km: number; sprit: string; materialKg: number };
 type UnterTab = 'heute' | 'statistik' | 'verlauf';
 
@@ -29,7 +29,7 @@ function materialverbrauch(einsatz: EinsatzLog): { menge: number; einheit: strin
 }
 
 interface HistorieStatistikTabProps {
-  activeTab: 'statistik' | 'history_saison';
+  activeTab: 'statistik' | 'history_saison' | 'garten';
   history: EinsatzLog[];
   saisonName: string;
   heuteDatumString: string;

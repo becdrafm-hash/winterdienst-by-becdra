@@ -41,6 +41,8 @@ export interface Kunde {
 }
 
 export interface EinsatzLog {
+  kundeId?: number;
+  objektId?: number;
   id: number;
   kundeName: string;
   objName: string;

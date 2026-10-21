@@ -1,10 +1,11 @@
 interface HeaderProps {
+  showWinterStock?: boolean;
   lagerBestand: number;
   darkMode: boolean;
   setDarkMode: (darkMode: boolean) => void;
 }
 
-export default function Header({ lagerBestand, darkMode, setDarkMode }: HeaderProps) {
+export default function Header({ showWinterStock = true, lagerBestand, darkMode, setDarkMode }: HeaderProps) {
   const bgCard = darkMode ? '#22262a' : '#ffffff';
   const textApp = darkMode ? '#f3f4f6' : '#1f2937';
   const borderCard = darkMode ? '#374151' : '#e5e7eb';
@@ -20,9 +21,9 @@ export default function Header({ lagerBestand, darkMode, setDarkMode }: HeaderPr
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '0.7rem', backgroundColor: lagerBestand < 200 ? (darkMode ? '#3b1f23' : '#fef2f2') : (darkMode ? '#14171a' : '#eef6e6'), color: lagerBestand < 200 ? '#dc2626' : '#8cc63f', border: '1px solid ' + (lagerBestand < 200 ? '#dc2626' : '#8cc63f'), padding: '5px 8px', borderRadius: '6px', fontWeight: 'bold' }}>
+          {showWinterStock && <span style={{ fontSize: '0.7rem', backgroundColor: lagerBestand < 200 ? (darkMode ? '#3b1f23' : '#fef2f2') : (darkMode ? '#14171a' : '#eef6e6'), color: lagerBestand < 200 ? '#dc2626' : '#8cc63f', border: '1px solid ' + (lagerBestand < 200 ? '#dc2626' : '#8cc63f'), padding: '5px 8px', borderRadius: '6px', fontWeight: 'bold' }}>
             Salz: {lagerBestand.toLocaleString('de-DE', { maximumFractionDigits: 1 })} kg
-          </span>
+          </span>}
           <button onClick={() => setDarkMode(!darkMode)} style={{ backgroundColor: darkMode ? '#8cc63f' : '#111827', color: darkMode ? '#111827' : '#ffffff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
             {darkMode ? '☀️ Hell' : '🌙 Dunkel'}
           </button>

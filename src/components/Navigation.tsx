@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { Liegenschaft } from '../types';
 
-type AppTab = 'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison';
+type AppTab = 'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison' | 'garten';
 
 interface NavigationProps {
   activeTab: AppTab;
@@ -40,7 +40,8 @@ export default function Navigation({
 
   return (
     <nav style={{ position: 'fixed', bottom: 0, left: 0, width: '100%', backgroundColor: bgCard, borderTop: '2px solid #8cc63f', borderInline: '1px solid ' + borderCard, boxShadow: '0 -4px 15px rgba(0,0,0,0.08)', zIndex: 100, transition: 'background-color 0.3s ease' }}>
-      <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', padding: '8px', gap: '6px' }}>
+      <div style={{ maxWidth: '440px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', padding: '8px', gap: '6px' }}>
+        <button onClick={() => setActiveTab('garten')} style={navButtonStyle(activeTab === 'garten')}>🌿 Garten</button>
         <button onClick={() => setActiveTab('mehr')} style={navButtonStyle(isMehrActive)}>
           ⚙️ Mehr
         </button>

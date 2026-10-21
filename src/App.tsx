@@ -1,3 +1,5 @@
+import { loadGarden } from './garden/storage';
+import GardenPilot from './garden/GardenPilot';
 import React, { useState, useEffect, useRef } from 'react';
 import { type BevorzugterKanal, type EinsatzLog, type Kunde, type Leistungsart, type Liegenschaft, type MaterialEinkaufspreis, type MaterialEinkaufspreise, type SaisonArchiv } from './types';
 import DialogModal from './components/DialogModal';
@@ -95,12 +97,9 @@ function speichereLocalStorage(schluessel: string, wert: string): boolean {
     return true;
   } catch (error) {
     console.error(`LocalStorage-Eintrag "${schluessel}" konnte nicht gespeichert werden:`, error);
+    window.dispatchEvent(new CustomEvent('becdra-storage-error'));
     return false;
   }
-}
-
-function entferneFotoDaten(einsatz: EinsatzLog): EinsatzLog {
-  return { ...einsatz, fotoUrl: undefined, hindernisFotoUrl: undefined };
 }
 
 function ladeLagerBestaende(): LagerBestaende {
@@ -197,7 +196,20 @@ interface ArbeitszeitStatus {
 
 export default function App() {
   const standardSaison = ermittleStandardSaisonZeitraum();
-  const [activeTab, setActiveTab] = useState<'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison'>('tour');
+  const [activeTab, setActiveTab] = useState<'tour' | 'liegenschaften' | 'lager' | 'mehr' | 'kunden' | 'statistik' | 'history_saison' | 'garten'>('garten');
+  const [gartenUngespeichert, setGartenUngespeichert] = useState(false);
+  const sichereTabWahl: React.Dispatch<React.SetStateAction<typeof activeTab>> = (next) => {
+    const ziel = typeof next === 'function' ? next(activeTab) : next;
+    if (ziel !== activeTab && gartenUngespeichert && !window.confirm('Ungespeicherte Gartenpflegeangaben verwerfen?')) return;
+    if (ziel !== activeTab) setGartenUngespeichert(false);
+    setActiveTab(ziel);
+  };
+  const [speicherFehler, setSpeicherFehler] = useState('');
+  useEffect(() => {
+    const onStorageError = () => setSpeicherFehler('Daten konnten nicht gespeichert werden. Bitte sofort Backup exportieren und Speicherplatz prüfen. Fotos werden nicht automatisch gelöscht.');
+    window.addEventListener('becdra-storage-error', onStorageError);
+    return () => window.removeEventListener('becdra-storage-error', onStorageError);
+  }, []);
   const [mehrEinstellungenGeoeffnet, setMehrEinstellungenGeoeffnet] = useState(false);
   const [statusMeldung, setStatusMeldung] = useState<string | null>(null);
   const [koordinatenWirdErmittelt, setKoordinatenWirdErmittelt] = useState(false);
@@ -434,89 +446,11 @@ export default function App() {
   }, [saisonBis]);
 
   useEffect(() => {
-    const gespeicherteHistorie = [...history];
-    try {
-        localStorage.setItem('becdra_history', JSON.stringify(gespeicherteHistorie));
-      return;
-    } catch (error) {
-      console.error('Einsatzhistorie konnte wegen vollem Speicher nicht gespeichert werden:', error);
-    }
-
-    for (let index = gespeicherteHistorie.length - 1; index >= 0; index -= 1) {
-      const einsatz = gespeicherteHistorie[index];
-      if (!einsatz.fotoUrl && !einsatz.hindernisFotoUrl) continue;
-      gespeicherteHistorie[index] = entferneFotoDaten(einsatz);
-      try {
-        localStorage.setItem('becdra_history', JSON.stringify(gespeicherteHistorie));
-        console.warn('Ältere Fotodaten wurden entfernt, damit die Einsatzhistorie gespeichert werden kann.');
-        return;
-      } catch (error) {
-        console.error('Einsatzhistorie ist trotz Entfernen älterer Fotodaten weiterhin zu groß:', error);
-      }
-    }
-
-    const archivFuerFallback = [...archivListe];
-    let archivBereinigt = false;
-    for (let archivIndex = archivFuerFallback.length - 1; archivIndex >= 0; archivIndex -= 1) {
-      const archiv = archivFuerFallback[archivIndex];
-      for (let einsatzIndex = archiv.einsätze.length - 1; einsatzIndex >= 0; einsatzIndex -= 1) {
-        const einsatz = archiv.einsätze[einsatzIndex];
-        if (!einsatz.fotoUrl && !einsatz.hindernisFotoUrl) continue;
-        const einsätze = [...archiv.einsätze];
-        einsätze[einsatzIndex] = entferneFotoDaten(einsatz);
-        archivFuerFallback[archivIndex] = { ...archiv, einsätze };
-        try {
-          localStorage.setItem('becdra_saison_archiv', JSON.stringify(archivFuerFallback));
-          archivBereinigt = true;
-        } catch (error) {
-          console.error('Ältere Archivfotos konnten nicht entfernt werden:', error);
-          continue;
-        }
-
-        try {
-          localStorage.setItem('becdra_history', JSON.stringify(gespeicherteHistorie));
-          console.warn('Ältere Archiv- und Fotodaten wurden entfernt, damit die Einsatzhistorie gespeichert werden kann.');
-          return;
-        } catch (error) {
-          console.error('Einsatzhistorie konnte auch nach Bereinigen des Saisonarchivs nicht gespeichert werden:', error);
-        }
-      }
-    }
-    if (archivBereinigt) {
-      console.warn('Ältere Archivfotos wurden zur Freigabe von LocalStorage entfernt.');
-    }
-
-    console.error('Speicher voll: Der Einsatz bleibt in der App erhalten, konnte aber nicht dauerhaft gespeichert werden.');
-  }, [archivListe, history]);
+    speichereLocalStorage('becdra_history', JSON.stringify(history));
+  }, [history]);
 
   useEffect(() => {
-    const gespeichertesArchiv = [...archivListe];
-    try {
-      localStorage.setItem('becdra_saison_archiv', JSON.stringify(gespeichertesArchiv));
-      return;
-    } catch (error) {
-      console.error('Saisonarchiv konnte wegen vollem Speicher nicht gespeichert werden:', error);
-    }
-
-    for (let archivIndex = gespeichertesArchiv.length - 1; archivIndex >= 0; archivIndex -= 1) {
-      const archiv = gespeichertesArchiv[archivIndex];
-      for (let einsatzIndex = archiv.einsätze.length - 1; einsatzIndex >= 0; einsatzIndex -= 1) {
-        const einsatz = archiv.einsätze[einsatzIndex];
-        if (!einsatz.fotoUrl && !einsatz.hindernisFotoUrl) continue;
-        const einsätze = [...archiv.einsätze];
-        einsätze[einsatzIndex] = entferneFotoDaten(einsatz);
-        gespeichertesArchiv[archivIndex] = { ...archiv, einsätze };
-        try {
-          localStorage.setItem('becdra_saison_archiv', JSON.stringify(gespeichertesArchiv));
-          console.warn('Ältere Archivfotos wurden entfernt, damit das Saisonarchiv gespeichert werden kann.');
-          return;
-        } catch (error) {
-          console.error('Saisonarchiv ist trotz Entfernen älterer Fotodaten weiterhin zu groß:', error);
-        }
-      }
-    }
-
-    console.error('Speicher voll: Das Saisonarchiv konnte nicht dauerhaft gespeichert werden.');
+    speichereLocalStorage('becdra_saison_archiv', JSON.stringify(archivListe));
   }, [archivListe]);
 
   useEffect(() => {
@@ -604,11 +538,22 @@ export default function App() {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       fileReader.readAsText(file, "UTF-8");
-      fileReader.onload = (event) => {
+      fileReader.onload = async (event) => {
         try {
           if (event.target && event.target.result) {
             const parsed = JSON.parse(event.target.result as string);
-            if (parsed.kunden) setKunden(parsed.kunden);
+            if (parsed.kunden) {
+              if (!Array.isArray(parsed.kunden) || !parsed.kunden.every((k: Kunde) => k && typeof k.id === 'number' && typeof k.firma === 'string' && typeof k.email === 'string' && typeof k.whatsapp === 'string')) throw new Error('Ungültige Kundenliste.');
+              const garden = await loadGarden();
+              if (garden.objects.some(obj => {
+                const bisher = kunden.find(k => k.id === obj.customerId);
+                return !parsed.kunden.some((k: Kunde) => k.id === obj.customerId && (!bisher || k.firma === bisher.firma));
+              })) {
+                zeigeMeldung('Winterdienst-Backup würde Gartenpflege-Kundenzuordnungen überschreiben. Bitte zuerst Gartenpflege sichern; Import wurde abgebrochen.');
+                return;
+              }
+              setKunden(parsed.kunden);
+            }
             if (parsed.liegenschaften) setLiegenschaften(parsed.liegenschaften);
             if (parsed.history) setHistory(parsed.history);
             if (parsed.lagerBestaende !== undefined) {
@@ -779,7 +724,18 @@ export default function App() {
       text: 'Möchtest du diesen Kunden und alle zugehörigen Liegenschaften wirklich löschen?',
       confirmText: 'Löschen',
       cancelText: 'Abbrechen',
-      onConfirm: () => {
+      onConfirm: async () => {
+        try {
+          const garden = await loadGarden();
+          if (garden.objects.some(obj => obj.customerId === kundeId)) {
+            setDialogConfig(prev => ({ ...prev, visible: false }));
+            zeigeMeldung('Dieser Auftraggeber wird noch von einem Gartenobjekt verwendet und kann nicht gelöscht werden.');
+            return;
+          }
+        } catch {
+          zeigeMeldung('Gartenpflegedaten konnten nicht geprüft werden. Kunde wurde nicht gelöscht.');
+          return;
+        }
         setKunden(prev => prev.filter(k => k.id !== kundeId));
         setLiegenschaften(prev => prev.filter(l => l.kundeId !== kundeId));
         setDialogConfig(prev => ({ ...prev, visible: false }));
@@ -1002,7 +958,7 @@ export default function App() {
   };
 
   const sendeHistorienBericht = (item: EinsatzLog) => {
-    const gefundenerKunde = kunden.find(k => k.firma === item.kundeName);
+    const gefundenerKunde = kunden.find(k => item.kundeId !== undefined ? k.id === item.kundeId : k.firma === item.kundeName);
     const zielWhatsapp = gefundenerKunde ? gefundenerKunde.whatsapp : '+4915100000000';
     const zielEmail = gefundenerKunde ? gefundenerKunde.email : 'kontakt@beispiel.de';
     const hatHindernisFoto = Boolean(item.hindernisFotoUrl);
@@ -1433,6 +1389,8 @@ export default function App() {
 
     const newLog: EinsatzLog = {
       id: Date.now(),
+      kundeId: activeKunde.id,
+      objektId: activeObjekt.id,
       kundeName: activeKunde.firma,
       objName: activeObjekt.name,
       objAddress: activeObjekt.address,
@@ -1807,6 +1765,7 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: bgApp, color: textApp, fontFamily: 'sans-serif', paddingBottom: '90px', transition: 'background-color 0.3s ease' }}>
       
+      {speicherFehler && <div role="alert" style={{ padding: '16px', background: '#7f1d1d', color: '#fff' }}>{speicherFehler}</div>}
       {statusMeldung && (
         <div role="status" aria-live="polite" style={{ position: 'fixed', top: 'max(16px, env(safe-area-inset-top))', left: '50%', transform: 'translateX(-50%)', width: 'max-content', maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box', textAlign: 'center', backgroundColor: '#111827', color: '#ffffff', padding: '14px 20px', borderRadius: '12px', zIndex: 10000, boxShadow: '0 10px 30px rgba(0,0,0,0.35)', fontWeight: 'bold', fontSize: '0.9rem', lineHeight: 1.4, border: '2px solid #8cc63f' }}>
           ✨ {statusMeldung}
@@ -1936,7 +1895,7 @@ export default function App() {
         cancelText={dialogConfig.cancelText}
       />
 
-      <Header lagerBestand={lagerBestaende.Salz} darkMode={darkMode} setDarkMode={setDarkMode} />
+      <Header showWinterStock={activeTab !== 'garten'} lagerBestand={lagerBestaende.Salz} darkMode={darkMode} setDarkMode={setDarkMode} />
 
       <main style={{ maxWidth: '440px', margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
@@ -1981,6 +1940,8 @@ export default function App() {
           />
         ) : (
           <>
+            {activeTab === 'garten' && <GardenPilot kunden={kunden} setKunden={setKunden} liegenschaften={liegenschaften} darkMode={darkMode} onDirty={setGartenUngespeichert} />}
+
             {activeTab === 'tour' && (
               <TourTab
                 startPunkt={startPunkt}
@@ -2133,7 +2094,7 @@ export default function App() {
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '2px solid #8cc63f', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>💾 Datensicherung (Backup)</h2>
                   <p style={{ fontSize: '0.75rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
-                    Sichere deine Kunden und Liegenschaften als Datei, damit beim Aktualisieren niemals Daten verloren gehen.
+                    Diese Sicherung enthält Winterdienstdaten und Kunden. Gartenpflege und Originalfotos bitte zusätzlich im Gartenpflegebereich sichern.
                   </p>
                   
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -2188,7 +2149,7 @@ export default function App() {
 
       <Navigation
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={sichereTabWahl}
         activeObjekt={activeObjekt}
         darkMode={darkMode}
         textSub={textSub}
