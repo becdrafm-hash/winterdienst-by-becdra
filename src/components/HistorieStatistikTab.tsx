@@ -427,7 +427,7 @@ export default function HistorieStatistikTab({
               </label>
             </div>
             <button onClick={saisonArchivieren} style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
-              📦 Winterdienst-Winterdienst-Saison archivieren
+              📦 Winterdienst-Saison archivieren
             </button>
           </section>
 

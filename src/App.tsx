@@ -1,4 +1,15 @@
-import { teileWinterSaison, bereinigeWinterTestdaten, stelleWinterTestdatenWiederHer } from './utils/winterMaintenance';
+import {
+  bereinigeWinterTestdatenAsync,
+  hatWinterBereinigungsSicherung,
+  hatWinterBereinigungsSicherungAsync,
+  istWinterWartungAktiv,
+  stelleWinterTestdatenWiederHerAsync,
+  synchronisiereWinterStateAusStorage as synchronisiereWinterStateGeprueft,
+  teileWinterSaison,
+  WinterWartungsFehler,
+  type WinterSicherungDaten,
+  type WinterWartungsMeldung
+} from './utils/winterMaintenance';
 import { loadGarden } from './garden/storage';
 import GardenPilot from './garden/GardenPilot';
 import React, { useState, useEffect, useRef } from 'react';
@@ -213,6 +224,21 @@ export default function App() {
   }, []);
   const [mehrEinstellungenGeoeffnet, setMehrEinstellungenGeoeffnet] = useState(false);
   const [statusMeldung, setStatusMeldung] = useState<string | null>(null);
+  const [wartungsMeldung, setWartungsMeldung] = useState<WinterWartungsMeldung | null>(null);
+  const [winterWartungLaeuft, setWinterWartungLaeuft] = useState(false);
+  const winterWartungLaeuftRef = useRef(false);
+  const [winterSicherungVorhanden, setWinterSicherungVorhanden] = useState<boolean>(() =>
+    hatWinterBereinigungsSicherung(localStorage)
+  );
+  useEffect(() => {
+    let aktiv = true;
+    void hatWinterBereinigungsSicherungAsync(localStorage).then(vorhanden => {
+      if (aktiv) setWinterSicherungVorhanden(vorhanden);
+    });
+    return () => {
+      aktiv = false;
+    };
+  }, []);
   const [koordinatenWirdErmittelt, setKoordinatenWirdErmittelt] = useState(false);
   const [darkMode, setDarkMode] = useState<boolean>(() =>
     window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -1641,34 +1667,166 @@ export default function App() {
     return `GPS-Routenoptimierung erfolgreich durchgeführt (${geaenderteStopps} Stopps neu sortiert)`;
   };
 
+  const synchronisiereWinterStateAusStorage = (quelle?: WinterSicherungDaten) =>
+    synchronisiereWinterStateGeprueft<EinsatzLog, SaisonArchiv, Kunde, Liegenschaft>(
+      localStorage,
+      {
+        setHistory,
+        setArchivListe,
+        setActiveKunde,
+        setActiveObjekt,
+        setStartTime,
+        setAnkunftTime,
+        setManuelleEndZeit,
+        setArbeitszeitStatus,
+        setGefahreneKm,
+        setAccumulatedKm: km => {
+          accumulatedKmRef.current = km;
+        },
+        setWartungsMeldung
+      },
+      quelle
+    );
+
   const winterTestdatenBereinigen = () => {
+    if (winterWartungLaeuftRef.current || istWinterWartungAktiv()) {
+      setWartungsMeldung({
+        typ: 'fehler',
+        titel: 'Wartung bereits aktiv',
+        text: 'Eine Winterdienst-Wartung (Bereinigung oder Rücknahme) läuft bereits. Bitte warten, bis der Vorgang abgeschlossen ist.',
+        datenStatus: 'unveraendert'
+      });
+      return;
+    }
+
     setDialogConfig({
       visible: true,
       titel: 'Nur Winterdienst-Testeinsätze entfernen',
       text: `${history.length} Winterdiensteinsätze, ${archivListe.length} Winterdienstarchive und ein eventuell laufender Testeinsatz werden entfernt. Kunden, Liegenschaften, Grünpflege, Lager, Preise und Einstellungen bleiben erhalten. Eine lokale Rücknahmesicherung wird vorher angelegt.`,
-      confirmText: 'Winterdienst-Testeinsätze entfernen', cancelText: 'Abbrechen',
-      onConfirm: () => {
+      confirmText: 'Winterdienst-Testeinsätze entfernen',
+      cancelText: 'Abbrechen',
+      onConfirm: async () => {
+        if (winterWartungLaeuftRef.current || istWinterWartungAktiv()) {
+          return;
+        }
+        winterWartungLaeuftRef.current = true;
+        setWinterWartungLaeuft(true);
+        setDialogConfig(prev => ({ ...prev, visible: false }));
         try {
-          bereinigeWinterTestdaten(localStorage);
-          stopGpsTracking(); clearActiveEinsatz(); setHistory([]); setArchivListe([]);
-          setAufgenommenesFoto(null); setAufgenommenesFotoUrl(null); setMaterialVerbrauchKg('');
-          setHindernisNotiz(''); setHindernisFoto(null); setHindernisFotoUrl(null);
-          setDialogConfig(prev => ({ ...prev, visible: false }));
+          const ergebnis = await bereinigeWinterTestdatenAsync(localStorage);
+          stopGpsTracking();
+          const syncErgebnis = synchronisiereWinterStateAusStorage();
+          setAufgenommenesFoto(null);
+          setAufgenommenesFotoUrl(null);
+          setMaterialVerbrauchKg('');
+          setHindernisNotiz('');
+          setHindernisFoto(null);
+          setHindernisFotoUrl(null);
+          setShowActiveRaeumPlanPopup(false);
+          setSpeicherFehler('');
+          setWinterSicherungVorhanden(await hatWinterBereinigungsSicherungAsync(localStorage));
+          if (!syncErgebnis.ok) {
+            return;
+          }
+          const erfolgsText = ergebnis.sicherungsort === 'indexedDB'
+            ? 'Winterdienst-Testeinsätze, Testarchive und ein eventuell laufender Testeinsatz wurden entfernt. Die Rücknahmesicherung wurde vorab in der getrennten IndexedDB gespeichert und verifiziert. Kunden, Liegenschaften, Grünpflege, Lager, Preise und Einstellungen blieben unverändert.'
+            : 'Winterdienst-Testeinsätze, Testarchive und ein eventuell laufender Testeinsatz wurden entfernt. Kunden, Liegenschaften, Grünpflege, Lager, Preise und Einstellungen blieben unverändert. Rücknahme unter „Mehr“ möglich.';
+          setWartungsMeldung({
+            typ: 'erfolg',
+            titel: 'Winterdienst-Testeinsätze entfernt',
+            text: erfolgsText
+          });
           zeigeMeldung('Winterdienst-Testeinsätze entfernt. Kunden, Liegenschaften und Grünpflege bleiben erhalten. Rücknahme unter Mehr möglich.');
-        } catch (error) { zeigeMeldung(`Bereinigung nicht abgeschlossen: ${error instanceof Error ? error.message : 'Speicherfehler'}`); }
+        } catch (error) {
+          const datenStatus = error instanceof WinterWartungsFehler ? error.datenStatus : undefined;
+          let zusatzHinweis = '';
+          if (datenStatus === 'teilweise_veraendert') {
+            const syncErgebnis = synchronisiereWinterStateAusStorage();
+            if (!syncErgebnis.ok) {
+              zusatzHinweis = ` Zudem konnten die verbliebenen Winterdienstdaten nicht fehlerfrei gelesen werden (${syncErgebnis.fehler}); der bisherige Anzeigezustand wurde beibehalten, um ein Überschreiben zu verhindern.`;
+            }
+          }
+          setWinterSicherungVorhanden(await hatWinterBereinigungsSicherungAsync(localStorage));
+          const basisText = error instanceof Error
+            ? error.message
+            : 'Bereinigung nicht abgeschlossen: Speicherfehler. Kunden, Liegenschaften und Grünpflege wurden nicht verändert.';
+          setWartungsMeldung({
+            typ: 'fehler',
+            titel: 'Bereinigung nicht abgeschlossen',
+            text: `${basisText}${zusatzHinweis}`,
+            datenStatus
+          });
+        } finally {
+          winterWartungLaeuftRef.current = false;
+          setWinterWartungLaeuft(false);
+        }
       },
       onCancel: () => setDialogConfig(prev => ({ ...prev, visible: false }))
     });
   };
 
   const winterBereinigungZuruecknehmen = () => {
+    if (winterWartungLaeuftRef.current || istWinterWartungAktiv()) {
+      setWartungsMeldung({
+        typ: 'fehler',
+        titel: 'Wartung bereits aktiv',
+        text: 'Eine Winterdienst-Wartung (Bereinigung oder Rücknahme) läuft bereits. Bitte warten, bis der Vorgang abgeschlossen ist.',
+        datenStatus: 'unveraendert'
+      });
+      return;
+    }
+
     setDialogConfig({
-      visible: true, titel: 'Winterdienst-Bereinigung zurücknehmen',
+      visible: true,
+      titel: 'Winterdienst-Bereinigung zurücknehmen',
       text: 'Der Winterdienststand vor der Bereinigung wird wiederhergestellt. Seitdem erfasste Winterdiensteinsätze werden dabei ersetzt. Kunden, Liegenschaften und Grünpflege bleiben unverändert.',
-      confirmText: 'Vorherigen Winterdienststand wiederherstellen', cancelText: 'Abbrechen',
-      onConfirm: () => {
-        try { stelleWinterTestdatenWiederHer(localStorage); window.location.reload(); }
-        catch (error) { zeigeMeldung(`Wiederherstellung nicht abgeschlossen: ${error instanceof Error ? error.message : 'Speicherfehler'}`); }
+      confirmText: 'Vorherigen Winterdienststand wiederherstellen',
+      cancelText: 'Abbrechen',
+      onConfirm: async () => {
+        if (winterWartungLaeuftRef.current || istWinterWartungAktiv()) {
+          return;
+        }
+        winterWartungLaeuftRef.current = true;
+        setWinterWartungLaeuft(true);
+        setDialogConfig(prev => ({ ...prev, visible: false }));
+        try {
+          await stelleWinterTestdatenWiederHerAsync(localStorage);
+          stopGpsTracking();
+          const syncErgebnis = synchronisiereWinterStateAusStorage();
+          setSpeicherFehler('');
+          setWinterSicherungVorhanden(await hatWinterBereinigungsSicherungAsync(localStorage));
+          if (!syncErgebnis.ok) {
+            return;
+          }
+          setWartungsMeldung({
+            typ: 'erfolg',
+            titel: 'Winterdienststand wiederhergestellt',
+            text: 'Der Winterdienststand vor der Bereinigung wurde vollständig wiederhergestellt. Kunden, Liegenschaften, Grünpflege, Lager, Preise und Einstellungen blieben unverändert.'
+          });
+          zeigeMeldung('Winterdienststand vor der Bereinigung wiederhergestellt.');
+        } catch (error) {
+          const datenStatus = error instanceof WinterWartungsFehler ? error.datenStatus : undefined;
+          let zusatzHinweis = '';
+          if (datenStatus === 'teilweise_veraendert') {
+            const syncErgebnis = synchronisiereWinterStateAusStorage();
+            if (!syncErgebnis.ok) {
+              zusatzHinweis = ` Zudem konnten die verbliebenen Winterdienstdaten nicht fehlerfrei gelesen werden (${syncErgebnis.fehler}); der bisherige Anzeigezustand wurde beibehalten, um ein Überschreiben zu verhindern.`;
+            }
+          }
+          setWinterSicherungVorhanden(await hatWinterBereinigungsSicherungAsync(localStorage));
+          const basisText = error instanceof Error
+            ? error.message
+            : 'Wiederherstellung nicht abgeschlossen: Speicherfehler. Kunden, Liegenschaften und Grünpflege wurden nicht verändert.';
+          setWartungsMeldung({
+            typ: 'fehler',
+            titel: 'Wiederherstellung nicht abgeschlossen',
+            text: `${basisText}${zusatzHinweis}`,
+            datenStatus
+          });
+        } finally {
+          winterWartungLaeuftRef.current = false;
+          setWinterWartungLaeuft(false);
+        }
       },
       onCancel: () => setDialogConfig(prev => ({ ...prev, visible: false }))
     });
@@ -1683,10 +1841,16 @@ export default function App() {
       zeigeMeldung('Bitte einen gültigen allgemeinen Saison-Zeitraum festlegen.');
       return;
     }
+    if (activeObjekt) {
+      zeigeMeldung('Bitte zuerst den laufenden Winterdiensteinsatz abschließen oder abbrechen.');
+      return;
+    }
 
-    if (activeObjekt) { zeigeMeldung('Bitte zuerst den laufenden Winterdiensteinsatz abschließen oder abbrechen.'); return; }
     const { saison, verbleibend } = teileWinterSaison(history, saisonVon, saisonBis);
-    if (saison.length === 0) { zeigeMeldung('Keine Winterdiensteinsätze im gewählten Zeitraum.'); return; }
+    if (saison.length === 0) {
+      zeigeMeldung('Keine Winterdiensteinsätze im gewählten Zeitraum.');
+      return;
+    }
 
     setDialogConfig({
       visible: true,
@@ -1804,6 +1968,54 @@ export default function App() {
     <div style={{ minHeight: '100vh', backgroundColor: bgApp, color: textApp, fontFamily: 'sans-serif', paddingBottom: '90px', transition: 'background-color 0.3s ease' }}>
       
       {speicherFehler && <div role="alert" style={{ padding: '16px', background: '#7f1d1d', color: '#fff' }}>{speicherFehler}</div>}
+      {wartungsMeldung && (
+        <div
+          role={wartungsMeldung.typ === 'fehler' ? 'alert' : 'status'}
+          style={{
+            padding: '14px 16px',
+            backgroundColor: wartungsMeldung.typ === 'fehler' ? (darkMode ? '#451a1a' : '#fef2f2') : (darkMode ? '#1d2b1b' : '#f4fce3'),
+            color: wartungsMeldung.typ === 'fehler' ? (darkMode ? '#fecaca' : '#991b1b') : (darkMode ? '#d9f99d' : '#365314'),
+            borderBottom: '2px solid ' + (wartungsMeldung.typ === 'fehler' ? '#dc2626' : '#8cc63f'),
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+            <strong style={{ fontSize: '0.9rem' }}>
+              {wartungsMeldung.typ === 'fehler' ? '⚠️ ' : '✅ '}
+              {wartungsMeldung.titel}
+            </strong>
+            <button
+              type="button"
+              onClick={() => setWartungsMeldung(null)}
+              style={{
+                background: 'transparent',
+                border: '1px solid currentColor',
+                borderRadius: '6px',
+                color: 'inherit',
+                cursor: 'pointer',
+                fontSize: '0.72rem',
+                fontWeight: 'bold',
+                padding: '3px 8px',
+                flexShrink: 0
+              }}
+            >
+              Hinweis schließen
+            </button>
+          </div>
+          {wartungsMeldung.datenStatus && (
+            <span style={{ fontSize: '0.78rem', fontWeight: 700 }}>
+              {wartungsMeldung.datenStatus === 'unveraendert'
+                ? 'Datenstatus: Unverändert – es wurden keine Daten verändert.'
+                : wartungsMeldung.datenStatus === 'wiederhergestellt'
+                  ? 'Datenstatus: Wiederhergestellt – der vorherige Stand wurde vollständig wiederhergestellt.'
+                  : 'Datenstatus: Teilweise verändert – bitte die Rücknahmesicherung zur Wiederherstellung verwenden.'}
+            </span>
+          )}
+          <span style={{ fontSize: '0.8rem', lineHeight: 1.4 }}>{wartungsMeldung.text}</span>
+        </div>
+      )}
       {statusMeldung && (
         <div role="status" aria-live="polite" style={{ position: 'fixed', top: 'max(16px, env(safe-area-inset-top))', left: '50%', transform: 'translateX(-50%)', width: 'max-content', maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box', textAlign: 'center', backgroundColor: '#111827', color: '#ffffff', padding: '14px 20px', borderRadius: '12px', zIndex: 10000, boxShadow: '0 10px 30px rgba(0,0,0,0.35)', fontWeight: 'bold', fontSize: '0.9rem', lineHeight: 1.4, border: '2px solid #8cc63f' }}>
           ✨ {statusMeldung}
@@ -2131,9 +2343,6 @@ export default function App() {
 
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '2px solid #8cc63f', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>💾 Datensicherung (Backup)</h2>
-                  <button type="button" onClick={winterTestdatenBereinigen}>Nur Winterdienst-Testeinsätze entfernen</button>
-                  <button type="button" onClick={winterBereinigungZuruecknehmen}>Winterdienst-Bereinigung zurücknehmen</button>
-
                   <p style={{ fontSize: '0.75rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
                     Diese Sicherung enthält Winterdienstdaten und Kunden. Gartenpflege und Originalfotos bitte zusätzlich im Gartenpflegebereich sichern.
                   </p>
@@ -2147,6 +2356,51 @@ export default function App() {
                       📤 Backup einspielen
                       <input type="file" accept="application/json,.json,text/plain" onChange={importDatenBackup} style={{ display: 'none' }} />
                     </label>
+                  </div>
+
+                  <div style={{ borderTop: '1px solid ' + borderCard, paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <strong style={{ fontSize: '0.85rem', color: textApp }}>🧹 Winterdienst-Testdaten bereinigen</strong>
+                    <p style={{ fontSize: '0.75rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
+                      Entfernt ausschließlich Winterdienst-Testeinsätze ({history.length}), Winterdienst-Testarchive ({archivListe.length}) und einen eventuell laufenden Testeinsatz. Kunden, Liegenschaften, Grünpflege, Lagerbestände, Preise und Einstellungen bleiben unverändert.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={winterWartungLaeuft}
+                      onClick={winterTestdatenBereinigen}
+                      style={{
+                        backgroundColor: darkMode ? '#14171a' : '#fff7ed',
+                        color: darkMode ? '#fdba74' : '#9a3412',
+                        border: '1px solid #f97316',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        fontWeight: 'bold',
+                        fontSize: '0.8rem',
+                        cursor: winterWartungLaeuft ? 'not-allowed' : 'pointer',
+                        textAlign: 'left',
+                        opacity: winterWartungLaeuft ? 0.6 : 1
+                      }}
+                    >
+                      Nur Winterdienst-Testeinsätze entfernen
+                    </button>
+                    <button
+                      type="button"
+                      disabled={winterWartungLaeuft}
+                      onClick={winterBereinigungZuruecknehmen}
+                      style={{
+                        backgroundColor: darkMode ? '#14171a' : '#f3f4f6',
+                        color: textApp,
+                        border: '1px solid ' + borderCard,
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        fontWeight: 'bold',
+                        fontSize: '0.8rem',
+                        cursor: winterWartungLaeuft ? 'not-allowed' : 'pointer',
+                        textAlign: 'left',
+                        opacity: winterWartungLaeuft ? 0.6 : winterSicherungVorhanden ? 1 : 0.75
+                      }}
+                    >
+                      Winterdienst-Bereinigung zurücknehmen{winterSicherungVorhanden ? ' (Sicherung bereit)' : ''}
+                    </button>
                   </div>
                 </div>
                 </div>
