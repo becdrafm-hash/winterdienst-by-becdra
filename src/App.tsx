@@ -1,3 +1,4 @@
+import { teileWinterSaison, bereinigeWinterTestdaten, stelleWinterTestdatenWiederHer } from './utils/winterMaintenance';
 import { loadGarden } from './garden/storage';
 import GardenPilot from './garden/GardenPilot';
 import React, { useState, useEffect, useRef } from 'react';
@@ -1640,6 +1641,39 @@ export default function App() {
     return `GPS-Routenoptimierung erfolgreich durchgeführt (${geaenderteStopps} Stopps neu sortiert)`;
   };
 
+  const winterTestdatenBereinigen = () => {
+    setDialogConfig({
+      visible: true,
+      titel: 'Nur Winterdienst-Testeinsätze entfernen',
+      text: `${history.length} Winterdiensteinsätze, ${archivListe.length} Winterdienstarchive und ein eventuell laufender Testeinsatz werden entfernt. Kunden, Liegenschaften, Grünpflege, Lager, Preise und Einstellungen bleiben erhalten. Eine lokale Rücknahmesicherung wird vorher angelegt.`,
+      confirmText: 'Winterdienst-Testeinsätze entfernen', cancelText: 'Abbrechen',
+      onConfirm: () => {
+        try {
+          bereinigeWinterTestdaten(localStorage);
+          stopGpsTracking(); clearActiveEinsatz(); setHistory([]); setArchivListe([]);
+          setAufgenommenesFoto(null); setAufgenommenesFotoUrl(null); setMaterialVerbrauchKg('');
+          setHindernisNotiz(''); setHindernisFoto(null); setHindernisFotoUrl(null);
+          setDialogConfig(prev => ({ ...prev, visible: false }));
+          zeigeMeldung('Winterdienst-Testeinsätze entfernt. Kunden, Liegenschaften und Grünpflege bleiben erhalten. Rücknahme unter Mehr möglich.');
+        } catch (error) { zeigeMeldung(`Bereinigung nicht abgeschlossen: ${error instanceof Error ? error.message : 'Speicherfehler'}`); }
+      },
+      onCancel: () => setDialogConfig(prev => ({ ...prev, visible: false }))
+    });
+  };
+
+  const winterBereinigungZuruecknehmen = () => {
+    setDialogConfig({
+      visible: true, titel: 'Winterdienst-Bereinigung zurücknehmen',
+      text: 'Der Winterdienststand vor der Bereinigung wird wiederhergestellt. Seitdem erfasste Winterdiensteinsätze werden dabei ersetzt. Kunden, Liegenschaften und Grünpflege bleiben unverändert.',
+      confirmText: 'Vorherigen Winterdienststand wiederherstellen', cancelText: 'Abbrechen',
+      onConfirm: () => {
+        try { stelleWinterTestdatenWiederHer(localStorage); window.location.reload(); }
+        catch (error) { zeigeMeldung(`Wiederherstellung nicht abgeschlossen: ${error instanceof Error ? error.message : 'Speicherfehler'}`); }
+      },
+      onCancel: () => setDialogConfig(prev => ({ ...prev, visible: false }))
+    });
+  };
+
   const saisonArchivieren = () => {
     if (history.length === 0) {
       zeigeMeldung('Keine Einsätze in der Historie vorhanden.');
@@ -1650,10 +1684,14 @@ export default function App() {
       return;
     }
 
+    if (activeObjekt) { zeigeMeldung('Bitte zuerst den laufenden Winterdiensteinsatz abschließen oder abbrechen.'); return; }
+    const { saison, verbleibend } = teileWinterSaison(history, saisonVon, saisonBis);
+    if (saison.length === 0) { zeigeMeldung('Keine Winterdiensteinsätze im gewählten Zeitraum.'); return; }
+
     setDialogConfig({
       visible: true,
-      titel: 'Saison abschließen',
-      text: `Möchtest du die aktuelle Saison "${saisonName}" jetzt abschließen und ins Archiv verschieben?`,
+      titel: 'Winterdienst-Saison abschließen',
+      text: `${saison.length} Winterdiensteinsätze vom ${saisonVon} bis ${saisonBis} archivieren? ${verbleibend.length} Einsätze außerhalb des Zeitraums bleiben erhalten. Kunden, Liegenschaften und Grünpflege bleiben unverändert.`,
       confirmText: 'Ja, archivieren',
       cancelText: 'Abbrechen',
       onConfirm: () => {
@@ -1661,7 +1699,7 @@ export default function App() {
         let totalKm = 0;
         let totalSprit = 0;
 
-        history.forEach(item => {
+        saison.forEach(item => {
           totalMaterialKg += leseMaterialverbrauchKg(item);
           const kmNum = parseFloat(item.kmGefahren) || 0;
           const spritNum = parseFloat(item.spritKosten.replace(' €', '').replace(',', '.')) || 0;
@@ -1675,7 +1713,7 @@ export default function App() {
           name: saisonName,
           vonDatum: saisonVon,
           bisDatum: saisonBis,
-          einsätze: [...history],
+          einsätze: saison,
           gesamtSaecke: Math.floor(totalMaterialKg / 25),
           gesamtMaterialKg: totalMaterialKg,
           gesamtKm: totalKm,
@@ -1683,7 +1721,7 @@ export default function App() {
         };
 
         setArchivListe(prev => [neuesArchiv, ...prev]);
-        setHistory([]);
+        setHistory(verbleibend);
         setDialogConfig(prev => ({ ...prev, visible: false }));
         zeigeMeldung(`Saison "${saisonName}" erfolgreich archiviert!`);
       },
@@ -2093,6 +2131,9 @@ export default function App() {
 
                 <div style={{ backgroundColor: bgCard, padding: '16px', borderRadius: '16px', border: '2px solid #8cc63f', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: textApp }}>💾 Datensicherung (Backup)</h2>
+                  <button type="button" onClick={winterTestdatenBereinigen}>Nur Winterdienst-Testeinsätze entfernen</button>
+                  <button type="button" onClick={winterBereinigungZuruecknehmen}>Winterdienst-Bereinigung zurücknehmen</button>
+
                   <p style={{ fontSize: '0.75rem', color: textSub, margin: 0, lineHeight: '1.4' }}>
                     Diese Sicherung enthält Winterdienstdaten und Kunden. Gartenpflege und Originalfotos bitte zusätzlich im Gartenpflegebereich sichern.
                   </p>

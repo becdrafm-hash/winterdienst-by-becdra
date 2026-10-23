@@ -376,7 +376,7 @@ export default function HistorieStatistikTab({
               <strong style={{ color: darkMode ? '#fbbf24' : '#92400e', fontSize: '0.82rem' }}>🗓️ Die Wintersaison ist vorbei.</strong>
               <span style={{ color: textApp, fontSize: '0.75rem', lineHeight: 1.4 }}>Möchtest du die Einsätze jetzt ins Archiv verschieben und die neue Saison vorbereiten?</span>
               <button type="button" onClick={saisonArchivieren} style={{ alignSelf: 'flex-start', backgroundColor: '#f59e0b', color: '#111827', border: 'none', borderRadius: '7px', padding: '8px 10px', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer' }}>
-                Saison archivieren
+                Winterdienst-Saison archivieren
               </button>
             </aside>
           )}
@@ -411,7 +411,7 @@ export default function HistorieStatistikTab({
           </section>
 
           <section style={{ backgroundColor: bgCard, padding: '14px', borderRadius: '14px', border: '1px solid ' + borderCard, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1rem', margin: 0 }}>📦 Saison abschließen & Archiv</h2>
+            <h2 style={{ fontWeight: 'bold', color: textApp, fontSize: '1rem', margin: 0 }}>📦 Winterdienst-Saison abschließen & Archiv</h2>
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: textSub }}>
               Saisonbezeichnung
               <input type="text" value={saisonName} onChange={event => setSaisonName(event.target.value)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: '4px', padding: '9px', borderRadius: '7px', border: '1px solid ' + borderCard, backgroundColor: darkMode ? '#14171a' : '#ffffff', color: textApp, fontSize: '0.85rem' }} />
@@ -427,7 +427,7 @@ export default function HistorieStatistikTab({
               </label>
             </div>
             <button onClick={saisonArchivieren} style={{ backgroundColor: '#8cc63f', color: '#111827', padding: '10px', borderRadius: '8px', fontWeight: 'bold', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
-              📦 Aktuelle Saison archivieren
+              📦 Winterdienst-Winterdienst-Saison archivieren
             </button>
           </section>
 
