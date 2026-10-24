@@ -1,4 +1,4 @@
-import { emptyState, type GardenPhoto, type GardenState } from './model';
+import { emptyState, type GardenPhoto, type GardenState } from './model.ts';
 const DB_NAME = 'becdra-gartenpflege-v1';
 let connection: Promise<IDBDatabase> | undefined;
 function database() {
@@ -66,6 +66,18 @@ export function validateGarden(value: unknown): GardenState {
   const date = (x: unknown) => isString(x) && /^\d{4}-\d{2}-\d{2}$/.test(x) && Number.isFinite(new Date(x + 'T12:00').getTime());
   const time = (x: unknown) => isString(x) && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(x) && Number.isFinite(new Date(x).getTime());
   const money = (x: unknown) => isString(x) && (x === '' || (/^\d+(?:[.,]\d{1,2})?$/.test(x) && Number(x.replace(',', '.')) >= 0));
+  const integer = (x: unknown, min: number, max: number) => Number.isInteger(x) && Number(x) >= min && Number(x) <= max;
+  const month = (x: unknown) => integer(x, 1, 12);
+  const toolIds = new Set<string>();
+  if (state.tools !== undefined) {
+    if (!Array.isArray(state.tools)) throw new Error('Ungültige Geräteliste.');
+    for (const tool of state.tools) {
+      if (!tool || !isString(tool.id) || !tool.id || toolIds.has(tool.id) || !isString(tool.name) || !tool.name.trim()) throw new Error('Ungültiges Gerät.');
+      toolIds.add(tool.id);
+    }
+  }
+  if (state.lastExportAt !== undefined && (!isString(state.lastExportAt) || !Number.isFinite(new Date(state.lastExportAt).getTime()))) throw new Error('Ungültiger Exportzeitpunkt.');
+  if (state.lastExportRevision !== undefined && !integer(state.lastExportRevision, 0, Number.MAX_SAFE_INTEGER)) throw new Error('Ungültiger Exportstand.');
   for (const item of state.objects as unknown[]) {
     if (!item || typeof item !== 'object') throw new Error('Ungültiges Objekt.');
     const o = item as Record<string, unknown>;
@@ -79,6 +91,20 @@ export function validateGarden(value: unknown): GardenState {
       || !['hourlyRate', 'machineRate', 'travelRate', 'disposalRate', 'fixedRate'].every(k => money(o[k]))
       || (o.lastVisit !== '' && !date(o.lastVisit))) throw new Error('Objektdaten in der Sicherung sind ungültig.');
     ids.add(String(o.id));
+    if (o.visitIntervalMonths !== undefined && !integer(o.visitIntervalMonths, 1, 12)) throw new Error('Ungültiger Besuchsrhythmus.');
+    if (o.careTasks !== undefined) {
+      if (!Array.isArray(o.careTasks)) throw new Error('Ungültiger Pflegeplan.');
+      const taskIds = new Set<string>();
+      for (const task of o.careTasks) {
+        if (!task || !fields(task, ['id', 'name', 'firstDue']) || !task.id || !task.name.trim() || taskIds.has(task.id)
+          || !['visit', 'interval', 'windows', 'need'].includes(task.mode) || !month(task.seasonStart) || !month(task.seasonEnd)
+          || !integer(task.interval, 1, 52) || !['weeks', 'months'].includes(task.unit) || !integer(task.toleranceDays, 0, 60)
+          || !integer(task.minutes, 0, 1440) || (task.firstDue !== '' && !date(task.firstDue)) || !strings(task.toolIds) || task.toolIds.some((id: string) => !toolIds.has(id))
+          || !Array.isArray(task.windows) || (task.mode === 'windows' && !task.windows.length)
+          || !task.windows.every((w: { startMonth: number; endMonth: number }) => w && month(w.startMonth) && month(w.endMonth))) throw new Error('Pflegeaufgabe ist unvollständig oder ungültig.');
+        taskIds.add(task.id);
+      }
+    }
   }
   for (const key of ['followUps', 'appointments', 'visits']) {
     const recordIds = new Set<string>();
@@ -87,6 +113,9 @@ export function validateGarden(value: unknown): GardenState {
       const r = item as Record<string, unknown>;
       if (!fields(r, ['id', 'objectId']) || !r.id || recordIds.has(String(r.id)) || !ids.has(String(r.objectId))) throw new Error('Ungültige Objektzuordnung.');
       recordIds.add(String(r.id));
+      if (r.taskIds !== undefined && !strings(r.taskIds)) throw new Error('Ungültige Terminaufgaben.');
+      if (r.doneTaskIds !== undefined && !strings(r.doneTaskIds)) throw new Error('Ungültige erledigte Aufgaben.');
+      if (r.appointmentId !== undefined && (!isString(r.appointmentId) || !(state.appointments as Record<string, unknown>[]).some(a => a.id === r.appointmentId && a.objectId === r.objectId))) throw new Error('Ungültige Besuchszuordnung.');
       if (key === 'followUps' && (!fields(r, ['text', 'due', 'createdAt']) || (r.due !== '' && !date(r.due)) || !['open', 'approval', 'approved', 'done', 'discarded'].includes(String(r.status)))) throw new Error('Ungültige Wiedervorlage.');
       if (key === 'appointments' && (!fields(r, ['title', 'note', 'updatedAt']) || !time(r.start) || !time(r.end) || String(r.end) <= String(r.start) || !['planned', 'done', 'cancelled'].includes(String(r.status)))) throw new Error('Ungültiger Termin.');
       if (key === 'visits' && (!fields(r, ['notes', 'createdAt']) || !time(r.start) || !time(r.end) || String(r.end) <= String(r.start) || !strings(r.done) || !strings(r.checklist) || typeof r.machines !== 'boolean' || typeof r.photoShare !== 'boolean'

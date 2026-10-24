@@ -1,4 +1,4 @@
-const CACHE_NAME = 'becdra-fm-shell-v2-garden';
+const CACHE_NAME = 'becdra-fm-shell-v3-care-planning';
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest'];
 
 self.addEventListener('install', event => {

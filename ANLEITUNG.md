@@ -1,4 +1,18 @@
-# Becdra FM – Gartenpflege-Pilot, erste nutzbare Version
+# Becdra FM – Gartenpflege und Winterdienst
+
+## Gartenpflege-Update vom 24.10.2026
+
+- **Übersicht:** Heute geplante Besuche in Uhrzeit-Reihenfolge, passende Aufgaben, Zeitbedarf, „Besuch starten“, Navigation und benötigte Geräte. Darunter offene Freigaben, Wiedervorlagen, nötige Planungen und kommende Besuche.
+- **Objekt → Bearbeiten → Bestand:** Jede Pflegeaufgabe hat einen eigenen Rhythmus: bei jedem Besuch, alle X Wochen/Monate mit Spielraum, jährliche Zeitfenster oder nach Bedarf. Für zweimal jährlichen Heckenschnitt zwei passende Zeitfenster einstellen. Die Monate sind deine Planung, keine automatisch geprüfte Schnittfreigabe.
+- **Objekt → Bearbeiten → Planung:** Der Besuchsrhythmus kann in Wochen oder Kalendermonaten hinterlegt werden. Saison und erlaubte Wochentage bleiben maßgeblich.
+- **Geräte:** Eigene Maschinen, Handwerkzeuge und Zubehör ergänzen und speichern. Anschließend den Pflegeaufgaben im Objekt zuordnen. „Das brauchst du heute“ fasst die Geräte aller heutigen Besuche ohne doppelte Einträge und ohne Abhaken zusammen. Es ist keine automatische Fahrzeugbestandskontrolle.
+- **Termine:** Fällige Aufgaben werden für bestehende Termine vorgeschlagen. Ein Klick auf die Planung eines Objekts öffnet zunächst dessen nächsten vorhandenen Termin. Nur „+ Weiterer Termin“ legt bewusst einen zusätzlichen Termin an. Im Termin kannst du die Arbeitsauswahl ändern oder zur automatischen Auswahl zurückkehren. Überschrittener Zeitbedarf und verpasste Zeitfenster werden angezeigt; verlängere oder verschiebe den gesamten Besuch selbst. Es werden keine zusätzlichen Anfahrten automatisch erzeugt.
+- **Besuche:** Die geplanten Arbeiten bilden die Besuchscheckliste. Nur ausdrücklich als erledigt dokumentierte Aufgaben verschieben ihren eigenen Rhythmus. Beim Speichern wird ein zugeordneter Termin abgeschlossen; unerledigte Aufgaben bleiben für weitere Besuche verfügbar. Beobachtungen und Zusatzfreigaben bleiben separat offen.
+- **Speichern:** Grüne Speicherknöpfe bleiben beim Bearbeiten erreichbar. „Ungespeicherte Änderungen“, „Wird gespeichert“ und „Gespeichert“ zeigen den tatsächlichen Stand. Fotos und Änderungen am Status eines offenen Punkts werden weiterhin direkt gespeichert.
+- **Vorhandene Daten:** Alte Checklisten werden zunächst als Aufgaben bei jedem Besuch dargestellt. Stelle für seltenere Arbeiten selbst den gewünschten Rhythmus ein. Bestehende Fotos, Besuche und Winterdienstdaten bleiben erhalten. Neue Sicherungen enthalten auch Geräte und Pflegeaufgaben; alte Gartenpflege-Sicherungen werden weiterhin akzeptiert.
+- **Datensicherung:** Speicherung weiterhin auf diesem Gerät im Browser. Über den Sicherungshinweis oben die komplette Gartenpflege inklusive Originalfotos exportieren und die heruntergeladene Datei prüfen. Ein vorbereiteter Download bestätigt nicht, dass die Datei sicher abgelegt wurde. Google Drive und Google Kalender sind weiterhin nicht automatisch verbunden.
+
+## Bisherige Grundlagen
 
 Stand: 21.10.2026 · Version 0.1.0
 
@@ -18,7 +32,7 @@ Stand: 21.10.2026 · Version 0.1.0
 
 - **Keine automatische Verbindung zu Google Drive oder Google Kalender.** Sicherungsdateien vorerst selbst in Google Drive hochladen. Die Verbindung muss später mit Google-Anmeldung, Berechtigungen, App-Konfiguration und Zielkalender eingerichtet werden.
 - Die ICS-Kalenderdatei ist ein manueller Export. Spätere Änderungen in der App aktualisieren diese Kopie nicht. Für die gemeinsam mit Ela genutzte Terminplanung ist die automatische Aktualisierung noch nachzurüsten.
-- Keine Hintergrund-/Push-Erinnerungen. „Anstehend“ wird beim Öffnen der App berechnet. Die Browseransicht bei Tageswechsel neu laden.
+- Keine Hintergrund-/Push-Erinnerungen. Die Übersicht wird beim Öffnen und während der Nutzung regelmäßig aktualisiert. Hintergrund-/Push-Erinnerungen sind nicht eingerichtet.
 - Keine Papierkram-Verbindung und keine fertige Rechnungsstellung. Die Beträge sind Rechnungsgrundlagen. Pauschalen und Mischverträge werden hinterlegt, aber noch nicht automatisch mit Zusatzarbeiten abgerechnet oder monatlich gesammelt fakturiert.
 - Noch keine eigene Sprachaufnahme oder KI-Auswertung. Zum Einsprechen von Text das Mikrofon der Handy-Tastatur verwenden.
 - Noch keine Pflanzenbestimmung oder automatische fachliche Bestimmung von Pflanz-/Schnittfenstern.
