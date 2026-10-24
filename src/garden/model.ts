@@ -68,6 +68,16 @@ export interface Appointment {
   updatedAt: string;
   /** Absent: calculate from due work; present: explicit assignment. */
   taskIds?: string[];
+  history?: AppointmentChange[];
+}
+export interface AppointmentChange {
+  action: 'cancelled' | 'rescheduled';
+  reason: string;
+  changedAt: string;
+  previousStart: string;
+  previousEnd: string;
+  newStart?: string;
+  newEnd?: string;
 }
 export interface GardenVisit {
   id: string;

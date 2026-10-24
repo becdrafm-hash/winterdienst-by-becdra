@@ -114,6 +114,9 @@ export function validateGarden(value: unknown): GardenState {
       if (!fields(r, ['id', 'objectId']) || !r.id || recordIds.has(String(r.id)) || !ids.has(String(r.objectId))) throw new Error('Ungültige Objektzuordnung.');
       recordIds.add(String(r.id));
       if (r.taskIds !== undefined && !strings(r.taskIds)) throw new Error('Ungültige Terminaufgaben.');
+      if (key === 'appointments' && r.history !== undefined) {
+        if (!Array.isArray(r.history) || !r.history.every(h => h && ['cancelled', 'rescheduled'].includes(h.action) && isString(h.reason) && h.reason.trim() && isString(h.changedAt) && Number.isFinite(new Date(h.changedAt).getTime()) && time(h.previousStart) && time(h.previousEnd) && h.previousEnd > h.previousStart && (h.action !== 'rescheduled' || (time(h.newStart) && time(h.newEnd) && h.newEnd > h.newStart)))) throw new Error('Ungültiger Änderungsverlauf des Termins.');
+      }
       if (r.doneTaskIds !== undefined && !strings(r.doneTaskIds)) throw new Error('Ungültige erledigte Aufgaben.');
       if (r.appointmentId !== undefined && (!isString(r.appointmentId) || !(state.appointments as Record<string, unknown>[]).some(a => a.id === r.appointmentId && a.objectId === r.objectId))) throw new Error('Ungültige Besuchszuordnung.');
       if (key === 'followUps' && (!fields(r, ['text', 'due', 'createdAt']) || (r.due !== '' && !date(r.due)) || !['open', 'approval', 'approved', 'done', 'discarded'].includes(String(r.status)))) throw new Error('Ungültige Wiedervorlage.');
