@@ -12,6 +12,8 @@ import GardenOverview from './GardenOverview';
 import { chronological, objectTasks, taskTiming, tasksForAppointment } from './carePlanning';
 import type { GardenTool } from './model';
 import { sameDayAppointments } from './appointmentConflicts';
+import { AppointmentReason, CancellationEditor, AppointmentHistory } from './AppointmentActions';
+import { recordAppointmentChange, shiftAppointment } from './appointmentChanges';
 interface Props { kunden: Kunde[]; setKunden: Dispatch<SetStateAction<Kunde[]>>; liegenschaften: Liegenschaft[]; darkMode: boolean; onDirty: (dirty: boolean) => void }
 const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 const DAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
@@ -119,6 +121,8 @@ function calendarFile(appointment: Appointment, obj: GardenObject) {
 export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMode, onDirty }: Props) {
   const [state, setState] = useState<GardenState | null>(null), [photos, setPhotos] = useState<GardenPhoto[]>([]), [error, setError] = useState(''), [status, setStatus] = useState(''), [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<'attention' | 'objects' | 'calendar' | 'backup' | 'tools'>('attention'), [selectedId, setSelectedId] = useState(''), [editing, setEditing] = useState<GardenObject | null>(null), [recording, setRecording] = useState(false), [dirty, setDirty] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null), [cancelReturnDirty, setCancelReturnDirty] = useState(false);
+  const [moving, setMoving] = useState(false), [changeReason, setChangeReason] = useState('');
   const [duplicateChoice, setDuplicateChoice] = useState(false);
   const [recordingAppointment, setRecordingAppointment] = useState<Appointment | null>(null);
   const [clock, setClock] = useState(() => Date.now());
@@ -129,7 +133,7 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
   useEffect(() => { let active = true; void Promise.all([loadGarden(), loadPhotos()]).then(([data, files]) => { if (active) { setState(validateGarden(data)); setPhotos(files); } }).catch(e => { if (active) setError(message(e)); }); return () => { active = false; }; }, []);
   useEffect(() => { if (!dirty) return; const handler = (event: BeforeUnloadEvent) => { event.preventDefault(); }; window.addEventListener('beforeunload', handler); return () => window.removeEventListener('beforeunload', handler); }, [dirty]);
   function markDirty(value: boolean) { setDirty(value); onDirty(value); }
-  const leave = (action: () => void) => { if (dirty && !window.confirm('Ungespeicherte Angaben verwerfen?')) return; markDirty(false); setDuplicateChoice(false); setEditing(null); setRecording(false); setRecordingAppointment(null); setAppointmentEdit(null); setSelectedId(''); setPhotoVisit(''); setNewTask(''); setTaskDue(''); setTaskStatus('open'); action(); };
+  const leave = (action: () => void) => { if (dirty && !window.confirm('Ungespeicherte Angaben verwerfen?')) return; markDirty(false); setDuplicateChoice(false); setCancelTarget(null); setMoving(false); setChangeReason(''); setEditing(null); setRecording(false); setRecordingAppointment(null); setAppointmentEdit(null); setSelectedId(''); setPhotoVisit(''); setNewTask(''); setTaskDue(''); setTaskStatus('open'); action(); };
   async function commit(next: GardenState, added: GardenPhoto[] = [], replacePhotos = false) {
     if (busy) return false;
     setBusy(true); setError(''); setStatus('Wird auf diesem Gerät gespeichert …');
@@ -144,13 +148,14 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
   const obj = state?.objects.find(x => x.id === selectedId);
   const today = dateKey(new Date(clock));
   const openObject = (id: string) => leave(() => { setSelectedId(id); setTab('objects'); });
+  const openAppointment = (appointment: Appointment, move = false) => { setAppointmentEdit({ ...appointment }); setMoving(move); setChangeReason(''); setDuplicateChoice(false); markDirty(false); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const createAppointment = (object: GardenObject, forceNew = false) => {
     const existing = chronological(state?.appointments.filter(a => a.objectId === object.id && a.status === 'planned' && a.start.slice(0, 10) >= today) ?? [])[0];
-    if (existing && !forceNew) { setAppointmentEdit(existing); return; }
+    if (existing && !forceNew) { openAppointment(existing); return; }
     const window = planningWindow(object, state?.visits ?? []);
     const startDay = nextAllowedDay(object, window.start > today ? window.start : today);
     const start = startDay + 'T09:00', end = startDay + 'T11:00';
-    setAppointmentEdit({ id: crypto.randomUUID(), objectId: object.id, title: 'Gartenpflege', start, end, status: 'planned', note: '', updatedAt: new Date().toISOString() });
+    openAppointment({ id: crypto.randomUUID(), objectId: object.id, title: 'Gartenpflege', start, end, status: 'planned', note: '', updatedAt: new Date().toISOString() });
   };
   const objectAppointments = state?.appointments.filter(a => a.objectId === selectedId).sort((a, b) => a.start.localeCompare(b.start)) ?? [];
   const visits = state?.visits.filter(v => v.objectId === selectedId).sort((a, b) => b.end.localeCompare(a.end)) ?? [];
@@ -210,24 +215,34 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
     try { added = await Promise.all(selection.map(async file => ({ id: crypto.randomUUID(), objectId: obj.id, visitId: photoVisit || undefined, category: photoCategory, file, name: file.name, type: file.type, fileModifiedAt: file.lastModified, uploadedAt: new Date().toISOString(), sha256: await checksum(file) }))); } catch (e) { setError(message(e)); return; }
     await commit(state, added);
   }
-  async function cancelAppointment(candidate: Appointment) {
+  function cancelAppointment(candidate: Appointment) {
     if (!state || busy) return;
     const saved = state.appointments.find(a => a.id === candidate.id);
-    if (!saved || saved.status !== 'planned') return;
-    const editingThis = appointmentEdit?.id === saved.id;
-    const name = state.objects.find(o => o.id === saved.objectId)?.name || 'Objekt';
-    const warning = editingThis && dirty ? '\nUngespeicherte Änderungen an diesem Termin werden verworfen.' : '';
-    if (!window.confirm(`Termin absagen?\n${name}\n${formatDate(saved.start)} · ${saved.start.slice(11)}–${saved.end.slice(11)} Uhr${warning}`)) return;
-    if (await commit({ ...state, appointments: state.appointments.map(a => a.id === saved.id ? { ...a, status: 'cancelled' as const, updatedAt: new Date().toISOString() } : a) })) {
-      if (editingThis) { setAppointmentEdit(null); setDuplicateChoice(false); markDirty(false); }
-      setStatus('Termin abgesagt. Aus der aktiven Planung entfernt; in der Historie erhalten.');
+    if (!saved || saved.status === 'done') return;
+    setCancelTarget(saved); setCancelReturnDirty(dirty); window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  async function saveCancellation(reason: string) {
+    if (!state || !cancelTarget) return;
+    const saved = state.appointments.find(a => a.id === cancelTarget.id);
+    if (!saved || saved.status === 'done') return;
+    const next = recordAppointmentChange(saved, { ...saved, status: 'cancelled' }, 'cancelled', reason);
+    if (await commit({ ...state, appointments: state.appointments.map(a => a.id === saved.id ? next : a) })) {
+      setCancelTarget(null);
+      if (appointmentEdit?.id === saved.id) { setMonth(next.start.slice(0, 7)); if (timingChanged) setStatus(`Gespeichert: Termin verschoben auf ${formatDate(next.start)} · ${next.start.slice(11)} Uhr. Grund hinterlegt.`); setAppointmentEdit(null); setDuplicateChoice(false); setMoving(false); setChangeReason(''); markDirty(false); }
+      else markDirty(cancelReturnDirty);
+      setStatus('Absage und Grund gespeichert. In der Historie erhalten.');
     }
   }
+  const originalAppointment = state?.appointments.find(a => a.id === appointmentEdit?.id);
+  const timingChanged = Boolean(originalAppointment && appointmentEdit && (originalAppointment.start !== appointmentEdit.start || originalAppointment.end !== appointmentEdit.end));
+  const cancellingInEditor = Boolean(originalAppointment && appointmentEdit?.status === 'cancelled' && originalAppointment.status !== 'cancelled');
   const appointmentConflicts = state && appointmentEdit ? sameDayAppointments(state.appointments, appointmentEdit) : [];
   const saveAppointment = async (e: { preventDefault: () => void }, allowDuplicate = false) => {
     e.preventDefault(); if (!state || !appointmentEdit) return;
     const target = state.objects.find(o => o.id === appointmentEdit.objectId);
     if (!target || !appointmentEdit.start || !appointmentEdit.end || !Number.isFinite(new Date(appointmentEdit.start).getTime()) || !Number.isFinite(new Date(appointmentEdit.end).getTime()) || appointmentEdit.end <= appointmentEdit.start || !appointmentEdit.title.trim()) { setError('Bitte einen Titel und gültige Start-/Endzeit ergänzen.'); return; }
+    if (moving && !timingChanged) { setError('Bitte einen neuen Zeitpunkt für den Besuch wählen.'); return; }
+    if ((timingChanged || cancellingInEditor) && !changeReason.trim()) { setError('Bitte den Grund für die Änderung eintragen.'); return; }
     if (!allowDuplicate && appointmentConflicts.length) { setDuplicateChoice(true); requestAnimationFrame(() => { const choice = document.getElementById('gp-duplicate-choice'); choice?.focus({ preventScroll: true }); choice?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }); return; }
     if (appointmentEdit.status === 'planned') {
       const start = new Date(appointmentEdit.start);
@@ -236,7 +251,8 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
       if (reasons.length && !window.confirm(reasons.join('\n') + '\nTrotzdem einplanen?')) return;
       if (state.appointments.some(a => a.id !== appointmentEdit.id && a.status === 'planned' && a.start < appointmentEdit.end && a.end > appointmentEdit.start) && !window.confirm('Dieser Termin überschneidet sich mit einem anderen Einsatz. Trotzdem speichern?')) return;
     }
-    const next = { ...appointmentEdit, updatedAt: new Date().toISOString() };
+    const draft = { ...appointmentEdit, updatedAt: new Date().toISOString() };
+    const next = originalAppointment && (timingChanged || cancellingInEditor) ? recordAppointmentChange(originalAppointment, draft, cancellingInEditor ? 'cancelled' : 'rescheduled', changeReason) : draft;
     if (await commit({ ...state, appointments: [...state.appointments.filter(a => a.id !== next.id), next] })) { setAppointmentEdit(null); setDuplicateChoice(false); markDirty(false); }
   };
   if (!state) return <section className="garden-pilot" data-dark={darkMode}><p role={error ? 'alert' : 'status'}>{error || 'Gartenpflegedaten werden geladen …'}</p>{error && <button onClick={() => window.location.reload()}>Erneut laden</button>}</section>;
@@ -246,7 +262,7 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
     <p className={dirty ? "gp-save-status gp-warning" : "gp-save-status"} role="status" aria-live="polite">{busy ? 'Wird gespeichert …' : dirty ? 'Ungespeicherte Änderungen' : status}</p>
     {error && <p role="alert" className="gp-error">{error}</p>}
     <fieldset disabled={busy} className="gp-workspace">
-    {editing ? <ObjectEditor tools={state.tools ?? []} initial={editing} kunden={kunden} liegenschaften={liegenschaften} onDirty={markDirty} addCustomer={addCustomer} onCancel={() => leave(() => setTab('objects'))} onSave={async object => {
+    {cancelTarget ? <CancellationEditor key={cancelTarget.id} appointment={cancelTarget} name={state.objects.find(o => o.id === cancelTarget.objectId)?.name || 'Objekt'} discardsDraft={appointmentEdit?.id === cancelTarget.id && cancelReturnDirty} onDirty={() => markDirty(true)} onBack={() => { setCancelTarget(null); markDirty(cancelReturnDirty); }} onSave={saveCancellation} /> : editing ? <ObjectEditor tools={state.tools ?? []} initial={editing} kunden={kunden} liegenschaften={liegenschaften} onDirty={markDirty} addCustomer={addCustomer} onCancel={() => leave(() => setTab('objects'))} onSave={async object => {
       try { validateGarden({ ...state, objects: [...state.objects.filter(o => o.id !== object.id), object] }); } catch (e) { setError(message(e)); return false; }
       if (await commit({ ...state, objects: [...state.objects.filter(o => o.id !== object.id), object] })) { setEditing(null); setSelectedId(object.id); setTab('objects'); return true; } return false;
     }} /> : recording && obj ? <VisitEditor state={state} appointment={recordingAppointment} obj={obj} onDirty={markDirty} onCancel={() => leave(() => { setSelectedId(obj.id); setTab('objects'); })} onSave={async visit => {
@@ -254,26 +270,28 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
       try { validateGarden(next); } catch (e) { setError(message(e)); return false; }
       if (await commit(next)) { setRecording(false); setRecordingAppointment(null); setPhotoVisit(visit.id); setSelectedId(obj.id); setTab('objects'); return true; } return false;
     }} /> : appointmentEdit ? <form onSubmit={e => void saveAppointment(e)} className="gp-card gp-stack" onChange={() => markDirty(true)}>
-      <div className="gp-heading"><h3>{state.appointments.some(a => a.id === appointmentEdit.id) ? 'Termin bearbeiten' : 'Einsatz planen'}</h3><button type="button" onClick={() => leave(() => setTab('calendar'))}>Schließen</button></div>
-      {state.appointments.some(a => a.id === appointmentEdit.id && a.status === 'planned') && <button type="button" className="gp-text-danger" onClick={() => void cancelAppointment(appointmentEdit)}>Termin absagen</button>}
+      <div className="gp-heading"><h3>{moving ? 'Termin verschieben' : state.appointments.some(a => a.id === appointmentEdit.id) ? 'Termin bearbeiten' : 'Einsatz planen'}</h3><button type="button" onClick={() => leave(() => setTab('calendar'))}>Schließen</button></div>
+      {state.appointments.some(a => a.id === appointmentEdit.id && a.status === 'planned') && <div className="gp-actions">{!moving && <button type="button" onClick={() => setMoving(true)}>Termin verschieben</button>}<button type="button" className="gp-text-danger" onClick={() => cancelAppointment(appointmentEdit)}>Termin absagen</button></div>}
       <p>{state.objects.find(o => o.id === appointmentEdit.objectId)?.name}</p><p className="gp-hint">09–11 Uhr ist nur ein Vorschlag. Noch keine Übertragung zu Google Kalender.</p>
       <Field label="Bezeichnung"><input required value={appointmentEdit.title} onChange={e => setAppointmentEdit({ ...appointmentEdit, title: e.target.value })} /></Field>
-      <DateTimeField label="Beginn" value={appointmentEdit.start} onChange={value => { setAppointmentEdit({ ...appointmentEdit, start: value }); markDirty(true); }} />
+      <DateTimeField label="Beginn" value={appointmentEdit.start} onChange={value => { setAppointmentEdit(shiftAppointment(appointmentEdit, value)); markDirty(true); }} />
       <DateTimeField label="Ende" value={appointmentEdit.end} onChange={value => { setAppointmentEdit({ ...appointmentEdit, end: value }); markDirty(true); }} />
+      {moving && <p className="gp-hint">Beim Ändern des Beginns wird das Ende mit gleicher Dauer mitverschoben. Du kannst das Ende anschließend anpassen.</p>}
+      {(moving || timingChanged || cancellingInEditor) && <section className="gp-notice gp-stack"><h3>Grund für die Änderung</h3>{originalAppointment && <p className="gp-hint">Bisher: {formatDate(originalAppointment.start)} · {originalAppointment.start.slice(11)}–{originalAppointment.end.slice(11)} Uhr. Der bestehende Termin wird aktualisiert.</p>}<AppointmentReason value={changeReason} onChange={value => { setChangeReason(value); markDirty(true); }} /></section>}
       <Field label="Status"><select value={appointmentEdit.status} onChange={e => setAppointmentEdit({ ...appointmentEdit, status: e.target.value as Appointment['status'] })}><option value="planned">Geplant</option><option value="done">Erledigt</option><option value="cancelled">Abgesagt</option></select></Field>
       <Field label="Terminnotiz"><textarea value={appointmentEdit.note} onChange={e => setAppointmentEdit({ ...appointmentEdit, note: e.target.value })} /></Field>
       {state.objects.find(o => o.id === appointmentEdit.objectId) && <AppointmentTasks obj={state.objects.find(o => o.id === appointmentEdit.objectId)!} state={state} appointment={appointmentEdit} onChange={a => { setAppointmentEdit(a); markDirty(true); }} />}
       {duplicateChoice && appointmentConflicts.length > 0 && <section id="gp-duplicate-choice" tabIndex={-1} className="gp-warning gp-stack" aria-labelledby="gp-duplicate-title">
         <h3 id="gp-duplicate-title">Für dieses Objekt besteht an diesem Tag bereits ein Termin.</h3>
         <p>Diesen ändern oder bewusst einen weiteren anlegen?</p>
-        {appointmentConflicts.map(existing => <button type="button" key={existing.id} onClick={() => { setAppointmentEdit({ ...existing }); setDuplicateChoice(false); markDirty(false); }}>Vorhandenen Termin ändern · {existing.start.slice(11)}–{existing.end.slice(11)} Uhr</button>)}
+        {appointmentConflicts.map(existing => <button type="button" key={existing.id} onClick={() => { openAppointment(existing); }}>Vorhandenen Termin ändern · {existing.start.slice(11)}–{existing.end.slice(11)} Uhr</button>)}
         <p className="gp-hint">Beim Öffnen eines vorhandenen Termins wird der aktuelle ungespeicherte Entwurf verworfen.</p>
         <button type="button" onClick={e => void saveAppointment(e, true)}>{state.appointments.some(a => a.id === appointmentEdit.id) ? 'Diesen Termin trotzdem speichern' : 'Bewusst weiteren Termin speichern'}</button>
         <button type="button" onClick={() => setDuplicateChoice(false)}>Zurück zum Entwurf</button>
       </section>}
-      <div className="gp-save-bar"><button className="gp-primary">Termin speichern</button></div>
+      <div className="gp-save-bar"><button className="gp-primary">{moving ? 'Verschiebung speichern' : 'Termin speichern'}</button></div>
     </form> : <>
-      {tab === 'attention' && <GardenOverview onCancel={a => void cancelAppointment(a)} state={state} kunden={kunden} onOpen={openObject} onPlan={createAppointment} onEdit={a => { setAppointmentEdit(a); markDirty(false); }} onStart={a => { setSelectedId(a.objectId); setRecordingAppointment(a); setRecording(true); markDirty(true); }} onCreate={() => { setEditing(newObject()); markDirty(false); }} onTools={() => leave(() => setTab('tools'))} />}
+      {tab === 'attention' && <GardenOverview onMove={a => openAppointment(a, true)} onCancel={a => void cancelAppointment(a)} state={state} kunden={kunden} onOpen={openObject} onPlan={createAppointment} onEdit={a => openAppointment(a)} onStart={a => { setSelectedId(a.objectId); setRecordingAppointment(a); setRecording(true); markDirty(true); }} onCreate={() => { setEditing(newObject()); markDirty(false); }} onTools={() => leave(() => setTab('tools'))} />}
       {tab === 'tools' && <ToolsEditor initial={state.tools ?? []} onDirty={markDirty} onSave={async tools => commit({ ...state, tools })} />}
       {tab === 'objects' && !obj && <div className="gp-stack"><div className="gp-heading"><h3>Deine Gartenobjekte</h3><button className="gp-primary" onClick={() => setEditing(newObject())}>+ Objekt</button></div><Check label="Archivierte Objekte anzeigen" checked={showArchived} onChange={setShowArchived} />{sortedObjects.map(o => <button className="gp-object" key={o.id} onClick={() => openObject(o.id)}><strong>{o.name}{o.archived ? ' · archiviert' : ''}</strong><span>{kunden.find(k => k.id === o.customerId)?.firma || 'Auftraggeber fehlt'}</span><span>{o.address || 'Adresse noch offen'}</span></button>)}{sortedObjects.length === 0 && <p>Noch keine Gartenobjekte erfasst.</p>}</div>}
       {tab === 'objects' && obj && <div className="gp-stack">
@@ -287,12 +305,12 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
         </form></section>
         <section className="gp-card gp-stack"><h3>Originalfotos</h3><p className="gp-hint">Originaldateien bleiben erhalten; eine SHA-256-Prüfsumme wird mitgespeichert. Hochladezeit ist keine bestätigte Aufnahmezeit. Bisher nur auf diesem Gerät; keine automatische Cloudkopie.</p><Field label="Zuordnung"><select value={photoVisit} onChange={e => setPhotoVisit(e.target.value)}><option value="">Objekt / Besichtigung</option>{visits.map(v => <option key={v.id} value={v.id}>Besuch {formatDate(v.start)} · {v.start.slice(11)}</option>)}</select></Field><Field label="Bildart"><select value={photoCategory} onChange={e => setPhotoCategory(e.target.value as GardenPhoto['category'])}><option value="observation">Beobachtung / Bestand</option><option value="before">Vorher</option><option value="after">Nachher</option></select></Field><Field label="Fotos auswählen"><input type="file" accept="image/*" multiple onChange={e => void uploadPhotos(e.currentTarget)} /></Field><Field label="Foto aufnehmen"><input type="file" accept="image/*" capture="environment" onChange={e => void uploadPhotos(e.currentTarget)} /></Field><div className="gp-photos">{photos.filter(p => p.objectId === obj.id && (!photoVisit || p.visitId === photoVisit)).map(p => <Photo key={p.id} photo={p} />)}</div></section>
         <section className="gp-card gp-stack"><h3>Besuchshistorie</h3>{visits.length === 0 && <p>Noch kein Besuch dokumentiert.</p>}{visits.map(v => { const cost = visitCost(v); const priced = Boolean(v.hourlyRate.trim() && (!v.machines || v.machineRate.trim()) && v.travelRate.trim() && (!numberValue(v.disposalTonnes) || v.disposalRate.trim())); return <div className="gp-row" key={v.id}><strong>{formatDate(v.start)} · {v.start.slice(11)}–{v.end.slice(11)} Uhr</strong><p>{cost.hours.toLocaleString('de-DE')} abrechenbare Stunden · {v.billingCycle === 'monthly' ? 'monatlich sammeln' : 'je Besuch abrechnen'}</p><p>Erledigt: {v.done.join(' · ') || 'Keine Checklistenpunkte bestätigt'}</p>{v.checklist.some(x => !v.done.includes(x)) && <p>Beim Besuch nicht erledigt: {v.checklist.filter(x => !v.done.includes(x)).join(' · ')}</p>}{v.notes && <p className="gp-preserve">{v.notes}</p>}{v.billingMode === 'hours' ? <p>Rechnungsgrundlage: {priced ? euro(cost.total) : 'unvollständig – Preise prüfen'}<br /><small>Arbeit {euro(cost.labor)} · Maschinen {euro(cost.machines)} · Fahrt {euro(cost.travel)} · Entsorgung {euro(cost.disposal)}</small></p> : <p>Pauschale / Zusatzarbeiten: Abrechnung anhand der Vereinbarung prüfen.</p>}<p>{photos.filter(p => p.visitId === v.id).length} zugeordnete Fotos{v.photoShare ? ' · Fotos per WhatsApp teilen' : ''}</p></div>; })}</section>
-        <section className="gp-card gp-stack"><h3>Geplante und bisherige Termine</h3>{objectAppointments.map(a => <div className="gp-row" key={a.id}><strong>{formatDate(a.start)} · {a.start.slice(11)}–{a.end.slice(11)} Uhr</strong><p>{a.title} · {{ planned: 'Geplant', done: 'Erledigt', cancelled: 'Abgesagt' }[a.status]}</p><div className="gp-actions"><button onClick={() => setAppointmentEdit(a)}>Termin bearbeiten</button>{a.status === 'planned' && <button className="gp-text-danger" onClick={() => void cancelAppointment(a)}>Termin absagen</button>}</div></div>)}</section>
+        <section className="gp-card gp-stack"><h3>Geplante und bisherige Termine</h3>{objectAppointments.map(a => <div className="gp-row" key={a.id}><strong>{formatDate(a.start)} · {a.start.slice(11)}–{a.end.slice(11)} Uhr</strong><p>{a.title} · {{ planned: 'Geplant', done: 'Erledigt', cancelled: 'Abgesagt' }[a.status]}</p><div className="gp-actions"><button onClick={() => openAppointment(a)}>Termin bearbeiten</button>{a.status === 'planned' && <button onClick={() => openAppointment(a, true)}>Termin verschieben</button>}{a.status === 'planned' && <button className="gp-text-danger" onClick={() => void cancelAppointment(a)}>Termin absagen</button>}</div>{a.status === 'cancelled' && <button onClick={() => cancelAppointment(a)}>Absagegrund ergänzen</button>}<AppointmentHistory appointment={a} /></div>)}</section>
         <button onClick={async () => { if (window.confirm(obj.archived ? 'Objekt wieder aktivieren?' : 'Objekt archivieren? Historie und Fotos bleiben erhalten.')) { if (await commit({ ...state, objects: state.objects.map(o => o.id === obj.id ? { ...o, archived: !o.archived, updatedAt: new Date().toISOString() } : o) })) setSelectedId(''); } }}>{obj.archived ? 'Objekt wieder aktivieren' : 'Objekt archivieren'}</button>
       </div>}
       {tab === 'calendar' && <div className="gp-stack"><h3>Einsatzplanung</h3><details><summary>Kalenderexport und Google Kalender</summary><p className="gp-hint">Noch keine automatische Verbindung. Kalenderdateien (.ics) sind manuelle Kopien ohne automatische Aktualisierung.</p></details><Field label="Monat"><input type="month" value={month} onChange={e => setMonth(e.target.value)} /></Field>
-        <div className="gp-calendar" aria-label="Monatsübersicht">{['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(d => <strong key={d}>{d}</strong>)}{month && Array.from({ length: (new Date(month + '-01T12:00').getDay() + 6) % 7 }, (_, i) => <span key={'space' + i} />)}{month && Array.from({ length: new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate() }, (_, i) => { const date = `${month}-${String(i + 1).padStart(2, '0')}`; const entries = chronological(state.appointments.filter(a => a.start.startsWith(date) && a.status !== 'cancelled')); return <div className={date === today ? 'gp-calday gp-today' : 'gp-calday'} key={date}><span>{i + 1}</span>{entries.map(a => <button key={a.id} aria-label={`${a.start.slice(11)} ${state.objects.find(o => o.id === a.objectId)?.name}`} onClick={() => setAppointmentEdit(a)}>{a.start.slice(11)}</button>)}</div>; })}</div>
-        <h3>Termine im Monat</h3>{state.appointments.filter(a => a.start.startsWith(month)).sort((a, b) => a.start.localeCompare(b.start)).map(a => { const target = state.objects.find(o => o.id === a.objectId); return <section key={a.id} className="gp-card gp-stack"><strong>{formatDate(a.start)} · {a.start.slice(11)}–{a.end.slice(11)}</strong><p>{target?.name} · {a.title}<br />{{ planned: 'Geplant', done: 'Erledigt', cancelled: 'Abgesagt' }[a.status]}</p><div className="gp-actions"><button onClick={() => setAppointmentEdit(a)}>Bearbeiten</button>{a.status === 'planned' && <button className="gp-text-danger" onClick={() => void cancelAppointment(a)}>Termin absagen</button>}{target && a.status === 'planned' && <button onClick={() => calendarFile(a, target)}>Kalenderdatei (.ics)</button>}</div></section>; })}
+        <div className="gp-calendar" aria-label="Monatsübersicht">{['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(d => <strong key={d}>{d}</strong>)}{month && Array.from({ length: (new Date(month + '-01T12:00').getDay() + 6) % 7 }, (_, i) => <span key={'space' + i} />)}{month && Array.from({ length: new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate() }, (_, i) => { const date = `${month}-${String(i + 1).padStart(2, '0')}`; const entries = chronological(state.appointments.filter(a => a.start.startsWith(date) && a.status !== 'cancelled')); return <div className={date === today ? 'gp-calday gp-today' : 'gp-calday'} key={date}><span>{i + 1}</span>{entries.map(a => <button key={a.id} aria-label={`${a.start.slice(11)} ${state.objects.find(o => o.id === a.objectId)?.name}`} onClick={() => openAppointment(a)}>{a.start.slice(11)}</button>)}</div>; })}</div>
+        <h3>Termine im Monat</h3>{state.appointments.filter(a => a.start.startsWith(month)).sort((a, b) => a.start.localeCompare(b.start)).map(a => { const target = state.objects.find(o => o.id === a.objectId); return <section key={a.id} className="gp-card gp-stack"><strong>{formatDate(a.start)} · {a.start.slice(11)}–{a.end.slice(11)}</strong><p>{target?.name} · {a.title}<br />{{ planned: 'Geplant', done: 'Erledigt', cancelled: 'Abgesagt' }[a.status]}</p><div className="gp-actions"><button onClick={() => openAppointment(a)}>Bearbeiten</button>{a.status === 'planned' && <button onClick={() => openAppointment(a, true)}>Termin verschieben</button>}{a.status === 'planned' && <button className="gp-text-danger" onClick={() => void cancelAppointment(a)}>Termin absagen</button>}{target && a.status === 'planned' && <button onClick={() => calendarFile(a, target)}>Kalenderdatei (.ics)</button>}</div>{a.status === 'cancelled' && <button onClick={() => cancelAppointment(a)}>Absagegrund ergänzen</button>}<AppointmentHistory appointment={a} /></section>; })}
         <p className="gp-hint">Neue Einsätze planst du über das jeweilige Objekt. Pflegefenster und Wiedervorlagen findest du unter „Übersicht“; sie sind noch keine festen Termine.</p>
       </div>}
       {tab === 'backup' && <div className="gp-stack"><section className="gp-card gp-stack"><h3>Gartenpflege sichern</h3>{state.lastExportAt && <p className="gp-hint">Letzter Export vorbereitet: {formatDate(state.lastExportAt)}. Bitte gespeicherte Datei selbst prüfen.</p>}<p>{state.objects.length} Objekte · {state.visits.length} Besuche · {photos.length} Originalfotos</p><p className="gp-notice">Google Drive und Google Kalender sind noch nicht verbunden. Diese Version speichert im Browser dieses Geräts. Eine neue Adresse, ein anderer Browser oder gelöschte Websitedaten bedeuten einen anderen beziehungsweise leeren Speicher.</p><button className="gp-primary" onClick={() => void exportBackup()}>Sicherung mit Originalfotos herunterladen</button><p className="gp-hint">Die heruntergeladene JSON-Datei kannst du in Google Drive hochladen. Sie enthält Gartenpflegedaten und Kundenzuordnungen, nicht die Winterdiensthistorie. Winterdienst weiterhin separat unter „Mehr → Backup“ sichern.</p><Field label="Gartenpflege-Sicherung wiederherstellen"><input type="file" accept="application/json,.json" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; void importBackup(file); }} /></Field><button onClick={async () => { try { const granted = await navigator.storage?.persist?.(); setStatus(granted ? 'Dauerhafter Browserspeicher wurde gewährt. Sicherungsdateien bleiben trotzdem erforderlich.' : 'Dauerhafter Browserspeicher wurde nicht gewährt. Regelmäßig exportieren.'); } catch (e) { setError(message(e)); } }}>Dauerhaften Gerätespeicher anfragen</button></section></div>}
