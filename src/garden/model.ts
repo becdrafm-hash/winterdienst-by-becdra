@@ -1,4 +1,19 @@
 export type BillingMode = 'hours' | 'fixed' | 'mixed';
+export interface GardenTool { id: string; name: string }
+export interface CareTask {
+  id: string;
+  name: string;
+  mode: 'visit' | 'interval' | 'windows' | 'need';
+  seasonStart: number;
+  seasonEnd: number;
+  interval: number;
+  unit: 'weeks' | 'months';
+  toleranceDays: number;
+  firstDue: string;
+  windows: { startMonth: number; endMonth: number }[];
+  minutes: number;
+  toolIds: string[];
+}
 export interface GardenObject {
   id: string;
   customerId: number;
@@ -29,6 +44,8 @@ export interface GardenObject {
   disposalRate: string;
   photoShare: boolean;
   checklist: string[];
+  careTasks?: CareTask[];
+  visitIntervalMonths?: number;
   archived: boolean;
   updatedAt: string;
 }
@@ -49,6 +66,8 @@ export interface Appointment {
   status: 'planned' | 'done' | 'cancelled';
   note: string;
   updatedAt: string;
+  /** Absent: calculate from due work; present: explicit assignment. */
+  taskIds?: string[];
 }
 export interface GardenVisit {
   id: string;
@@ -68,6 +87,8 @@ export interface GardenVisit {
   billingCycle: 'visit' | 'monthly';
   photoShare: boolean;
   createdAt: string;
+  doneTaskIds?: string[];
+  appointmentId?: string;
 }
 export interface GardenPhoto {
   id: string;
@@ -88,6 +109,9 @@ export interface GardenState {
   followUps: FollowUp[];
   appointments: Appointment[];
   visits: GardenVisit[];
+  tools?: GardenTool[];
+  lastExportAt?: string;
+  lastExportRevision?: number;
 }
 export const emptyState = (): GardenState => ({ version: 1, revision: 0, objects: [], followUps: [], appointments: [], visits: [] });
 export const INVENTORY = ['Bauernhortensien', 'Schneeballhortensien', 'Eibenhecke', 'Rhododendren', 'Kletterhortensien', 'Rosen', 'Rasen', 'Beete', 'Pflaster / Einfahrt', 'Bewässerung', 'Mähroboter', 'Beleuchtung', 'Dachrinnen'];
@@ -100,6 +124,12 @@ export const newObject = (): GardenObject => ({
 export const dateKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 export const localDateTime = (date = new Date()) => `${dateKey(date)}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 export const addDays = (key: string, days: number) => { const d = new Date(key + 'T12:00:00'); d.setDate(d.getDate() + days); return dateKey(d); };
+export function addMonths(key: string, months: number) {
+  const d = new Date(key + 'T12:00:00'), day = d.getDate();
+  d.setDate(1); d.setMonth(d.getMonth() + months);
+  d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+  return dateKey(d);
+}
 export const inSeason = (obj: GardenObject, month: number) => obj.seasonStart <= obj.seasonEnd ? month >= obj.seasonStart && month <= obj.seasonEnd : month >= obj.seasonStart || month <= obj.seasonEnd;
 export function planningWindow(obj: GardenObject, visits: GardenVisit[], today = dateKey()) {
   const latest = visits.filter(v => v.objectId === obj.id).map(v => v.end.slice(0, 10)).sort().at(-1);
@@ -113,7 +143,8 @@ export function planningWindow(obj: GardenObject, visits: GardenVisit[], today =
     return { start, end: start, reminder, label: today >= reminder ? 'Saisonstart vorbereiten' : 'Saisonpause', paused: true };
   }
   if (!last) return { start: today, end: today, reminder: today, label: 'Ersten Pflegebedarf prüfen', paused: false };
-  const start = addDays(last, obj.intervalMin * 7), end = addDays(last, obj.intervalMax * 7);
+  const start = obj.visitIntervalMonths ? addMonths(last, obj.visitIntervalMonths) : addDays(last, obj.intervalMin * 7);
+  const end = obj.visitIntervalMonths ? addDays(start, 7) : addDays(last, obj.intervalMax * 7);
   return { start, end, reminder: start, label: today > end ? 'Pflegefenster überschritten' : today >= start ? 'Pflegebedarf prüfen' : 'Nächstes Pflegefenster', paused: false };
 }
 export function nextAllowedDay(obj: GardenObject, start: string) {
