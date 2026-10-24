@@ -11,6 +11,7 @@ import AppointmentTasks from './AppointmentTasks';
 import GardenOverview from './GardenOverview';
 import { chronological, objectTasks, taskTiming, tasksForAppointment } from './carePlanning';
 import type { GardenTool } from './model';
+import { sameDayAppointments } from './appointmentConflicts';
 interface Props { kunden: Kunde[]; setKunden: Dispatch<SetStateAction<Kunde[]>>; liegenschaften: Liegenschaft[]; darkMode: boolean; onDirty: (dirty: boolean) => void }
 const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 const DAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
@@ -118,6 +119,7 @@ function calendarFile(appointment: Appointment, obj: GardenObject) {
 export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMode, onDirty }: Props) {
   const [state, setState] = useState<GardenState | null>(null), [photos, setPhotos] = useState<GardenPhoto[]>([]), [error, setError] = useState(''), [status, setStatus] = useState(''), [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<'attention' | 'objects' | 'calendar' | 'backup' | 'tools'>('attention'), [selectedId, setSelectedId] = useState(''), [editing, setEditing] = useState<GardenObject | null>(null), [recording, setRecording] = useState(false), [dirty, setDirty] = useState(false);
+  const [duplicateChoice, setDuplicateChoice] = useState(false);
   const [recordingAppointment, setRecordingAppointment] = useState<Appointment | null>(null);
   const [clock, setClock] = useState(() => Date.now());
   useEffect(() => { const timer = window.setInterval(() => setClock(Date.now()), 60000); return () => window.clearInterval(timer); }, []);
@@ -127,7 +129,7 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
   useEffect(() => { let active = true; void Promise.all([loadGarden(), loadPhotos()]).then(([data, files]) => { if (active) { setState(validateGarden(data)); setPhotos(files); } }).catch(e => { if (active) setError(message(e)); }); return () => { active = false; }; }, []);
   useEffect(() => { if (!dirty) return; const handler = (event: BeforeUnloadEvent) => { event.preventDefault(); }; window.addEventListener('beforeunload', handler); return () => window.removeEventListener('beforeunload', handler); }, [dirty]);
   function markDirty(value: boolean) { setDirty(value); onDirty(value); }
-  const leave = (action: () => void) => { if (dirty && !window.confirm('Ungespeicherte Angaben verwerfen?')) return; markDirty(false); setEditing(null); setRecording(false); setRecordingAppointment(null); setAppointmentEdit(null); setSelectedId(''); setPhotoVisit(''); setNewTask(''); setTaskDue(''); setTaskStatus('open'); action(); };
+  const leave = (action: () => void) => { if (dirty && !window.confirm('Ungespeicherte Angaben verwerfen?')) return; markDirty(false); setDuplicateChoice(false); setEditing(null); setRecording(false); setRecordingAppointment(null); setAppointmentEdit(null); setSelectedId(''); setPhotoVisit(''); setNewTask(''); setTaskDue(''); setTaskStatus('open'); action(); };
   async function commit(next: GardenState, added: GardenPhoto[] = [], replacePhotos = false) {
     if (busy) return false;
     setBusy(true); setError(''); setStatus('Wird auf diesem Gerät gespeichert …');
@@ -208,10 +210,12 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
     try { added = await Promise.all(selection.map(async file => ({ id: crypto.randomUUID(), objectId: obj.id, visitId: photoVisit || undefined, category: photoCategory, file, name: file.name, type: file.type, fileModifiedAt: file.lastModified, uploadedAt: new Date().toISOString(), sha256: await checksum(file) }))); } catch (e) { setError(message(e)); return; }
     await commit(state, added);
   }
-  const saveAppointment = async (e: FormEvent) => {
+  const appointmentConflicts = state && appointmentEdit ? sameDayAppointments(state.appointments, appointmentEdit) : [];
+  const saveAppointment = async (e: { preventDefault: () => void }, allowDuplicate = false) => {
     e.preventDefault(); if (!state || !appointmentEdit) return;
     const target = state.objects.find(o => o.id === appointmentEdit.objectId);
     if (!target || !appointmentEdit.start || !appointmentEdit.end || !Number.isFinite(new Date(appointmentEdit.start).getTime()) || !Number.isFinite(new Date(appointmentEdit.end).getTime()) || appointmentEdit.end <= appointmentEdit.start || !appointmentEdit.title.trim()) { setError('Bitte einen Titel und gültige Start-/Endzeit ergänzen.'); return; }
+    if (!allowDuplicate && appointmentConflicts.length) { setDuplicateChoice(true); requestAnimationFrame(() => { const choice = document.getElementById('gp-duplicate-choice'); choice?.focus({ preventScroll: true }); choice?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }); return; }
     if (appointmentEdit.status === 'planned') {
       const start = new Date(appointmentEdit.start);
       if (target.allowedDays.length && !target.allowedDays.includes(start.getDay())) { setError('Dieser Wochentag ist für das Objekt nicht freigegeben. Bitte Objekteinstellung oder Termin korrigieren.'); return; }
@@ -220,7 +224,7 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
       if (state.appointments.some(a => a.id !== appointmentEdit.id && a.status === 'planned' && a.start < appointmentEdit.end && a.end > appointmentEdit.start) && !window.confirm('Dieser Termin überschneidet sich mit einem anderen Einsatz. Trotzdem speichern?')) return;
     }
     const next = { ...appointmentEdit, updatedAt: new Date().toISOString() };
-    if (await commit({ ...state, appointments: [...state.appointments.filter(a => a.id !== next.id), next] })) { setAppointmentEdit(null); markDirty(false); }
+    if (await commit({ ...state, appointments: [...state.appointments.filter(a => a.id !== next.id), next] })) { setAppointmentEdit(null); setDuplicateChoice(false); markDirty(false); }
   };
   if (!state) return <section className="garden-pilot" data-dark={darkMode}><p role={error ? 'alert' : 'status'}>{error || 'Gartenpflegedaten werden geladen …'}</p>{error && <button onClick={() => window.location.reload()}>Erneut laden</button>}</section>;
   return <div className="garden-pilot" data-dark={darkMode}>
@@ -236,7 +240,7 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
       const next = { ...state, visits: [...state.visits, visit], appointments: state.appointments.map(a => a.id === visit.appointmentId ? { ...a, status: 'done' as const, updatedAt: new Date().toISOString() } : a) };
       try { validateGarden(next); } catch (e) { setError(message(e)); return false; }
       if (await commit(next)) { setRecording(false); setRecordingAppointment(null); setPhotoVisit(visit.id); setSelectedId(obj.id); setTab('objects'); return true; } return false;
-    }} /> : appointmentEdit ? <form onSubmit={saveAppointment} className="gp-card gp-stack" onChange={() => markDirty(true)}>
+    }} /> : appointmentEdit ? <form onSubmit={e => void saveAppointment(e)} className="gp-card gp-stack" onChange={() => markDirty(true)}>
       <div className="gp-heading"><h3>Einsatz planen</h3><button type="button" onClick={() => leave(() => setTab('calendar'))}>Schließen</button></div>
       <p>{state.objects.find(o => o.id === appointmentEdit.objectId)?.name}</p><p className="gp-hint">09–11 Uhr ist nur ein Vorschlag. Noch keine Übertragung zu Google Kalender.</p>
       <Field label="Bezeichnung"><input required value={appointmentEdit.title} onChange={e => setAppointmentEdit({ ...appointmentEdit, title: e.target.value })} /></Field>
@@ -245,6 +249,14 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
       <Field label="Status"><select value={appointmentEdit.status} onChange={e => setAppointmentEdit({ ...appointmentEdit, status: e.target.value as Appointment['status'] })}><option value="planned">Geplant</option><option value="done">Erledigt</option><option value="cancelled">Abgesagt</option></select></Field>
       <Field label="Terminnotiz"><textarea value={appointmentEdit.note} onChange={e => setAppointmentEdit({ ...appointmentEdit, note: e.target.value })} /></Field>
       {state.objects.find(o => o.id === appointmentEdit.objectId) && <AppointmentTasks obj={state.objects.find(o => o.id === appointmentEdit.objectId)!} state={state} appointment={appointmentEdit} onChange={a => { setAppointmentEdit(a); markDirty(true); }} />}
+      {duplicateChoice && appointmentConflicts.length > 0 && <section id="gp-duplicate-choice" tabIndex={-1} className="gp-warning gp-stack" aria-labelledby="gp-duplicate-title">
+        <h3 id="gp-duplicate-title">Für dieses Objekt besteht an diesem Tag bereits ein Termin.</h3>
+        <p>Diesen ändern oder bewusst einen weiteren anlegen?</p>
+        {appointmentConflicts.map(existing => <button type="button" key={existing.id} onClick={() => { setAppointmentEdit({ ...existing }); setDuplicateChoice(false); markDirty(false); }}>Vorhandenen Termin ändern · {existing.start.slice(11)}–{existing.end.slice(11)} Uhr</button>)}
+        <p className="gp-hint">Beim Öffnen eines vorhandenen Termins wird der aktuelle ungespeicherte Entwurf verworfen.</p>
+        <button type="button" onClick={e => void saveAppointment(e, true)}>{state.appointments.some(a => a.id === appointmentEdit.id) ? 'Diesen Termin trotzdem speichern' : 'Bewusst weiteren Termin speichern'}</button>
+        <button type="button" onClick={() => setDuplicateChoice(false)}>Zurück zum Entwurf</button>
+      </section>}
       <div className="gp-save-bar"><button className="gp-primary">Termin speichern</button></div>
     </form> : <>
       {tab === 'attention' && <GardenOverview state={state} kunden={kunden} onOpen={openObject} onPlan={createAppointment} onEdit={a => { setAppointmentEdit(a); markDirty(false); }} onStart={a => { setSelectedId(a.objectId); setRecordingAppointment(a); setRecording(true); markDirty(true); }} onCreate={() => { setEditing(newObject()); markDirty(false); }} onTools={() => leave(() => setTab('tools'))} />}
