@@ -3,10 +3,12 @@ import type { Kunde, Liegenschaft } from '../types';
 import { INVENTORY, addDays, dateKey, euro, inSeason, localDateTime, newObject, nextAllowedDay, numberValue, planningWindow, visitCost, type Appointment, type FollowUp, type GardenObject, type GardenPhoto, type GardenState, type GardenVisit } from './model';
 import { dataUrl, download, loadGarden, loadPhotos, saveGarden, validateGarden } from './storage';
 import './garden.css';
+import DateTimeField from './DateTimeField';
+import { calendarDateLabel } from './calendarDate';
 interface Props { kunden: Kunde[]; setKunden: Dispatch<SetStateAction<Kunde[]>>; liegenschaften: Liegenschaft[]; darkMode: boolean; onDirty: (dirty: boolean) => void }
 const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 const DAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-const formatDate = (key: string) => key ? new Date(key.slice(0, 10) + 'T12:00:00').toLocaleDateString('de-DE') : 'Noch offen';
+const formatDate = (key: string) => key ? calendarDateLabel(key) : 'Noch offen';
 const checksum = async (blob: Blob) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())), b => b.toString(16).padStart(2, '0')).join('');
 const message = (e: unknown) => e instanceof Error ? e.message : 'Vorgang fehlgeschlagen. Bitte erneut versuchen.';
 const followLabels = { open: 'Offen / prüfen', approval: 'Zusage offen', approved: 'Freigegeben', done: 'Erledigt', discarded: 'Verworfen' };
@@ -87,7 +89,7 @@ function VisitEditor({ obj, onSave, onCancel, onDirty }: { obj: GardenObject; on
   return <form className="gp-stack" onChange={() => onDirty(true)} onSubmit={async e => { e.preventDefault(); if (!start || !end || !Number.isFinite(new Date(start).getTime()) || !Number.isFinite(new Date(end).getTime()) || end <= start || end > localDateTime()) { setError('Bitte gültige Start- und Endzeit eingeben. Ende muss nach Beginn liegen und darf nicht in der Zukunft sein.'); return; } if (tonnes && (!/^\d+(?:[.,]\d)?$/.test(tonnes) || numberValue(tonnes) < 0)) { setError('Entsorgung bitte in 0,1-t-Schritten angeben.'); return; } if (await onSave({ ...visit, id: crypto.randomUUID(), createdAt: new Date().toISOString() })) onDirty(false); }}>
     <div className="gp-heading"><h2>Besuch dokumentieren</h2><button type="button" onClick={onCancel}>Schließen</button></div><p>{obj.name}</p>
     {error && <p className="gp-error" role="alert">{error}</p>}
-    <section className="gp-card gp-stack"><Field label="Beginn vor Ort"><input required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} /></Field><Field label="Ende vor Ort"><input required type="datetime-local" value={end} onChange={e => setEnd(e.target.value)} /></Field><button type="button" onClick={() => { setEnd(localDateTime()); onDirty(true); }}>Ende auf jetzt setzen</button>
+    <section className="gp-card gp-stack"><DateTimeField label="Beginn vor Ort" value={start} onChange={value => { setStart(value); onDirty(true); }} /><DateTimeField label="Ende vor Ort" value={end} onChange={value => { setEnd(value); onDirty(true); }} /><button type="button" onClick={() => { setEnd(localDateTime()); onDirty(true); }}>Ende auf jetzt setzen</button>
     <h3>Erledigte Arbeiten</h3>{visit.checklist.length === 0 && <p className="gp-hint">Eine Standard-Checkliste kannst du im Objekt ergänzen.</p>}{visit.checklist.map((text, index) => <Check key={index} label={text} checked={done.includes(text)} onChange={v => setDone(p => v ? [...p, text] : p.filter(x => x !== text))} />)}
     <Field label="Zusätzliche Arbeiten und Beobachtungen"><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Du kannst über das Mikrofon deiner Handy-Tastatur diktieren." /></Field><Check label="Maschinen eingesetzt · gesamte Besuchsdauer berechnen" checked={machines} onChange={setMachines} /><Field label="Geschätzte Entsorgungsmenge (t)"><input inputMode="decimal" value={tonnes} onChange={e => setTonnes(e.target.value)} placeholder="z. B. 0,1" /></Field>
     <details><summary>Preise für diesen Besuch prüfen</summary>{(['hourlyRate', 'machineRate', 'travelRate', 'disposalRate'] as const).map((key, i) => <Field key={key} label={['Arbeit €/h', 'Maschinen €/h', 'Fahrt €', 'Entsorgung €/t'][i]}><input inputMode="decimal" value={rates[key]} onChange={e => setRates(p => ({ ...p, [key]: e.target.value }))} /></Field>)}</details>
@@ -222,8 +224,8 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
       <div className="gp-heading"><h3>Einsatz planen</h3><button type="button" onClick={() => leave(() => setTab('calendar'))}>Schließen</button></div>
       <p>{state.objects.find(o => o.id === appointmentEdit.objectId)?.name}</p><p className="gp-hint">09–11 Uhr ist nur ein Vorschlag. Noch keine Übertragung zu Google Kalender.</p>
       <Field label="Bezeichnung"><input required value={appointmentEdit.title} onChange={e => setAppointmentEdit({ ...appointmentEdit, title: e.target.value })} /></Field>
-      <Field label="Beginn"><input required type="datetime-local" value={appointmentEdit.start} onChange={e => setAppointmentEdit({ ...appointmentEdit, start: e.target.value })} /></Field>
-      <Field label="Ende"><input required type="datetime-local" value={appointmentEdit.end} onChange={e => setAppointmentEdit({ ...appointmentEdit, end: e.target.value })} /></Field>
+      <DateTimeField label="Beginn" value={appointmentEdit.start} onChange={value => { setAppointmentEdit({ ...appointmentEdit, start: value }); markDirty(true); }} />
+      <DateTimeField label="Ende" value={appointmentEdit.end} onChange={value => { setAppointmentEdit({ ...appointmentEdit, end: value }); markDirty(true); }} />
       <Field label="Status"><select value={appointmentEdit.status} onChange={e => setAppointmentEdit({ ...appointmentEdit, status: e.target.value as Appointment['status'] })}><option value="planned">Geplant</option><option value="done">Erledigt</option><option value="cancelled">Abgesagt</option></select></Field>
       <Field label="Terminnotiz"><textarea value={appointmentEdit.note} onChange={e => setAppointmentEdit({ ...appointmentEdit, note: e.target.value })} /></Field>
       <button className="gp-primary">Termin speichern</button>

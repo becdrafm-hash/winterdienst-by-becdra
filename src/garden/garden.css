@@ -51,3 +51,17 @@
 .garden-pilot [hidden]{display:none!important}
 @media(max-width:360px){.gp-columns{grid-template-columns:1fr}.gp-card{padding:12px}.garden-pilot .gp-tabs button{font-size:11px}}
 @media(pointer:coarse){.garden-pilot .gp-calday button{min-height:44px}}
+
+/* Calendar dates stay legible at 320 px, with a separate ISO week column. */
+.gp-datetime{gap:8px;font-size:13px}
+.gp-date-trigger{text-align:left;font-weight:650}
+.gp-date-picker{padding:8px;border:1px solid var(--gp-border);border-radius:10px;background:var(--gp-surface);gap:8px}
+.gp-date-heading{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:4px;text-align:center}
+.gp-date-table{width:100%;table-layout:fixed;border-collapse:collapse;text-align:center;font-size:12px}
+.gp-date-table th{color:var(--gp-sub);font-size:11px;font-weight:600;padding:4px 0}
+.gp-date-table th:first-child{width:25px}
+.gp-date-table td{padding:1px}
+.garden-pilot .gp-date-table button{width:100%;min-height:44px;padding:4px 0;border-radius:6px;font-size:12px}
+.garden-pilot .gp-date-table button[aria-pressed=true]{background:var(--gp-accent);border-color:transparent;color:#14200a;font-weight:700}
+.garden-pilot .gp-date-table button[aria-current=date]{box-shadow:inset 0 0 0 2px var(--gp-accent)}
+.gp-other-month{opacity:.55}
