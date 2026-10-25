@@ -8,6 +8,19 @@ export function objectTasks(obj: GardenObject): CareTask[] {
   }));
 }
 export const newCareTask = (): CareTask => ({ id: crypto.randomUUID(), name: '', mode: 'visit', seasonStart: 1, seasonEnd: 12, interval: 4, unit: 'weeks', toleranceDays: 7, firstDue: '', windows: [], minutes: 0, toolIds: [] });
+export function appendCareTasks(obj: GardenObject, additions: CareTask[]): GardenObject {
+  if (!additions.length) return obj;
+  const tasks = [...objectTasks(obj)];
+  const names = new Set(tasks.map(t => t.name.trim().toLocaleLowerCase('de'))), ids = new Set(tasks.map(t => t.id));
+  for (const task of additions) {
+    const name = task.name.trim();
+    if (!name) throw new Error('Bitte den Namen der neuen Aufgabe eingeben.');
+    if (!Number.isInteger(task.minutes) || task.minutes < 0 || task.minutes > 1440) throw new Error('Bitte einen Zeitbedarf zwischen 0 und 1440 Minuten eingeben.');
+    if (names.has(name.toLocaleLowerCase('de')) || ids.has(task.id)) throw new Error(`„${name}“ ist bereits vorhanden. Bitte die vorhandene Arbeit auswählen.`);
+    names.add(name.toLocaleLowerCase('de')); ids.add(task.id); tasks.push({ ...task, name });
+  }
+  return { ...obj, careTasks: tasks, checklist: tasks.map(t => t.name), updatedAt: new Date().toISOString() };
+}
 export const chronological = <T extends { start: string }>(items: T[]): T[] => [...items].sort((a, b) => a.start.localeCompare(b.start));
 const completedOn = (task: CareTask, visits: GardenVisit[]) => visits.filter(v =>
   v.doneTaskIds ? v.doneTaskIds.includes(task.id) : v.done.includes(task.name)

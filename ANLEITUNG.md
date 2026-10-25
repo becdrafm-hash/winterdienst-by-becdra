@@ -1,5 +1,9 @@
 # Becdra FM – Gartenpflege und Winterdienst
 
+## Aufgaben direkt im Besuch anlegen
+
+Unter den Arbeiten „Neue Aufgabe erstellen“ wählen. Name eingeben; die Aufgabe wird standardmäßig bei diesem Besuch und später nur nach Bedarf verwendet. Alternativ ausdrücklich „Bei jedem Besuch in der Saison“ wählen. Zeitbedarf und Geräte sind optional. „Aufgabe hinzufügen“ übernimmt sie in den Entwurf; „Termin speichern“ sichert Aufgabe und Termin gemeinsam. Auch eine bereits benannte neue Aufgabe wird beim direkten Speichern des Termins mit übernommen. Ohne Speichern werden keine verwaisten Aufgaben angelegt. Die Aufgabe bleibt danach im Objekt verfügbar; weitere Rhythmen lassen sich im Pflegeplan einstellen.
+
 ## Ansichten vereinfacht am 25.10.2026
 
 - „Besuch vorbereiten“ öffnet zuerst die Arbeiten. Zeitpunkt und Terminnotiz sind bei Bedarf aufklappbar. In der Besuchsvorbereitung stehen nur die ausgewählten Arbeiten und optional deren Dauer. Einzelne Arbeiten über × entfernen oder unter „Arbeit hinzufügen“ ergänzen. Die Rhythmen stehen weiterhin im Pflegeplan; Hinweise zur automatischen Auswahl sind eingeklappt.

@@ -75,3 +75,27 @@ test('calendar-month rhythm clamps month ends instead of drifting into the follo
   const obj = { ...object(), lastVisit: '2026-09-24', visitIntervalMonths: 1 };
   assert.equal(planningWindow(obj, [], '2026-10-01').start, '2026-10-24');
 });
+
+test('new visit tasks extend a legacy object without changing stable IDs or old records', async () => {
+  const { appendCareTasks } = await import('../src/garden/carePlanning.ts');
+  const obj = { ...object(), checklist: ['Mähen', 'Laub'] };
+  const before = JSON.stringify(obj), ids = objectTasks(obj).map(t => t.id);
+  const added = task('new', { mode: 'need' });
+  const next = appendCareTasks(obj, [added]);
+  assert.deepEqual(next.careTasks.slice(0, 2).map(t => t.id), ids);
+  assert.equal(next.careTasks.at(-1).mode, 'need');
+  assert.equal(JSON.stringify(obj), before);
+  const state = { ...emptyState(), objects: [next] }, a = appointment('one', '2026-10-24', { taskIds: ['new'] });
+  assert.deepEqual(tasksForAppointment(next, state, a, '2026-10-24').map(t => t.id), ['new']);
+  assert.equal(tasksForAppointment(next, state, appointment('later', '2026-11-24'), '2026-10-24').some(t => t.id === 'new'), false);
+  assert.deepEqual(validateGarden(JSON.parse(JSON.stringify({ ...state, appointments: [a] }))).objects[0].careTasks.at(-1), added);
+});
+
+test('duplicate names and invalid new tasks are rejected without changing the original object', async () => {
+  const { appendCareTasks } = await import('../src/garden/carePlanning.ts');
+  const obj = { ...object(), careTasks: [task('one', { name: 'Rasen mähen' })] }, before = JSON.stringify(obj);
+  assert.throws(() => appendCareTasks(obj, [task('two', { name: ' RASEN MÄHEN ' })]), /bereits vorhanden/);
+  assert.throws(() => appendCareTasks(obj, [task('two'), task('three', { name: 'two' })]), /bereits vorhanden/);
+  assert.throws(() => appendCareTasks(obj, [task('two', { minutes: -1 })]), /Zeitbedarf/);
+  assert.equal(JSON.stringify(obj), before);
+});
