@@ -1,5 +1,12 @@
 # Becdra FM – Gartenpflege und Winterdienst
 
+## Ansichten vereinfacht am 25.10.2026
+
+- „Besuch vorbereiten“ öffnet zuerst die Arbeiten. Zeitpunkt und Terminnotiz sind bei Bedarf aufklappbar. In der Besuchsvorbereitung stehen nur die ausgewählten Arbeiten und optional deren Dauer. Einzelne Arbeiten über × entfernen oder unter „Arbeit hinzufügen“ ergänzen. Die Rhythmen stehen weiterhin im Pflegeplan; Hinweise zur automatischen Auswahl sind eingeklappt.
+- Im Objekt sind Pflegeaufgaben und Freigabe sofort sichtbar. Zugang, Bestand, Vereinbarung, Fotos und Verlauf können bei Bedarf aufgeklappt werden. Neue Beobachtungen lassen sich unter „Offene Punkte und Zusatzarbeiten → Beobachtung oder Zusatzarbeit“ erfassen.
+- „Pflegeplan bearbeiten“ führt direkt zur Aufgabenverwaltung.
+- Offene laufende Pflegefreigaben können direkt auf der Übersicht oder im Objekt über „Pflege freigeben“ nach eigener Bestätigung gespeichert werden. Es wird keine Kundenfreigabe automatisch angenommen. Zusatzarbeiten behalten ihre eigene Freigabe.
+
 ## Gartenpflege-Update vom 24.10.2026
 
 - **Übersicht:** Heute geplante Besuche in Uhrzeit-Reihenfolge, passende Aufgaben, Zeitbedarf, „Besuch starten“, Navigation und benötigte Geräte. Darunter offene Freigaben, Wiedervorlagen, nötige Planungen und kommende Besuche.

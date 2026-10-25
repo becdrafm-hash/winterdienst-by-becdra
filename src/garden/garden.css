@@ -91,3 +91,19 @@
 .garden-pilot .gp-secondary-actions button,.gp-secondary-actions a{font-size:12px;padding:8px;min-height:40px}
 .gp-secondary-actions a{display:flex;align-items:center;color:var(--gp-text);text-decoration:underline}
 .garden-pilot .gp-text-danger{color:var(--gp-error)}
+.gp-appointment-work{font-size:16px}
+.gp-appointment-work .gp-heading{margin:0}
+.gp-work-list{list-style:none;margin:0;padding:0;border-top:1px solid var(--gp-border)}
+.gp-work-list>li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;min-height:54px;border-bottom:1px solid var(--gp-border)}
+.gp-work-time{font-size:14px;color:var(--gp-sub);white-space:nowrap}
+.garden-pilot .gp-work-list button{font-size:23px;padding:4px;width:44px;min-height:44px;border-color:transparent;background:transparent}
+.gp-work-list>li>button:last-child{grid-column:3}
+.garden-pilot .gp-add-work{text-align:left;font-size:16px}
+.garden-pilot .gp-disclosure>summary{font-size:16px;font-weight:600;min-height:44px;padding:10px 0}
+.gp-disclosure[open]>summary{margin-bottom:12px}
+.gp-object-overview{font-size:16px}
+.gp-object-overview .gp-hint{font-size:14px}
+.gp-object-overview .gp-task-list{gap:9px}
+.gp-object-overview .gp-heading{margin-bottom:0}
+.gp-approved{color:var(--gp-text);background:var(--gp-surface);border:1px solid var(--gp-accent);padding:4px 9px;border-radius:20px;font-size:14px}
+.gp-awaiting{color:var(--gp-text);border:1px solid #d49a30;padding:4px 9px;border-radius:20px;font-size:14px}
