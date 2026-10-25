@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { chronological, objectTasks, tasksForAppointment, taskWindow, toolsForAppointments } from './carePlanning';
 import { addDays, dateKey, inSeason, planningWindow, type Appointment, type GardenObject, type GardenState } from './model';
 import { calendarDateLabel } from './calendarDate';
@@ -7,6 +8,7 @@ export default function GardenOverview({ state, kunden, onOpen, onPlan, onEdit, 
   state: GardenState; kunden: Kunde[]; onOpen: (id: string) => void; onPlan: (obj: GardenObject) => void;
   onPrepare: (appointment: Appointment) => void; onEdit: (appointment: Appointment) => void; onAuthorize: (obj: GardenObject) => void; onCancel: (appointment: Appointment) => void; onMove: (appointment: Appointment) => void; onStart: (appointment: Appointment) => void; onCreate: () => void; onTools: () => void;
 }) {
+  const [openVisitId, setOpenVisitId] = useState<string | null>(null);
   const today = dateKey(), objects = state.objects.filter(o => !o.archived);
   const planned = chronological(state.appointments.filter(a => a.status === 'planned' && objects.some(o => o.id === a.objectId)));
   const todays = planned.filter(a => a.start.startsWith(today));
@@ -39,8 +41,11 @@ export default function GardenOverview({ state, kunden, onOpen, onPlan, onEdit, 
       {minutes > 0 && <p className="gp-hint">Ca. {minutes} Min. Arbeit{tasks.some(t => !t.minutes) ? ' · Zeitbedarf teilweise offen' : ''}</p>}
       {minutes > (new Date(a.end).getTime() - new Date(a.start).getTime()) / 60000 && <p className="gp-warning">Die vorgesehenen Arbeiten brauchen länger als der Termin. Bitte den Besuch verlängern oder verschieben.</p>}
       {!obj.authorized && <div className="gp-warning gp-stack"><strong>Pflegefreigabe offen</strong><button onClick={() => onAuthorize(obj)}>Pflege freigeben</button></div>}
-      <button className="gp-primary" onClick={() => a.start.startsWith(today) ? onStart(a) : onPrepare(a)}>{a.start.startsWith(today) ? 'Besuch starten' : 'Besuch vorbereiten'}</button>
-      <div className="gp-actions gp-secondary-actions"><button onClick={() => onMove(a)}>Termin verschieben</button><button onClick={() => onEdit(a)}>Details / ändern</button><button onClick={() => onOpen(obj.id)}>Objektdetails</button><button className="gp-text-danger" onClick={() => onCancel(a)}>Termin absagen</button>{obj.address && <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(obj.address)}`} target="_blank" rel="noreferrer">Navigation</a>}</div>
+      <button className="gp-primary" aria-expanded={openVisitId === a.id} aria-controls={`gp-visit-actions-${a.id}`} onClick={() => setOpenVisitId(openVisitId === a.id ? null : a.id)}>{openVisitId === a.id ? 'Besuch schließen' : 'Besuch öffnen'}</button>
+      <div id={`gp-visit-actions-${a.id}`} className="gp-stack" hidden={openVisitId !== a.id}>
+        <button className="gp-primary" onClick={() => a.start.startsWith(today) ? onStart(a) : onPrepare(a)}>{a.start.startsWith(today) ? 'Besuch starten' : 'Besuch vorbereiten'}</button>
+        <div className="gp-actions gp-secondary-actions"><button onClick={() => onMove(a)}>Termin verschieben</button><button onClick={() => onEdit(a)}>Details / ändern</button><button onClick={() => onOpen(obj.id)}>Objektdetails</button><button className="gp-text-danger" onClick={() => onCancel(a)}>Termin absagen</button>{obj.address && <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(obj.address)}`} target="_blank" rel="noreferrer">Navigation</a>}</div>
+      </div>
     </article>;
   };
   return <div className="gp-stack gp-overview">
