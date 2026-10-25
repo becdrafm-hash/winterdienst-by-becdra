@@ -7,7 +7,7 @@
 .garden-pilot button,.garden-pilot input,.garden-pilot select,.garden-pilot textarea{font:inherit;color:var(--gp-text);background:var(--gp-bg);border:1px solid var(--gp-border);border-radius:9px;padding:10px;max-width:100%}
 .garden-pilot input:not([type=checkbox]),.garden-pilot select,.garden-pilot textarea{width:100%;font-size:16px;min-height:44px}
 .garden-pilot input[type=file]{font-size:13px}
-.garden-pilot button{cursor:pointer;min-height:44px;white-space:normal;overflow-wrap:anywhere}
+.garden-pilot button{cursor:pointer;min-height:44px;white-space:normal;overflow-wrap:normal;word-break:normal;hyphens:none}
 .garden-pilot button:disabled,.garden-pilot fieldset:disabled button{opacity:.6;cursor:wait}
 .garden-pilot button:focus-visible,.garden-pilot input:focus-visible,.garden-pilot textarea:focus-visible,.garden-pilot select:focus-visible{outline:3px solid var(--gp-accent);outline-offset:2px}
 .garden-pilot textarea{min-height:90px;resize:vertical}
@@ -28,7 +28,7 @@
 .gp-error{color:var(--gp-error);padding:12px;border:1px solid currentColor;border-radius:9px;font-size:14px;margin:12px 0!important}
 .gp-notice{background:var(--gp-surface);padding:12px;border-radius:10px;font-size:13px}
 .gp-actions{display:flex;flex-wrap:wrap;gap:8px}
-.gp-actions>button{flex:1}
+.gp-actions>button{flex:1 1 max-content}
 .gp-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .gp-days{border:0;padding:0;display:flex;gap:6px;flex-wrap:wrap}
 .gp-days legend{font-size:13px;margin-bottom:8px}
@@ -88,8 +88,9 @@
 .gp-save-bar>.gp-primary{width:100%}
 .gp-save-bar.gp-actions>.gp-primary{flex-basis:100%}
 .garden-pilot .gp-backup-status{font-size:11px;min-height:36px;padding:7px 9px}
-.garden-pilot .gp-secondary-actions button,.gp-secondary-actions a{font-size:12px;padding:8px;min-height:40px}
-.gp-secondary-actions a{display:flex;align-items:center;color:var(--gp-text);text-decoration:underline}
+.gp-secondary-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:8px}
+.garden-pilot .gp-secondary-actions button,.gp-secondary-actions a{font-size:14px;padding:12px;min-height:48px;line-height:1.4}
+.gp-secondary-actions a{grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:var(--gp-text);border:1px solid var(--gp-border);border-radius:9px;text-decoration:underline;overflow-wrap:normal;word-break:normal;hyphens:none}
 .garden-pilot .gp-text-danger{color:var(--gp-error)}
 .gp-appointment-work{font-size:16px}
 .gp-appointment-work .gp-heading{margin:0}
