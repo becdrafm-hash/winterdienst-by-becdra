@@ -9,8 +9,8 @@ import CareTaskEditor from './CareTaskEditor';
 import ToolsEditor from './ToolsEditor';
 import AppointmentTasks from './AppointmentTasks';
 import GardenOverview from './GardenOverview';
-import { chronological, objectTasks, tasksForAppointment } from './carePlanning';
-import type { GardenTool } from './model';
+import { appendCareTasks, chronological, objectTasks, tasksForAppointment } from './carePlanning';
+import type { CareTask, GardenTool } from './model';
 import { sameDayAppointments } from './appointmentConflicts';
 import { AppointmentReason, CancellationEditor, AppointmentHistory } from './AppointmentActions';
 import { recordAppointmentChange, shiftAppointment } from './appointmentChanges';
@@ -121,6 +121,7 @@ function calendarFile(appointment: Appointment, obj: GardenObject) {
 export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMode, onDirty }: Props) {
   const [state, setState] = useState<GardenState | null>(null), [photos, setPhotos] = useState<GardenPhoto[]>([]), [error, setError] = useState(''), [status, setStatus] = useState(''), [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<'attention' | 'objects' | 'calendar' | 'backup' | 'tools'>('attention'), [selectedId, setSelectedId] = useState(''), [editing, setEditing] = useState<GardenObject | null>(null), [recording, setRecording] = useState(false), [dirty, setDirty] = useState(false);
+  const [appointmentNewTasks, setAppointmentNewTasks] = useState<CareTask[]>([]), [appointmentTaskDraft, setAppointmentTaskDraft] = useState<CareTask | null>(null);
   const [editingStep, setEditingStep] = useState(0);
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null), [cancelReturnDirty, setCancelReturnDirty] = useState(false);
   const [preparing, setPreparing] = useState(false);
@@ -135,7 +136,7 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
   useEffect(() => { let active = true; void Promise.all([loadGarden(), loadPhotos()]).then(([data, files]) => { if (active) { setState(validateGarden(data)); setPhotos(files); } }).catch(e => { if (active) setError(message(e)); }); return () => { active = false; }; }, []);
   useEffect(() => { if (!dirty) return; const handler = (event: BeforeUnloadEvent) => { event.preventDefault(); }; window.addEventListener('beforeunload', handler); return () => window.removeEventListener('beforeunload', handler); }, [dirty]);
   function markDirty(value: boolean) { setDirty(value); onDirty(value); }
-  const leave = (action: () => void) => { if (dirty && !window.confirm('Ungespeicherte Angaben verwerfen?')) return; markDirty(false); setDuplicateChoice(false); setCancelTarget(null); setPreparing(false); setMoving(false); setChangeReason(''); setEditing(null); setRecording(false); setRecordingAppointment(null); setAppointmentEdit(null); setSelectedId(''); setPhotoVisit(''); setNewTask(''); setTaskDue(''); setTaskStatus('open'); action(); };
+  const leave = (action: () => void) => { if (dirty && !window.confirm('Ungespeicherte Angaben verwerfen?')) return; markDirty(false); setDuplicateChoice(false); setCancelTarget(null); setPreparing(false); setAppointmentNewTasks([]); setAppointmentTaskDraft(null); setMoving(false); setChangeReason(''); setEditing(null); setRecording(false); setRecordingAppointment(null); setAppointmentEdit(null); setSelectedId(''); setPhotoVisit(''); setNewTask(''); setTaskDue(''); setTaskStatus('open'); action(); };
   async function commit(next: GardenState, added: GardenPhoto[] = [], replacePhotos = false) {
     if (busy) return false;
     setBusy(true); setError(''); setStatus('Wird auf diesem Gerät gespeichert …');
@@ -157,7 +158,7 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
   const obj = state?.objects.find(x => x.id === selectedId);
   const today = dateKey(new Date(clock));
   const openObject = (id: string) => leave(() => { setSelectedId(id); setTab('objects'); });
-  const openAppointment = (appointment: Appointment, move = false, prepare = false) => { setPreparing(prepare); setAppointmentEdit({ ...appointment }); setMoving(move); setChangeReason(''); setDuplicateChoice(false); markDirty(false); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const openAppointment = (appointment: Appointment, move = false, prepare = false) => { setAppointmentNewTasks([]); setAppointmentTaskDraft(null); setPreparing(prepare); setAppointmentEdit({ ...appointment }); setMoving(move); setChangeReason(''); setDuplicateChoice(false); markDirty(false); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const createAppointment = (object: GardenObject, forceNew = false) => {
     const existing = chronological(state?.appointments.filter(a => a.objectId === object.id && a.status === 'planned' && a.start.slice(0, 10) >= today) ?? [])[0];
     if (existing && !forceNew) { openAppointment(existing); return; }
@@ -237,10 +238,19 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
     const next = recordAppointmentChange(saved, { ...saved, status: 'cancelled' }, 'cancelled', reason);
     if (await commit({ ...state, appointments: state.appointments.map(a => a.id === saved.id ? next : a) })) {
       setCancelTarget(null);
-      if (appointmentEdit?.id === saved.id) { setMonth(next.start.slice(0, 7)); if (timingChanged) setStatus(`Gespeichert: Termin verschoben auf ${formatDate(next.start)} · ${next.start.slice(11)} Uhr. Grund hinterlegt.`); setAppointmentEdit(null); setDuplicateChoice(false); setMoving(false); setChangeReason(''); markDirty(false); }
+      if (appointmentEdit?.id === saved.id) { setMonth(next.start.slice(0, 7)); if (timingChanged) setStatus(`Gespeichert: Termin verschoben auf ${formatDate(next.start)} · ${next.start.slice(11)} Uhr. Grund hinterlegt.`); setAppointmentNewTasks([]); setAppointmentTaskDraft(null); setAppointmentEdit(null); setDuplicateChoice(false); setMoving(false); setChangeReason(''); markDirty(false); }
       else markDirty(cancelReturnDirty);
       setStatus('Absage und Grund gespeichert. In der Historie erhalten.');
     }
+  }
+  const appointmentObject = state?.objects.find(o => o.id === appointmentEdit?.objectId);
+  const appointmentWorkObject = appointmentObject ? { ...appointmentObject, careTasks: [...objectTasks(appointmentObject), ...appointmentNewTasks] } : undefined;
+  function createTaskForAppointment(task: CareTask) {
+    if (!state || !appointmentEdit || !appointmentObject || !appointmentWorkObject) return;
+    try { appendCareTasks(appointmentWorkObject, [task]); } catch (e) { setError(message(e)); return; }
+    const selected = tasksForAppointment(appointmentWorkObject, state, appointmentEdit).map(t => t.id);
+    setAppointmentNewTasks(p => [...p, { ...task, name: task.name.trim() }]);
+    setAppointmentEdit({ ...appointmentEdit, taskIds: [...selected, task.id] }); setAppointmentTaskDraft(null); setError(''); markDirty(true);
   }
   const originalAppointment = state?.appointments.find(a => a.id === appointmentEdit?.id);
   const timingChanged = Boolean(originalAppointment && appointmentEdit && (originalAppointment.start !== appointmentEdit.start || originalAppointment.end !== appointmentEdit.end));
@@ -260,9 +270,13 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
       if (reasons.length && !window.confirm(reasons.join('\n') + '\nTrotzdem einplanen?')) return;
       if (state.appointments.some(a => a.id !== appointmentEdit.id && a.status === 'planned' && a.start < appointmentEdit.end && a.end > appointmentEdit.start) && !window.confirm('Dieser Termin überschneidet sich mit einem anderen Einsatz. Trotzdem speichern?')) return;
     }
-    const draft = { ...appointmentEdit, updatedAt: new Date().toISOString() };
+    let updatedObject = target;
+    const pendingTask = appointmentTaskDraft && (appointmentTaskDraft.name.trim() || appointmentTaskDraft.minutes || appointmentTaskDraft.toolIds.length) ? appointmentTaskDraft : null;
+    try { updatedObject = appendCareTasks(target, [...appointmentNewTasks, ...(pendingTask ? [pendingTask] : [])]); } catch (e) { setError(message(e)); return; }
+    const selectedIds = appointmentWorkObject ? tasksForAppointment(appointmentWorkObject, state, appointmentEdit).map(t => t.id) : [];
+    const draft = { ...appointmentEdit, ...(pendingTask ? { taskIds: [...selectedIds, pendingTask.id] } : {}), updatedAt: new Date().toISOString() };
     const next = originalAppointment && (timingChanged || cancellingInEditor) ? recordAppointmentChange(originalAppointment, draft, cancellingInEditor ? 'cancelled' : 'rescheduled', changeReason) : draft;
-    if (await commit({ ...state, appointments: [...state.appointments.filter(a => a.id !== next.id), next] })) { setAppointmentEdit(null); setDuplicateChoice(false); markDirty(false); }
+    if (await commit({ ...state, objects: state.objects.map(o => o.id === target.id ? updatedObject : o), appointments: [...state.appointments.filter(a => a.id !== next.id), next] })) { setMonth(next.start.slice(0, 7)); setAppointmentNewTasks([]); setAppointmentTaskDraft(null); setAppointmentEdit(null); setDuplicateChoice(false); setMoving(false); setChangeReason(''); markDirty(false); }
   };
   if (!state) return <section className="garden-pilot" data-dark={darkMode}><p role={error ? 'alert' : 'status'}>{error || 'Gartenpflegedaten werden geladen …'}</p>{error && <button onClick={() => window.location.reload()}>Erneut laden</button>}</section>;
   return <div className="garden-pilot" data-dark={darkMode}>
@@ -282,7 +296,7 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
       <div className="gp-heading"><h3>{preparing ? 'Besuch vorbereiten' : moving ? 'Termin verschieben' : state.appointments.some(a => a.id === appointmentEdit.id) ? 'Termin bearbeiten' : 'Einsatz planen'}</h3><button type="button" onClick={() => leave(() => setTab('calendar'))}>Schließen</button></div>
       {state.appointments.some(a => a.id === appointmentEdit.id && a.status === 'planned') && <div className="gp-actions">{!moving && <button type="button" onClick={() => { setPreparing(false); setMoving(true); }}>Termin verschieben</button>}<button type="button" className="gp-text-danger" onClick={() => cancelAppointment(appointmentEdit)}>Termin absagen</button></div>}
       <p>{state.objects.find(o => o.id === appointmentEdit.objectId)?.name}</p>{preparing && <p>{formatDate(appointmentEdit.start)} · {appointmentEdit.start.slice(11)}–{appointmentEdit.end.slice(11)} Uhr</p>}{!originalAppointment && <p className="gp-hint">09–11 Uhr ist nur ein Vorschlag. Noch keine Übertragung zu Google Kalender.</p>}
-      {preparing && state.objects.find(o => o.id === appointmentEdit.objectId) && <AppointmentTasks obj={state.objects.find(o => o.id === appointmentEdit.objectId)!} state={state} appointment={appointmentEdit} onChange={a => { setAppointmentEdit(a); markDirty(true); }} />}
+      {preparing && appointmentWorkObject && <AppointmentTasks obj={appointmentWorkObject} state={state} appointment={appointmentEdit} onChange={a => { setAppointmentEdit(a); markDirty(true); }} draftTask={appointmentTaskDraft} onDraftTask={task => { setAppointmentTaskDraft(task); if (task?.name || task?.minutes || task?.toolIds.length) markDirty(true); }} onCreateTask={createTaskForAppointment} />}
       <details className="gp-disclosure" open={!preparing}><summary>Zeitpunkt und Terminnotiz</summary><div className="gp-stack">
       <Field label="Bezeichnung"><input required value={appointmentEdit.title} onChange={e => setAppointmentEdit({ ...appointmentEdit, title: e.target.value })} /></Field>
       <DateTimeField label="Beginn" value={appointmentEdit.start} onChange={value => { setAppointmentEdit(shiftAppointment(appointmentEdit, value)); markDirty(true); }} />
@@ -292,7 +306,7 @@ export default function GardenPilot({ kunden, setKunden, liegenschaften, darkMod
       <Field label="Status"><select value={appointmentEdit.status} onChange={e => setAppointmentEdit({ ...appointmentEdit, status: e.target.value as Appointment['status'] })}><option value="planned">Geplant</option><option value="done">Erledigt</option><option value="cancelled">Abgesagt</option></select></Field>
       <Field label="Terminnotiz"><textarea value={appointmentEdit.note} onChange={e => setAppointmentEdit({ ...appointmentEdit, note: e.target.value })} /></Field>
       </div></details>
-      {!preparing && state.objects.find(o => o.id === appointmentEdit.objectId) && <AppointmentTasks obj={state.objects.find(o => o.id === appointmentEdit.objectId)!} state={state} appointment={appointmentEdit} onChange={a => { setAppointmentEdit(a); markDirty(true); }} />}
+      {!preparing && appointmentWorkObject && <AppointmentTasks obj={appointmentWorkObject} state={state} appointment={appointmentEdit} onChange={a => { setAppointmentEdit(a); markDirty(true); }} draftTask={appointmentTaskDraft} onDraftTask={task => { setAppointmentTaskDraft(task); if (task?.name || task?.minutes || task?.toolIds.length) markDirty(true); }} onCreateTask={createTaskForAppointment} />}
       {duplicateChoice && appointmentConflicts.length > 0 && <section id="gp-duplicate-choice" tabIndex={-1} className="gp-warning gp-stack" aria-labelledby="gp-duplicate-title">
         <h3 id="gp-duplicate-title">Für dieses Objekt besteht an diesem Tag bereits ein Termin.</h3>
         <p>Diesen ändern oder bewusst einen weiteren anlegen?</p>
