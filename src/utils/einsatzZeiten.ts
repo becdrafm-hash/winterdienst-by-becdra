@@ -41,3 +41,18 @@ export function berechneEinsatzZeiten(
     zeitFensterAnzeige: formatiereEinsatzZeitfenster(startMs, endMs)
   };
 }
+
+export function ermittleVorOrtZeitfenster(einsatz: {
+  zeitFensterAnzeige?: string;
+  ankunftTimestamp?: number;
+  endTimestamp?: number;
+  timestamp?: number;
+}): string {
+  if (typeof einsatz.zeitFensterAnzeige === 'string' && einsatz.zeitFensterAnzeige.trim() !== '') {
+    return einsatz.zeitFensterAnzeige.trim();
+  }
+  return formatiereEinsatzZeitfenster(
+    einsatz.ankunftTimestamp,
+    einsatz.endTimestamp ?? einsatz.timestamp
+  );
+}

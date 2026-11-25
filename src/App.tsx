@@ -29,7 +29,7 @@ import { ermittleLiegenschaftKoordinaten } from './services/liegenschaftGeocodin
 import { normalisiereStreuMittelId, STREUMITTEL, type LagerBestaende, type StreuMittelId } from './constants/streuMittel';
 import { istWochenendeOderFeiertag } from './feiertage';
 import { datumAlsIso, liegtImBetreuungszeitraum } from './utils/saisonZeitraum';
-import { berechneEinsatzZeiten, formatiereEinsatzZeitfenster } from './utils/einsatzZeiten';
+import { berechneEinsatzZeiten, ermittleVorOrtZeitfenster, formatiereEinsatzZeitfenster } from './utils/einsatzZeiten';
 
 const LAGER_KG_MIGRATION_KEY = 'becdra_lager_kg_migration_v1';
 const LAGER_BESTAENDE_KEY = 'becdra_lager_bestaende';
@@ -61,8 +61,6 @@ interface KundenBerichtDaten {
     name: string;
     address: string;
     timestamp: number;
-    startTimestamp?: number;
-    endTimestamp?: number;
     type: Leistungsart;
     zeitFensterAnzeige: string;
     hindernisInfo?: string;
@@ -1001,9 +999,7 @@ export default function App() {
         address: item.objAddress?.trim() || liegenschaft?.address || 'Anschrift nicht hinterlegt',
         timestamp: item.timestamp,
         type: item.type,
-        startTimestamp: item.startTimestamp,
-        endTimestamp: item.endTimestamp ?? item.timestamp,
-        zeitFensterAnzeige: formatiereEinsatzZeitfenster(item.startTimestamp, item.endTimestamp ?? item.timestamp),
+        zeitFensterAnzeige: ermittleVorOrtZeitfenster(item),
         hindernisInfo: item.hindernisInfo
       }]
     };
@@ -1424,6 +1420,7 @@ export default function App() {
       date: endTime.toLocaleDateString('de-DE') + ' ' + endTime.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'}),
       timestamp: endTime.getTime(),
       startTimestamp: startTime.getTime(),
+      ankunftTimestamp: ankunftTime.getTime(),
       endTimestamp: endTime.getTime(),
       wetter: wetterLage,
       type: einsatzType,
@@ -1473,10 +1470,8 @@ export default function App() {
           name: einsatz.objName,
           address: einsatz.objAddress?.trim() || liegenschaft?.address || 'Anschrift nicht hinterlegt',
           timestamp: einsatz.timestamp,
-          startTimestamp: einsatz.startTimestamp,
-          endTimestamp: einsatz.endTimestamp ?? einsatz.timestamp,
           type: einsatz.type,
-          zeitFensterAnzeige: formatiereEinsatzZeitfenster(einsatz.startTimestamp, einsatz.endTimestamp ?? einsatz.timestamp),
+          zeitFensterAnzeige: ermittleVorOrtZeitfenster(einsatz),
           hindernisInfo: einsatz.hindernisInfo
         };
       });

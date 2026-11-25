@@ -50,6 +50,7 @@ export interface EinsatzLog {
   date: string;
   timestamp: number;
   startTimestamp?: number;
+  ankunftTimestamp?: number;
   endTimestamp?: number;
   wetter: string;
   wetterVorOrt?: string;

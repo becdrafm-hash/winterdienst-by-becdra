@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as api from '../src/utils/winterMaintenance.ts';
+import { berechneEinsatzZeiten, ermittleVorOrtZeitfenster, formatiereEinsatzZeitfenster } from '../src/utils/einsatzZeiten.ts';
 import { emptyState, newObject, planningWindow } from '../src/garden/model.ts';
 
 function storage(seed = {}) {
@@ -797,4 +798,43 @@ test('Während einer laufenden asynchronen Wartung kann keine zweite Bereinigung
   // Danach ist die reguläre Rücknahme wieder möglich
   await api.stelleWinterTestdatenWiederHerAsync(s, basisIdb);
   assert.deepEqual(Object.fromEntries(s.map), seed);
+});
+
+test('Kunden-Rückmeldung gibt nur das Vor-Ort-Zeitfenster (Ankunft bis Ende) ohne Anfahrt aus; Gesamt-Tourzeit bleibt intern', () => {
+  const tourStart = new Date('2026-11-25T05:45:00');
+  const ankunftVorOrt = new Date('2026-11-25T06:15:00');
+  const einsatzEnde = new Date('2026-11-25T06:35:00');
+
+  const einsatzZeiten = berechneEinsatzZeiten(ankunftVorOrt, einsatzEnde, 0);
+  const log = {
+    startTimestamp: tourStart.getTime(),
+    ankunftTimestamp: ankunftVorOrt.getTime(),
+    endTimestamp: einsatzEnde.getTime(),
+    timestamp: einsatzEnde.getTime(),
+    echteMinuten: einsatzZeiten.echteMinuten,
+    zeitFensterAnzeige: einsatzZeiten.zeitFensterAnzeige
+  };
+
+  // Kunden-Rückmeldung (WhatsApp / E-Mail): ausschließlich Zeitfenster vor Ort am Objekt (06:15 - 06:35)
+  assert.equal(ermittleVorOrtZeitfenster(log), '06:15 - 06:35');
+  assert.equal(
+    ermittleVorOrtZeitfenster({
+      startTimestamp: tourStart.getTime(),
+      ankunftTimestamp: ankunftVorOrt.getTime(),
+      endTimestamp: einsatzEnde.getTime()
+    }),
+    '06:15 - 06:35'
+  );
+  // Falls auf einem alten Eintrag weder zeitFensterAnzeige noch ankunftTimestamp vorhanden ist,
+  // wird niemals auf startTimestamp (Tourstart inkl. Fahrt) zurückgegriffen:
+  assert.equal(
+    ermittleVorOrtZeitfenster({
+      startTimestamp: tourStart.getTime(),
+      endTimestamp: einsatzEnde.getTime()
+    }),
+    'Nicht erfasst'
+  );
+
+  // Interne Historie / Statistik behält weiterhin die Gesamt-Tourzeit inkl. Fahrt (05:45 - 06:35)
+  assert.equal(formatiereEinsatzZeitfenster(log.startTimestamp, log.endTimestamp), '05:45 - 06:35');
 });
